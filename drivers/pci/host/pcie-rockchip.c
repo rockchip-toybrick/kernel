@@ -629,6 +629,7 @@ static int rockchip_pcie_init_port(struct rockchip_pcie *rockchip)
 		if (err)
 			dev_dbg(dev, "PCIe link training gen2 timeout, fall back to gen1!\n");
 	}
+	mdelay(10);
 
 	/* Check the final link width from negotiated lane counter from MGMT */
 	status = rockchip_pcie_read(rockchip, PCIE_CORE_CTRL);
