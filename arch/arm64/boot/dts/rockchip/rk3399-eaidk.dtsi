@@ -66,13 +66,23 @@
 		vin-supply = <&vcc5v0_sys>;
 	};
 
-	vcc5v0_host: vcc5v0-host-regulator {
+	vcc5v0_host_usb3: vcc5v0-host-usb3-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&host_vbus_drv_usb3>;
+		regulator-name = "vcc5v0_host_usb3";
+		regulator-always-on;
+	};
+
+	vcc5v0_host_usb2: vcc5v0-host-usb2-regulator {
 		compatible = "regulator-fixed";
 		enable-active-high;
 		gpio = <&gpio0 8 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&host_vbus_drv>;
-		regulator-name = "vcc5v0_host";
+		pinctrl-0 = <&host_vbus_drv_usb2>;
+		regulator-name = "vcc5v0_host_usb2";
 		regulator-always-on;
 	};
 
@@ -546,7 +556,7 @@
 	};
 
 	u2phy0_host: host-port {
-		phy-supply = <&vcc5v0_host>;
+		phy-supply = <&vcc5v0_host_usb2>;
 		status = "okay";
 	};
 };
@@ -559,7 +569,7 @@
 	};
 
 	u2phy1_host: host-port {
-		phy-supply = <&vcc5v0_host>;
+		phy-supply = <&vcc5v0_host_usb2>;
 		status = "okay";
 	};
 };
@@ -584,6 +594,7 @@
 &usbdrd_dwc3_1 {
 	status = "okay";
 	dr_mode = "host";
+	phy-supply = <&vcc5v0_host_usb2>;
 };
 
 &usb_host0_ehci {
@@ -654,10 +665,14 @@
 	};
 	
 
-	usb2 {
-		host_vbus_drv: host-vbus-drv {
+	usb {
+		host_vbus_drv_usb3: host-vbus-drv-usb3 {
 			rockchip,pins =
 				<0 6 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+		host_vbus_drv_usb2: host-vbus-drv-usb2 {
+			rockchip,pins =
+				<0 8 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
