@@ -48,5 +48,92 @@
 
 / {
 	compatible = "rockchip,rk3399-eaidk-edp","rockchip,rk3399";
+	panel: panel {
+		compatible = "simple-panel";
+		backlight = <&backlight>;
+		enable-gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
+		//reset-gpios = <&gpio4 30 GPIO_ACTIVE_HIGH>;
+		prepare-delay-ms = <20>;
+		enable-delay-ms = <20>;
+		//reset-delay-ms = <20>;
+
+		display-timings {
+			native-mode = <&timing0>;
+
+			timing0: timing0 {
+				clock-frequency = <200000000>;
+				hactive = <1536>;
+				vactive = <2048>;
+				hfront-porch = <12>;
+				hsync-len = <16>;
+				hback-porch = <48>;
+				vfront-porch = <8>;
+				vsync-len = <4>;
+				vback-porch = <8>;
+				hsync-active = <0>;
+				vsync-active = <0>;
+				de-active = <0>;
+				pixelclk-active = <0>;
+			};
+		};
+
+		ports {
+			panel_in: endpoint {
+				remote-endpoint = <&edp_out>;
+			};
+		};
+	};
 };
 
+&pwm0 {
+        status = "okay";
+};
+
+&backlight {
+	status = "okay";
+};
+
+&edp {
+	status = "okay";
+	force-hpd;
+
+	ports {
+		port@1 {
+			reg = <1>;
+
+			edp_out: endpoint {
+				remote-endpoint = <&panel_in>;
+			};
+		};
+	};
+};
+
+&route_edp {
+	status = "okay";
+	connect = <&vopl_out_edp>;
+};
+
+&gt1x {
+	status = "disabled";
+};
+
+&edp_in_vopl {
+	status = "disabled";
+};
+
+&edp_in_vopb {
+	status = "okay";
+};
+
+&i2c4 {
+	status = "okay";
+
+	gsl3673: gsl3673@40 {
+		compatible = "GSL,GSL3673";
+		reg = <0x40>;
+		screen_max_x = <1536>;
+		screen_max_y = <2048>;
+		irq_gpio_number = <&gpio1 20 IRQ_TYPE_LEVEL_LOW>;
+		rst_gpio_number = <&gpio4 22 GPIO_ACTIVE_HIGH>;
+	};
+};
