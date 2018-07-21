@@ -48,7 +48,32 @@
 
 / {
 	compatible = "rockchip,rk3399-eaidk-mipi","rockchip,rk3399";
+	rk_headset: rk-headset {
+                compatible = "rockchip_headset";
+                headset_gpio = <&gpio4 28 GPIO_ACTIVE_HIGH>;
+                pinctrl-names = "default";
+                pinctrl-0 = <&hp_det>;
+                io-channels = <&saradc 2>;
+        };
+};
 
+&saradc {
+        status = "okay";
+};
+
+&hdmi_dp_sound {
+        status = "okay";
+};
+
+&cdn_dp {
+        status = "okay";
+        extcon = <&fusb0>;
+        phys = <&tcphy0_dp>;
+ };
+ 
+&i2s2 {
+        status = "okay";
+        #sound-dai-cells = <0>;
 };
 
 &pwm0 {

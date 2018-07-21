@@ -46,7 +46,27 @@
 
 / {
 	compatible = "rockchip,rk3399-eaidk","rockchip,rk3399";
-
+	rt5651-sound {
+                status="okay";
+                compatible = "simple-audio-card";
+                simple-audio-card,format = "i2s";
+                simple-audio-card,name = "realtek,rt5651-codec";
+                simple-audio-card,mclk-fs = <256>;
+                simple-audio-card,widgets =
+                        "Microphone", "Mic Jack",
+                        "Headphone", "Headphone Jack";
+                simple-audio-card,routing =
+                        "Mic Jack", "MICBIAS1",
+                        "IN1P", "Mic Jack",
+                        "Headphone Jack", "HPOL",
+                        "Headphone Jack", "HPOR";
+                simple-audio-card,cpu {
+                        sound-dai = <&i2s1>;
+                };
+                simple-audio-card,codec {
+                        sound-dai = <&rt5651>;
+                };
+        };
 	vcc5v0_sys: vcc5v0-sys {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc5v0_sys";
@@ -205,6 +225,32 @@
 			248 249 250 251 252 253 254 255>;
 			default-brightness-level = <200>;
 	};
+};
+
+&i2c1 {
+        status = "okay";
+        i2c-scl-rising-time-ns = <300>;
+        i2c-scl-falling-time-ns = <15>;
+        clock-frequency=<400000>;
+        rt5651: rt5651@1a {
+                #sound-dai-cells = <0>;
+                compatible = "rockchip,rt5651";
+                reg = <0x1a>;
+                clocks = <&cru SCLK_I2S_8CH_OUT>;
+                clock-names = "mclk";
+                pinctrl-names = "default";
+                pinctrl-0 = <&i2s_8ch_mclk>;
+                spk-con-gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
+                hp-det-gpio = <&gpio4 28 GPIO_ACTIVE_LOW>;
+        };
+};
+
+&i2s1 {
+        status = "okay";
+        rockchip,i2s-broken-burst-len;
+        rockchip,playback-channels = <2>;
+        rockchip,capture-channels = <2>;
+        #sound-dai-cells = <0>;
 };
 
 &i2c0 {
@@ -778,5 +824,10 @@
 			rockchip,pins = <2 19 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
+        headphone {
+                hp_det: hp-det {
+                        rockchip,pins = <4 28 RK_FUNC_GPIO &pcfg_pull_up>;
+                };
+        }; 
 };
 
