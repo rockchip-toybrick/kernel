@@ -955,19 +955,19 @@ static int xr_usb_serial_tty_ioctl(struct tty_struct *tty,
                 if (get_user(val, (int __user *)(arg + 2 * sizeof(int))))
                         return -EFAULT;
 
-			if (channel == -1)
-			{
-				rv = xr_usb_serial_set_reg(xr_usb_serial,reg, val);
-			}
-			else
-			{
-			 	rv = xr_usb_serial_set_reg_ext(xr_usb_serial,channel,reg, val);
+		if (channel == -1)
+		{
+			rv = xr_usb_serial_set_reg(xr_usb_serial,reg, val);
+		}
+		else
+		{
+			 rv = xr_usb_serial_set_reg_ext(xr_usb_serial,channel,reg, val);
 				
-			}
-		    if (rv < 0)
-               return -EFAULT;  
-			rv = 0;
-            break;
+		}
+		if (rv < 0)
+			return -EFAULT;  
+		rv = 0;
+		break;
 	case XR_USB_SERIAL_LOOPBACK:
 		     if (get_user(channel, (int __user *)arg))
                         return -EFAULT;
