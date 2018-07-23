@@ -50,7 +50,7 @@
 	compatible = "rockchip,rk3399-eaidk-mipi","rockchip,rk3399";
 	rk_headset: rk-headset {
                 compatible = "rockchip_headset";
-                headset_gpio = <&gpio4 28 GPIO_ACTIVE_HIGH>;
+                headset_gpio = <&gpio4 28 GPIO_ACTIVE_LOW>;
                 pinctrl-names = "default";
                 pinctrl-0 = <&hp_det>;
                 io-channels = <&saradc 2>;
