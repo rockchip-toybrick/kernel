@@ -49,12 +49,28 @@
 / {
 	compatible = "rockchip,rk3399-eaidk-mipi","rockchip,rk3399";
 	rk_headset: rk-headset {
-                compatible = "rockchip_headset";
-                headset_gpio = <&gpio4 28 GPIO_ACTIVE_LOW>;
-                pinctrl-names = "default";
-                pinctrl-0 = <&hp_det>;
-                io-channels = <&saradc 2>;
-        };
+		compatible = "rockchip_headset";
+		headset_gpio = <&gpio4 28 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hp_det>;
+		io-channels = <&saradc 2>;
+	};
+	
+	hdmi_codec: hdmi-codec {
+		status="disabled";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "HDMI-CODEC";
+
+		simple-audio-card,cpu {
+			sound-dai = <&i2s2>;
+		};
+
+		simple-audio-card,codec {
+			sound-dai = <&hdmi>;
+		};
+	};
 };
 
 &saradc {
@@ -69,7 +85,18 @@
         status = "okay";
         extcon = <&fusb0>;
         phys = <&tcphy0_dp>;
- };
+};
+
+&hdmi_codec {
+        status = "disabled";
+};
+
+&hdmi {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        #sound-dai-cells = <0>;
+        status = "disabled";
+};
  
 &i2s2 {
         status = "okay";
