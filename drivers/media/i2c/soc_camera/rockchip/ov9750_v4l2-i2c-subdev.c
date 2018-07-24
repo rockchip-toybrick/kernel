@@ -333,6 +333,8 @@ static struct ov_camera_module_config ov9750_configs[] = {
 		.reg_table_num_entries =
 			ARRAY_SIZE(ov9750_init_tab_1280_960_60fps),
 		.v_blanking_time_us = 3078,
+		.max_exp_gain_h = 16,
+		.max_exp_gain_l = 0,
 		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 800, OV9750_EXT_CLK)
 	}
 };
@@ -772,6 +774,8 @@ static int ov9750_g_timings(struct ov_camera_module *cam_mod,
 			cam_mod->active_config->frm_intrvl.interval.denominator
 			* vts
 			* timings->line_length_pck;
+
+	timings->frame_length_lines = vts;
 	return ret;
 err:
 	ov_camera_module_pr_err(cam_mod,
@@ -795,17 +799,6 @@ static int ov9750_s_ctrl(struct ov_camera_module *cam_mod, u32 ctrl_id)
 	case V4L2_CID_FLASH_LED_MODE:
 		/* nothing to be done here */
 		break;
-	case V4L2_CID_FOCUS_ABSOLUTE:
-		/* todo*/
-		break;
-	/*
-	 * case RK_V4L2_CID_FPS_CTRL:
-	 * if (cam_mod->auto_adjust_fps)
-	 * ret = OV9750_auto_adjust_fps(
-	 * cam_mod,
-	 * cam_mod->exp_config.exp_time);
-	 * break;
-	 */
 	default:
 		ret = -EINVAL;
 		break;
@@ -825,13 +818,8 @@ static int ov9750_s_ext_ctrls(struct ov_camera_module *cam_mod,
 	int ret = 0;
 
 	/* Handles only exposure and gain together special case. */
-	if (ctrls->count == 1)
-		ret = ov9750_s_ctrl(cam_mod, ctrls->ctrls[0].id);
-	else if ((ctrls->count >= 3) &&
-		(ctrls->ctrls[0].id == V4L2_CID_GAIN ||
-		ctrls->ctrls[0].id == V4L2_CID_EXPOSURE ||
-		ctrls->ctrls[1].id == V4L2_CID_GAIN ||
-		ctrls->ctrls[1].id == V4L2_CID_EXPOSURE))
+	if ((ctrls->ctrls[0].id == V4L2_CID_GAIN ||
+		ctrls->ctrls[0].id == V4L2_CID_EXPOSURE))
 		ret = ov9750_write_aec(cam_mod);
 	else
 		ret = -EINVAL;
@@ -938,6 +926,7 @@ static struct v4l2_subdev_core_ops ov9750_camera_module_core_ops = {
 
 static struct v4l2_subdev_video_ops ov9750_camera_module_video_ops = {
 	.s_frame_interval = ov_camera_module_s_frame_interval,
+	.g_frame_interval = ov_camera_module_g_frame_interval,
 	.s_stream = ov_camera_module_s_stream
 };
 
@@ -961,10 +950,12 @@ static struct ov_camera_module_custom_config ov9750_custom_config = {
 	.s_ext_ctrls = ov9750_s_ext_ctrls,
 	.g_timings = ov9750_g_timings,
 	.set_flip = ov9750_set_flip,
+	.s_vts = OV9750_auto_adjust_fps,
 	.check_camera_id = ov9750_check_camera_id,
 	.configs = ov9750_configs,
 	.num_configs = ARRAY_SIZE(ov9750_configs),
-	.power_up_delays_ms = {5, 30, 30}
+	.power_up_delays_ms = {5, 30, 30},
+	.exposure_valid_frame = {4, 4}
 };
 
 static int ov9750_probe(struct i2c_client *client,
