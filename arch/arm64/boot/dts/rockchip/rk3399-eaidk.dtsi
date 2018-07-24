@@ -275,7 +275,7 @@
                 pinctrl-names = "default";
                 pinctrl-0 = <&i2s_8ch_mclk>;
                 spk-con-gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
-                hp-det-gpio = <&gpio4 28 GPIO_ACTIVE_LOW>;
+                hp-det-gpio = <&gpio4 28 GPIO_ACTIVE_HIGH>;
         };
 };
 
@@ -862,7 +862,7 @@
 	};
         headphone {
                 hp_det: hp-det {
-                        rockchip,pins = <4 28 RK_FUNC_GPIO &pcfg_pull_down>;
+                        rockchip,pins = <4 28 RK_FUNC_GPIO &pcfg_pull_up>;
                 };
         }; 
 	gpio-leds {
