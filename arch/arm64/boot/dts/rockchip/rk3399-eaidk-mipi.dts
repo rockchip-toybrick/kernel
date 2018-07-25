@@ -51,11 +51,11 @@
 	rk_headset: rk-headset {
 		compatible = "rockchip_headset";
 		headset_gpio = <&gpio4 28 GPIO_ACTIVE_HIGH>;
+		spk_con_gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&hp_det>;
 		io-channels = <&saradc 2>;
 	};
-
 /*
 	hdmi_codec: hdmi-codec {
 		status="okay";
@@ -88,7 +88,6 @@
         extcon = <&fusb0>;
         phys = <&tcphy0_dp>;
 };
-
 /*
 &hdmi_codec {
         status = "okay";
