@@ -163,6 +163,13 @@ static irqreturn_t headset_interrupt(int irq, void *dev_id)
 		DBG("---- ERROR: on headset headset_insert_type error -----\n");
 		break;			
 	}
+	if (headset_info->headset_status==HEADSET_IN) {
+		gpio_set_value(pdata->spk_con_gpio, false);
+		printk("spk set false\n");
+	} else {
+		gpio_set_value(pdata->spk_con_gpio, true);
+		printk("spk set true\n");
+	}
 	if(old_status == headset_info->headset_status)
 	{
 		DBG("Read Headset IO level old status == now status =%d\n",headset_info->headset_status);
@@ -276,7 +283,6 @@ static void hook_once_work(struct work_struct *work)
         }
 	else
 		DBG("hook_once_work read adc value: %d\n",val);
-
 	if(val >= 0 && val < HOOK_LEVEL_LOW)
 	{
 		headset_info->isMic= 0;//No microphone

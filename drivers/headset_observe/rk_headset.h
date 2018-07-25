@@ -11,6 +11,7 @@
 struct rk_headset_pdata{
 //heaset about
 	unsigned int headset_gpio;
+	unsigned int spk_con_gpio;
 	unsigned int headset_insert_type;//	Headphones into the state level
 //hook about
 	unsigned int hook_gpio;

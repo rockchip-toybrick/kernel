@@ -33,7 +33,7 @@
 #else
 #define DBG(x...) do { } while (0)
 #endif
-
+#define INVALID_GPIO -1
 struct rk_headset_pdata *pdata_info;
 
 static int rockchip_headset_probe(struct platform_device *pdev)
@@ -69,8 +69,28 @@ static int rockchip_headset_probe(struct platform_device *pdev)
 			printk("%s() gpio_direction_input headset_gpio set ERROR\n", __FUNCTION__);
 			goto err;
 		}
-
 		pdata->headset_insert_type = (flags & OF_GPIO_ACTIVE_LOW) ? HEADSET_IN_LOW : HEADSET_IN_HIGH;
+	}
+
+	//spk
+	ret = of_get_named_gpio_flags(node, "spk_con_gpio", 0, &flags);
+	if (ret < 0) {
+		printk("%s() Can not read property spk_con_gpio\n", __FUNCTION__);
+		goto err;
+	} else {
+		pdata->spk_con_gpio = ret;
+		ret = devm_gpio_request(&pdev->dev, pdata->spk_con_gpio, "spk_con_gpio");
+		if(ret < 0){
+			printk("%s() devm_gpio_request spk_con_gpio request ERROR\n", __FUNCTION__);
+			goto err;
+		}
+
+		ret = gpio_direction_output(pdata->spk_con_gpio,0); 
+		if(ret < 0){
+			printk("%s() gpio_direction_input headset_gpio set ERROR\n", __FUNCTION__);
+			goto err;
+		}
+		gpio_set_value(pdata->spk_con_gpio, true);
 	}
 
 	//hook
