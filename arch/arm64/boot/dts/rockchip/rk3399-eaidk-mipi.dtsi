@@ -40,70 +40,8 @@
  *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
-/dts-v1/;
-
-#include "rk3399-eaidk.dtsi"
-#include "rk3399-android.dtsi"
-#include "rk3399-vop-clk-set.dtsi"
-
 / {
 	compatible = "rockchip,rk3399-eaidk-mipi","rockchip,rk3399";
-	rk_headset: rk-headset {
-		compatible = "rockchip_headset";
-		headset_gpio = <&gpio4 28 GPIO_ACTIVE_HIGH>;
-		spk_con_gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&hp_det>;
-		io-channels = <&saradc 2>;
-	};
-/*
-	hdmi_codec: hdmi-codec {
-		status="okay";
-		compatible = "simple-audio-card";
-		simple-audio-card,format = "i2s";
-		simple-audio-card,mclk-fs = <256>;
-		simple-audio-card,name = "HDMI-CODEC";
-
-		simple-audio-card,cpu {
-			sound-dai = <&i2s2>;
-		};
-
-		simple-audio-card,codec {
-			sound-dai = <&hdmi>;
-		};
-	};
-*/
-};
-
-&saradc {
-        status = "okay";
-};
-
-&hdmi_dp_sound {
-        status = "okay";
-};
-
-&cdn_dp {
-        status = "okay";
-        extcon = <&fusb0>;
-        phys = <&tcphy0_dp>;
-};
-/*
-&hdmi_codec {
-        status = "okay";
-};
-
-&hdmi {
-        #address-cells = <1>;
-        #size-cells = <0>;
-        #sound-dai-cells = <0>;
-        status = "okay";
-};
-*/
- 
-&i2s2 {
-        status = "okay";
-        #sound-dai-cells = <0>;
 };
 
 &pwm0 {
@@ -219,4 +157,17 @@
 
 &route_dsi {
 	status = "okay";
+};
+
+&i2c4 {
+	status = "okay";
+
+	gt1x: gt1x@14 {
+		status = "okay";
+
+		compatible = "goodix,gt1x";
+		reg = <0x14>;
+		goodix,rst-gpio = <&gpio1 RK_PC4 GPIO_ACTIVE_HIGH>;
+		goodix,irq-gpio = <&gpio4 RK_PC6 IRQ_TYPE_LEVEL_LOW>;
+	};
 };

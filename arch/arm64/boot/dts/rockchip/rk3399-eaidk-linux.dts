@@ -45,94 +45,37 @@
 #include "rk3399-eaidk.dtsi"
 #include "rk3399-android.dtsi"
 #include "rk3399-vop-clk-set.dtsi"
+#include "rk3399-vop-clk-set.dtsi"
+/* Default screen: mipi */
+#include "rk3399-eaidk-mipi.dtsi"
+//#include "rk3399-eaidk-edp.dtsi"
+/* Default camera: ov9750 */
+#include "rk3399-eaidk-ov9750.dtsi"
+//#include "rk3399-eaidk-imx258.dtsi"
 
 / {
-	compatible = "rockchip,rk3399-eaidk-edp","rockchip,rk3399";
-	panel: panel {
-		compatible = "simple-panel";
-		backlight = <&backlight>;
-		enable-gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
-		//reset-gpios = <&gpio4 30 GPIO_ACTIVE_HIGH>;
-		prepare-delay-ms = <20>;
-		enable-delay-ms = <20>;
-		//reset-delay-ms = <20>;
-
-		display-timings {
-			native-mode = <&timing0>;
-
-			timing0: timing0 {
-				clock-frequency = <200000000>;
-				hactive = <1536>;
-				vactive = <2048>;
-				hfront-porch = <12>;
-				hsync-len = <16>;
-				hback-porch = <48>;
-				vfront-porch = <8>;
-				vsync-len = <4>;
-				vback-porch = <8>;
-				hsync-active = <0>;
-				vsync-active = <0>;
-				de-active = <0>;
-				pixelclk-active = <0>;
-			};
-		};
-
-		ports {
-			panel_in: endpoint {
-				remote-endpoint = <&edp_out>;
-			};
-		};
+	compatible = "rockchip,rk3399-eaidk-mipi","rockchip,rk3399";
+	rk_headset: rk-headset {
+		compatible = "rockchip_headset";
+		headset_gpio = <&gpio4 28 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hp_det>;
+		io-channels = <&saradc 2>;
 	};
-};
 
-&pwm0 {
-        status = "okay";
-};
+	hdmi_codec: hdmi-codec {
+		status="okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "HDMI-CODEC";
 
-&backlight {
-	status = "okay";
-};
-
-&edp {
-	status = "okay";
-	force-hpd;
-
-	ports {
-		port@1 {
-			reg = <1>;
-
-			edp_out: endpoint {
-				remote-endpoint = <&panel_in>;
-			};
+		simple-audio-card,cpu {
+			sound-dai = <&i2s2>;
 		};
-	};
-};
 
-&route_edp {
-	status = "okay";
-};
-
-&gt1x {
-	status = "disabled";
-};
-
-&edp_in_vopl {
-	status = "disabled";
-};
-
-&edp_in_vopb {
-	status = "okay";
-};
-
-&i2c4 {
-	status = "okay";
-
-	gsl3673: gsl3673@40 {
-		compatible = "GSL,GSL3673";
-		reg = <0x40>;
-		screen_max_x = <1536>;
-		screen_max_y = <2048>;
-		irq_gpio_number = <&gpio1 20 IRQ_TYPE_LEVEL_LOW>;
-		rst_gpio_number = <&gpio4 22 GPIO_ACTIVE_HIGH>;
+		simple-audio-card,codec {
+			sound-dai = <&hdmi>;
+		};
 	};
 };

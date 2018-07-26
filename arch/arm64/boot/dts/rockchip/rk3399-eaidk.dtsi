@@ -46,27 +46,6 @@
 
 / {
 	compatible = "rockchip,rk3399-eaidk","rockchip,rk3399";
-	rt5651-sound {
-                status="okay";
-                compatible = "simple-audio-card";
-                simple-audio-card,format = "i2s";
-                simple-audio-card,name = "realtek,rt5651-codec";
-                simple-audio-card,mclk-fs = <256>;
-                simple-audio-card,widgets =
-                        "Microphone", "Mic Jack",
-                        "Headphone", "Headphone Jack";
-                simple-audio-card,routing =
-                        "Mic Jack", "MICBIAS1",
-                        "IN1P", "Mic Jack",
-                        "Headphone Jack", "HPOL",
-                        "Headphone Jack", "HPOR";
-                simple-audio-card,cpu {
-                        sound-dai = <&i2s1>;
-                };
-                simple-audio-card,codec {
-                        sound-dai = <&rt5651>;
-                };
-        };
 	vcc5v0_sys: vcc5v0-sys {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc5v0_sys";
@@ -259,6 +238,37 @@
 			label = "bt_work_led";
 		};
 	};
+
+	rk_headset: rk-headset {
+		compatible = "rockchip_headset";
+		headset_gpio = <&gpio4 28 GPIO_ACTIVE_HIGH>;
+		spk_con_gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hp_det>;
+		io-channels = <&saradc 2>;
+	};
+
+	rt5651-sound {
+		status="okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "realtek,rt5651-codec";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,widgets =
+			"Microphone", "Mic Jack",
+			"Headphone", "Headphone Jack";
+		simple-audio-card,routing =
+			"Mic Jack", "MICBIAS1",
+			"IN1P", "Mic Jack",
+			"Headphone Jack", "HPOL",
+			"Headphone Jack", "HPOR";
+		simple-audio-card,cpu {
+			sound-dai = <&i2s1>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&rt5651>;
+		};
+        };
 };
 
 &i2c1 {
@@ -287,6 +297,21 @@
         #sound-dai-cells = <0>;
 		assigned-clocks = <&cru SCLK_I2S_8CH>; 
 		assigned-clock-parents = <&cru SCLK_I2S1_8CH>;
+};
+
+&i2s2 {
+        status = "okay";
+        #sound-dai-cells = <0>;
+};
+
+&cdn_dp {
+        status = "okay";
+        extcon = <&fusb0>;
+        phys = <&tcphy0_dp>;
+};
+
+&saradc {
+        status = "okay";
 };
 
 &i2c0 {
@@ -535,13 +560,6 @@
 		vbus-5v-gpios = <&gpio4 21 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
-
-	gt1x: gt1x@14 {
-		compatible = "goodix,gt1x";
-		reg = <0x14>;
-		goodix,rst-gpio = <&gpio1 RK_PC4 GPIO_ACTIVE_HIGH>;
-		goodix,irq-gpio = <&gpio4 RK_PC6 IRQ_TYPE_LEVEL_LOW>;
-	};
 };
 
 &pmu_io_domains {
@@ -583,11 +601,11 @@
 };
 
 &dfi {
-	status = "okay";
+	status = "disabled";
 };
 
 &dmc {
-	status = "okay";
+	status = "disalbed";
 	center-supply = <&vdd_center>;
 	upthreshold = <40>;
 	downdifferential = <20>;
