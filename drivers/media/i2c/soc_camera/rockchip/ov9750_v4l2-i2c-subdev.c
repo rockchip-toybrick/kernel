@@ -47,7 +47,7 @@
 #define OV9750_PIDH_MAGIC 0x97
 #define OV9750_PIDL_MAGIC 0x50
 
-#define OV9750_EXT_CLK 12000000
+#define OV9750_EXT_CLK 24000000
 #define OV9750_TIMING_VTS_HIGH_REG 0x380e
 #define OV9750_TIMING_VTS_LOW_REG 0x380f
 #define OV9750_TIMING_HTS_HIGH_REG 0x380c
@@ -82,7 +82,7 @@ static struct ov_camera_module ov9750[2];
 /* Base sensor configs */
 /* ======================================================================== */
 /* 1280x960 2lane MCLK:24MHz 60fps 800Mbps/lane, MCLK:12Mhz 30fps 400Mbps/lane */
-static struct ov_camera_module_reg ov9750_init_tab_1280_960_30fps[] = {
+static struct ov_camera_module_reg ov9750_init_tab_1280_960_60fps[] = {
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x0103, 0x01},
 {OV_CAMERA_MODULE_REG_TYPE_TIMEOUT, 0x0000, 0x10},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x0100, 0x00},
@@ -314,7 +314,7 @@ static struct ov_camera_module_reg ov9750_init_tab_1280_960_30fps[] = {
 
 static struct ov_camera_module_config ov9750_configs[] = {
 	{
-		.name = "1280x960_30fps",
+		.name = "1280x960_60fps",
 		.frm_fmt = {
 			.width = 1280,
 			.height = 960,
@@ -323,17 +323,17 @@ static struct ov_camera_module_config ov9750_configs[] = {
 		.frm_intrvl = {
 			.interval = {
 				.numerator = 1,
-				.denominator = 30
+				.denominator = 60
 			}
 		},
 		.auto_exp_enabled = false,
 		.auto_gain_enabled = false,
 		.auto_wb_enabled = false,
-		.reg_table = (void *)ov9750_init_tab_1280_960_30fps,
+		.reg_table = (void *)ov9750_init_tab_1280_960_60fps,
 		.reg_table_num_entries =
-			ARRAY_SIZE(ov9750_init_tab_1280_960_30fps),
+			ARRAY_SIZE(ov9750_init_tab_1280_960_60fps),
 		.v_blanking_time_us = 3078,
-		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 400, OV9750_EXT_CLK)
+		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 800, OV9750_EXT_CLK)
 	}
 };
 
