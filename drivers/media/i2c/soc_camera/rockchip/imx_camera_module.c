@@ -183,18 +183,38 @@ static int imx_camera_module_write_config(
 		goto err;
 	}
 
-	if (cam_mod->inited == false) {
+	if (!cam_mod->inited) {
 		cam_mod->active_config->soft_reset = true;
 		reg_table = cam_mod->active_config->reg_table;
 		reg_table_num_entries =
-		cam_mod->active_config->reg_table_num_entries;
+			cam_mod->active_config->reg_table_num_entries;
 		pltfrm_camera_module_pr_debug(&cam_mod->sd,
 				"write config %s\n",
 				cam_mod->active_config->name);
+	} else {
+		if (cam_mod->active_config->reg_diff_table &&
+		cam_mod->active_config->reg_diff_table_num_entries) {
+			cam_mod->active_config->soft_reset = false;
+			reg_table = cam_mod->active_config->reg_diff_table;
+			reg_table_num_entries =
+				cam_mod->active_config->reg_diff_table_num_entries;
+			pltfrm_camera_module_pr_debug(&cam_mod->sd,
+				"write config %s%s\n",
+				cam_mod->active_config->name, "_diff");
+		} else {
+			cam_mod->active_config->soft_reset = true;
+			reg_table = cam_mod->active_config->reg_table;
+			reg_table_num_entries =
+				cam_mod->active_config->reg_table_num_entries;
+			pltfrm_camera_module_pr_debug(&cam_mod->sd,
+				"write config %s\n",
+				cam_mod->active_config->name);
+		}
 	}
 
 	if (!IS_ERR_OR_NULL(cam_mod->custom.set_flip))
-		cam_mod->custom.set_flip(cam_mod);
+		cam_mod->custom.set_flip(cam_mod,
+			reg_table, reg_table_num_entries);
 
 	ret = pltfrm_camera_module_write_reglist(&cam_mod->sd,
 		reg_table, reg_table_num_entries);
@@ -498,6 +518,10 @@ int imx_camera_module_s_power(struct v4l2_subdev *sd, int on)
 							 core, init, 0);
 				}
 			}
+		}
+		if (cam_mod->update_config) {
+			imx_camera_module_write_config(cam_mod);
+			cam_mod->update_config = false;
 		}
 	} else {
 		if (cam_mod->state == IMX_CAMERA_MODULE_STREAMING) {
@@ -1105,6 +1129,12 @@ err:
 void imx_camera_module_release(struct imx_camera_module *cam_mod)
 {
 	pltfrm_camera_module_pr_debug(&cam_mod->sd, "\n");
+
+	if (cam_mod->otp_work.wq) {
+		flush_workqueue(cam_mod->otp_work.wq);
+		destroy_workqueue(cam_mod->otp_work.wq);
+		cam_mod->otp_work.wq = NULL;
+	}
 
 	cam_mod->custom.configs = NULL;
 

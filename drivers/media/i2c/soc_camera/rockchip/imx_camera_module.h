@@ -81,6 +81,7 @@ struct imx_camera_module_config {
 	bool auto_wb_enabled;
 	struct imx_camera_module_reg *reg_table;
 	u32 reg_table_num_entries;
+	struct imx_camera_module_reg *reg_diff_table;
 	u32 reg_diff_table_num_entries;
 	u32 v_blanking_time_us;
 	u32 line_length_pck;
@@ -156,7 +157,10 @@ struct imx_camera_module_custom_config {
 	int (*g_exposure_valid_frame)(struct imx_camera_module *cam_mod);
 	int (*s_ext_ctrls)(struct imx_camera_module *cam_mod,
 		struct imx_camera_module_ext_ctrls *ctrls);
-	int (*set_flip)(struct imx_camera_module *cam_mod);
+	int (*set_flip)(
+		struct imx_camera_module *cam_mod,
+		struct pltfrm_camera_module_reg reglist[],
+		int len);
 	int (*init_common)(struct imx_camera_module *cam_mod);
 	struct imx_camera_module_config *configs;
 	u32 num_configs;
@@ -195,6 +199,7 @@ struct imx_camera_module {
 	u32 rotation;
 	void *pltfm_data;
 	bool inited;
+	bool as_master;
 };
 
 #define imx_camera_module_pr_info(cam_mod, fmt, arg...) \
