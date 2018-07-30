@@ -57,3 +57,18 @@
         status = "okay";
 };
 
+&isp0 {
+        status = "okay";
+};
+
+&isp0_mmu {
+        status = "okay";
+};
+
+&isp1 {
+        status = "okay";
+};
+
+&isp1_mmu {
+        status = "okay";
+};
