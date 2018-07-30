@@ -64,7 +64,6 @@
 	};
 
 	hdmi_codec: hdmi-codec {
-		status="okay";
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
 		simple-audio-card,mclk-fs = <256>;
@@ -78,4 +77,8 @@
 			sound-dai = <&hdmi>;
 		};
 	};
+};
+
+&hdmi_codec{
+	status ="okay";
 };
