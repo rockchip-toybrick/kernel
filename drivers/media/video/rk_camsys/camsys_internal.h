@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __RKCAMSYS_INTERNAL_H__
 #define __RKCAMSYS_INTERNAL_H__
-
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/init.h>
@@ -42,7 +41,7 @@
 #include <linux/rockchip/cpu.h>
 #include <media/camsys_head.h>
 #include <linux/rockchip-iovmm.h>
-
+#include "camsys_gpio.h"
 /*
 *               C A M S Y S   D R I V E R   V E R S I O N
 *
@@ -469,13 +468,27 @@ camsys_extdev_t *extdev, camsys_sysctrl_t *devctl, camsys_dev_t *camsys_dev)
 			if (devctl->on) {
 				gpio_direction_output(gpio->io, gpio->active);
 				gpio_set_value(gpio->io, gpio->active);
+				if (devctl->ops == CamSys_PwrEn) {
+					unsigned int gpio_avdd;
+					gpio_avdd = camsys_gpio_get("RK30_PIN4_PD1");
+					gpio_direction_output(gpio_avdd, gpio->active);
+					gpio_set_value(gpio_avdd, gpio->active);
+					udelay(5000);
+				}
 				camsys_trace(1,
 					"Sysctl %d success, gpio(%d) set %d",
 					devctl->ops, gpio->io, gpio->active);
 			} else {
 				gpio_direction_output(gpio->io, !gpio->active);
 				gpio_set_value(gpio->io, !gpio->active);
-				camsys_trace(1,
+                                if (devctl->ops == CamSys_PwrEn) {
+                                       unsigned int gpio_avdd;
+                                       gpio_avdd = camsys_gpio_get("RK30_PIN4_PD1");
+                                       gpio_direction_output(gpio_avdd, !gpio->active);
+                                       gpio_set_value(gpio_avdd, !gpio->active);
+                                       udelay(5000);
+                                }
+			        camsys_trace(1,
 					"Sysctl %d success, gpio(%d) set %d",
 					devctl->ops, gpio->io, !gpio->active);
 			}
