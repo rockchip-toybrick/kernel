@@ -1476,8 +1476,8 @@ static struct imx_camera_module_config imx258_configs[] = {
 		.reg_table = (void *)imx258_init_tab_3264_1836_30fps,
 		.reg_table_num_entries = ARRAY_SIZE(imx258_init_tab_3264_1836_30fps),
 		.v_blanking_time_us = 5000,
-		//.max_exp_gain_h = 16,
-		//.max_exp_gain_l = 0,
+		.max_exp_gain_h = 16,
+		.max_exp_gain_l = 0,
 		PLTFRM_CAM_ITF_MIPI_CFG(0, 4, 798, IMX258_EXT_CLK)
 	},
 	{
@@ -1499,8 +1499,8 @@ static struct imx_camera_module_config imx258_configs[] = {
 		.reg_table = (void *)imx258_init_tab_3264_2448_24fps,
 		.reg_table_num_entries = ARRAY_SIZE(imx258_init_tab_3264_2448_24fps),
 		.v_blanking_time_us = 5000,
-		//.max_exp_gain_h = 16,
-		//.max_exp_gain_l = 0,
+		.max_exp_gain_h = 16,
+		.max_exp_gain_l = 0,
 		PLTFRM_CAM_ITF_MIPI_CFG(0, 4, 798, IMX258_EXT_CLK)
 	},
 	{
@@ -1522,8 +1522,8 @@ static struct imx_camera_module_config imx258_configs[] = {
 		.reg_table = (void *)imx258_init_tab_1920_1080_30fps,
 		.reg_table_num_entries = ARRAY_SIZE(imx258_init_tab_1920_1080_30fps),
 		.v_blanking_time_us = 5000,
-		//.max_exp_gain_h = 16,
-		//.max_exp_gain_l = 0,
+		.max_exp_gain_h = 16,
+		.max_exp_gain_l = 0,
 		PLTFRM_CAM_ITF_MIPI_CFG(0, 4, 600, IMX258_EXT_CLK)
 	},
 	{
@@ -1545,8 +1545,8 @@ static struct imx_camera_module_config imx258_configs[] = {
 		.reg_table = (void *)imx258_init_tab_1920_1080_60fps,
 		.reg_table_num_entries = ARRAY_SIZE(imx258_init_tab_1920_1080_60fps),
 		.v_blanking_time_us = 5000,
-		//.max_exp_gain_h = 16,
-		//.max_exp_gain_l = 0,
+		.max_exp_gain_h = 16,
+		.max_exp_gain_l = 0,
 		PLTFRM_CAM_ITF_MIPI_CFG(0, 4, 996, IMX258_EXT_CLK)
 	}
 };
@@ -1695,6 +1695,7 @@ static int imx258_write_aec(struct imx_camera_module *cam_mod)
 		if (!IS_ERR_VALUE(ret) && cam_mod->auto_adjust_fps)
 			ret = imx258_auto_adjust_fps(cam_mod, cam_mod->exp_config.exp_time);
 
+		mutex_lock(&cam_mod->lock);
 		// Hold
 		ret = imx_camera_module_write_reg(cam_mod, 0x0104, 1);
 
@@ -1738,7 +1739,7 @@ static int imx258_write_aec(struct imx_camera_module *cam_mod)
 			ret |= imx258_set_vts(cam_mod, cam_mod->exp_config.vts_value);
 
 		ret |= imx_camera_module_write_reg(cam_mod, 0x0104, 0);
-
+		mutex_unlock(&cam_mod->lock);
 	}
 
 	if (IS_ERR_VALUE(ret))
@@ -1786,19 +1787,28 @@ static int imx258_filltimings(struct imx_camera_module_custom_config *custom)
 		reg_table_num_entries = config->reg_table_num_entries;
 		timings = &config->timings;
 
+		memset(timings, 0x00, sizeof(*timings));
 		for (j = 0; j < reg_table_num_entries; j++) {
 			switch (reg_table[j].reg) {
 			case IMX258_TIMING_VTS_HIGH_REG:
-				timings->frame_length_lines = reg_table[j].val << 8;
+				timings->frame_length_lines =
+					((reg_table[j].val << 8) |
+					(timings->frame_length_lines & 0xff));
 				break;
 			case IMX258_TIMING_VTS_LOW_REG:
-				timings->frame_length_lines |= reg_table[j].val;
+				timings->frame_length_lines =
+					(reg_table[j].val |
+					(timings->frame_length_lines & 0xff00));
 				break;
 			case IMX258_TIMING_HTS_HIGH_REG:
-				timings->line_length_pck = (reg_table[j].val << 8);
+				timings->line_length_pck =
+					((reg_table[j].val << 8) |
+					timings->line_length_pck);
 				break;
 			case IMX258_TIMING_HTS_LOW_REG:
-				timings->line_length_pck |= reg_table[j].val;
+				timings->line_length_pck =
+					(reg_table[j].val |
+					(timings->line_length_pck & 0xff00));
 				break;
 			case IMX258_TIMING_X_INC:
 				timings->binning_factor_x = ((reg_table[j].val >> 4) + 1) / 2;
@@ -1811,44 +1821,75 @@ static int imx258_filltimings(struct imx_camera_module_custom_config *custom)
 					timings->binning_factor_y = 1;
 				break;
 			case IMX258_HORIZONTAL_START_HIGH_REG:
-				timings->crop_horizontal_start = reg_table[j].val << 8;
+				timings->crop_horizontal_start =
+					((reg_table[j].val << 8) |
+					(timings->crop_horizontal_start &
+					0xff));
 				break;
 			case IMX258_HORIZONTAL_START_LOW_REG:
-				timings->crop_horizontal_start |= reg_table[j].val;
+				timings->crop_horizontal_start =
+					(reg_table[j].val |
+					(timings->crop_horizontal_start &
+					0xff00));
 				break;
 			case IMX258_VERTICAL_START_HIGH_REG:
-				timings->crop_vertical_start = reg_table[j].val << 8;
+				timings->crop_vertical_start =
+					((reg_table[j].val << 8) |
+					(timings->crop_vertical_start & 0xff));
 				break;
 			case IMX258_VERTICAL_START_LOW_REG:
-				timings->crop_vertical_start |= reg_table[j].val;
+				timings->crop_vertical_start =
+					((reg_table[j].val) |
+					(timings->crop_vertical_start &
+					0xff00));
 				break;
 			case IMX258_HORIZONTAL_END_HIGH_REG:
-				timings->crop_horizontal_end = reg_table[j].val << 8;
+				timings->crop_horizontal_end =
+					((reg_table[j].val << 8) |
+					(timings->crop_horizontal_end & 0xff));
 				break;
 			case IMX258_HORIZONTAL_END_LOW_REG:
-				timings->crop_horizontal_end |= reg_table[j].val;
+				timings->crop_horizontal_end =
+					(reg_table[j].val |
+					(timings->crop_horizontal_end &
+					0xff00));
 				break;
 			case IMX258_VERTICAL_END_HIGH_REG:
-				timings->crop_vertical_end = reg_table[j].val << 8;
+				timings->crop_vertical_end =
+					((reg_table[j].val << 8) |
+					(timings->crop_vertical_end & 0xff));
 				break;
 			case IMX258_VERTICAL_END_LOW_REG:
-				timings->crop_vertical_end |= reg_table[j].val;
+				timings->crop_vertical_end =
+					(reg_table[j].val |
+					(timings->crop_vertical_end & 0xff00));
 				break;
 			case IMX258_HORIZONTAL_OUTPUT_SIZE_HIGH_REG:
-				timings->sensor_output_width = reg_table[j].val << 8;
+				timings->sensor_output_width =
+					((reg_table[j].val << 8) |
+					(timings->sensor_output_width & 0xff));
 				break;
 			case IMX258_HORIZONTAL_OUTPUT_SIZE_LOW_REG:
-				timings->sensor_output_width |= reg_table[j].val;
+				timings->sensor_output_width =
+					(reg_table[j].val |
+					(timings->sensor_output_width &
+					0xff00));
 				break;
 			case IMX258_VERTICAL_OUTPUT_SIZE_HIGH_REG:
-				timings->sensor_output_height = reg_table[j].val << 8;
+				timings->sensor_output_height =
+					((reg_table[j].val << 8) |
+					(timings->sensor_output_height & 0xff));
 				break;
 			case IMX258_VERTICAL_OUTPUT_SIZE_LOW_REG:
-				timings->sensor_output_height |= reg_table[j].val;
+				timings->sensor_output_height =
+					(reg_table[j].val |
+					(timings->sensor_output_height &
+					0xff00));
 				break;
 			}
 		}
 
+		timings->exp_time >>= 4;
 		timings->vt_pix_clk_freq_hz = config->frm_intrvl.interval.denominator
 					* timings->frame_length_lines
 					* timings->line_length_pck;
@@ -1911,6 +1952,9 @@ static int imx258_s_ctrl(struct imx_camera_module *cam_mod, u32 ctrl_id)
 	case V4L2_CID_EXPOSURE:
 		ret = imx258_write_aec(cam_mod);
 		break;
+	case V4L2_CID_FLASH_LED_MODE:
+		/* nothing to be done here */
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -1953,7 +1997,9 @@ static int imx258_start_streaming(struct imx_camera_module *cam_mod)
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
+	mutex_lock(&cam_mod->lock);
 	ret = imx_camera_module_write_reg(cam_mod, 0x0100, 1);
+	mutex_unlock(&cam_mod->lock);
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
@@ -1974,7 +2020,9 @@ static int imx258_stop_streaming(struct imx_camera_module *cam_mod)
 
 	imx_camera_module_pr_info(cam_mod, "\n");
 
+	mutex_lock(&cam_mod->lock);
 	ret = imx_camera_module_write_reg(cam_mod, 0x0100, 0);
+	mutex_unlock(&cam_mod->lock);
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
@@ -2030,7 +2078,7 @@ static struct v4l2_subdev_core_ops imx258_camera_module_core_ops = {
 static struct v4l2_subdev_video_ops imx258_camera_module_video_ops = {
 	//.try_mbus_fmt = imx_camera_module_try_fmt,
 	.s_frame_interval = imx_camera_module_s_frame_interval,
-	//.g_frame_interval = imx_camera_module_g_frame_interval,
+	.g_frame_interval = imx_camera_module_g_frame_interval,
 	.s_stream = imx_camera_module_s_stream
 };
 
@@ -2055,7 +2103,7 @@ static struct imx_camera_module_custom_config imx258_custom_config = {
 	.g_timings = imx258_g_timings,
 	.check_camera_id = imx258_check_camera_id,
 	.set_flip = imx258_set_flip,
-	//.s_vts = imx258_auto_adjust_fps,
+	.s_vts = imx258_auto_adjust_fps,
 	.configs = imx258_configs,
 	.num_configs = ARRAY_SIZE(imx258_configs),
 	.power_up_delays_ms = {5, 20, 0},
@@ -2064,7 +2112,7 @@ static struct imx_camera_module_custom_config imx258_custom_config = {
 	*1: Exposure gain valid fileds;
 	*(2 fileds == 1 frames)
 	*/
-	//.exposure_valid_frame = {4, 4}
+	.exposure_valid_frame = {4, 4}
 };
 
 static int imx258_probe(
@@ -2085,6 +2133,7 @@ static int imx258_probe(
 
 	of_property_read_u32(np, "as-master", &ret);
 	imx258[cam_num].as_master = (ret == 0) ? false : true;
+	mutex_init(&imx258[cam_num].lock);
 	cam_num++;
 
 	dev_info(&client->dev, "probing successful\n");
@@ -2100,6 +2149,7 @@ static int imx258_remove(struct i2c_client *client)
 	if (!client->adapter)
 		return -ENODEV;	/* our client isn't attached */
 
+	mutex_destroy(&cam_mod->lock);
 	imx_camera_module_release(cam_mod);
 
 	dev_info(&client->dev, "removed\n");

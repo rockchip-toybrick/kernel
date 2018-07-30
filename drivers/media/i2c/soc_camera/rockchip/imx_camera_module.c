@@ -1050,9 +1050,6 @@ long imx_camera_module_ioctl(struct v4l2_subdev *sd,
 			cam_mod->custom.exposure_valid_frame[0];
 		timings->exposure_valid_frame[1] =
 			cam_mod->custom.exposure_valid_frame[1];
-		timings->exp_time = cam_mod->exp_config.exp_time;
-		timings->gain = cam_mod->exp_config.gain;
-
 		if (cam_mod->exp_config.exp_time)
 			timings->exp_time = cam_mod->exp_config.exp_time;
 		else
