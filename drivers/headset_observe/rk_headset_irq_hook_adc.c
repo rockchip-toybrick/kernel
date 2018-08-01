@@ -39,7 +39,9 @@
 #include <asm/atomic.h>
 
 #include "rk_headset.h"
-
+#ifdef CONFIG_SND_SOC_RT5651
+#include <sound/jack.h>
+#endif
 /* Debug */
 #if 0
 #define DBG(x...) printk(x)
@@ -81,6 +83,9 @@ extern int rt5631_headset_mic_detect(bool headset_status);
 #if defined (CONFIG_SND_SOC_RT3261) || defined (CONFIG_SND_SOC_RT3224)
 extern int rt3261_headset_mic_detect(int jack_insert);
 #endif
+#ifdef CONFIG_SND_SOC_RT5651
+extern int rt5651_headset_mic_detect(int jack_insert);
+#endif
 #if defined(CONFIG_SND_SOC_ES8316)
 extern int es8316_headset_detect(int jack_insert);
 #endif
@@ -110,7 +115,6 @@ struct headset_priv {
 };
 static struct headset_priv *headset_info;
 
-//1
 static irqreturn_t headset_interrupt(int irq, void *dev_id)
 {
 	struct rk_headset_pdata *pdata = headset_info->pdata;
@@ -222,6 +226,9 @@ static irqreturn_t headset_interrupt(int irq, void *dev_id)
 			#ifdef CONFIG_SND_SOC_RT5631_PHONE
 			rt5631_headset_mic_detect(false);
 			#endif
+			#ifdef CONFIG_SND_SOC_RT5651
+			rt5651_headset_mic_detect(false);
+			#endif
 			headset_info->isMic = 0;
 		}	
 
@@ -261,9 +268,11 @@ static int headset_change_irqtype(int type,unsigned int irq_type)
 	return ret;
 }
 #endif
+
 static void hook_once_work(struct work_struct *work)
 {
 	int ret,val;
+	int jack_type=0;
 
 	#ifdef CONFIG_SND_SOC_WM8994
 	wm8994_headset_mic_detect(true);
@@ -276,14 +285,18 @@ static void hook_once_work(struct work_struct *work)
 	#ifdef CONFIG_SND_SOC_RT5631_PHONE
 	rt5631_headset_mic_detect(true);
 	#endif
-
-        ret = iio_read_channel_raw(headset_info->chan, &val);
-        if (ret < 0) {
-                pr_err("read hook_once_work adc channel() error: %d\n", ret);
-        }
-	else
+	
+	#ifdef CONFIG_SND_SOC_RT5651
+	jack_type=rt5651_headset_mic_detect(true);
+	#endif
+	
+	ret = iio_read_channel_raw(headset_info->chan, &val);
+	if (ret < 0) {
+		pr_err("read hook_once_work adc channel() error: %d\n", ret);
+	} else {
 		DBG("hook_once_work read adc value: %d\n",val);
-	if(val >= 0 && val < HOOK_LEVEL_LOW)
+	}
+	if((val >= 0 && val < HOOK_LEVEL_LOW)  && ((jack_type!=SND_JACK_MICROPHONE) && (jack_type!=SND_JACK_HEADSET)))
 	{
 		headset_info->isMic= 0;//No microphone
 		#ifdef CONFIG_SND_SOC_WM8994
@@ -296,9 +309,13 @@ static void hook_once_work(struct work_struct *work)
 
 		#ifdef CONFIG_SND_SOC_RT5631_PHONE
 		rt5631_headset_mic_detect(false);
-		#endif					
+		#endif	
+		
+		#ifdef CONFIG_SND_SOC_RT5651
+		rt5651_headset_mic_detect(false);
+		#endif
 	}	
-	else if(val >= HOOK_LEVEL_HIGH)
+	else if((val >= HOOK_LEVEL_HIGH)||(jack_type==SND_JACK_MICROPHONE) || (jack_type==SND_JACK_HEADSET))
 	{
 		headset_info->isMic = 1;//have mic
 		schedule_delayed_work(&headset_info->hook_work,msecs_to_jiffies(100));
@@ -312,7 +329,7 @@ static void hook_once_work(struct work_struct *work)
 			(cx2072x_jack_report() == 3) ?
 			BIT_HEADSET : BIT_HEADSET_NO_MIC;
 	#endif
-	
+	printk(KERN_INFO "%s,val is %d,headset_info->isMic is %d\n",__func__,val,headset_info->isMic);
 	switch_set_state(&headset_info->sdev, headset_info->cur_headset_status);	
 	DBG("%s notice android headset status = %d\n",__func__,headset_info->cur_headset_status);
 }

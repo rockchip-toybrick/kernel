@@ -2078,5 +2078,5 @@ struct rt5651_priv {
 	bool hp_mute;
 	struct clk *mclk;
 };
-
+int rt5651_headset_mic_detect(int jack_insert);
 #endif /* __RT5651_H__ */

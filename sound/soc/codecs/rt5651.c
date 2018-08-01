@@ -29,6 +29,9 @@
 #include <linux/clk.h>
 #include "rl6231.h"
 #include "rt5651.h"
+#include <sound/jack.h>
+struct rt5651_priv *rt5651_tmp;
+
 
 #define RT5651_DEVICE_ID_VALUE 0x6281
 
@@ -1708,6 +1711,54 @@ static int rt5651_resume(struct snd_soc_codec *codec)
 #define rt5651_resume NULL
 #endif
 
+int rt5651_headset_mic_detect(int jack_insert)
+{
+	struct snd_soc_dapm_context *dapm = NULL;
+	int jack_type;
+	struct snd_soc_codec *rt5651_codec=rt5651_tmp->codec;
+	if(rt5651_codec == NULL){
+		return -1;
+	}
+	dapm=snd_soc_codec_get_dapm(rt5651_codec);
+	if (jack_insert) {
+		snd_soc_dapm_force_enable_pin(dapm, "LDO");
+		snd_soc_dapm_sync(dapm);
+		/*
+		if (SND_SOC_BIAS_OFF == snd_soc_codec_get_drvdata(rt5651_codec)) {
+			snd_soc_write(rt5651_codec, RT5651_PWR_ANLG1, 0x2004);
+			snd_soc_write(rt5651_codec, RT5651_MICBIAS, 0x3830);
+		}// error
+		snd_soc_update_bits(rt5651_codec, RT5651_PWR_ANLG2,
+			RT5651_PWR_MB1, RT5651_PWR_MB1);
+		msleep(400);
+		*/
+		snd_soc_update_bits(rt5651_codec, RT5651_MICBIAS,
+						RT5651_MIC1_OVCD_MASK |
+						RT5651_MIC1_OVTH_MASK |
+						RT5651_PWR_CLK12M_MASK |
+						RT5651_PWR_MB_MASK,
+						RT5651_MIC1_OVCD_EN |
+						RT5651_MIC1_OVTH_600UA |
+						RT5651_PWR_MB_PU |
+						RT5651_PWR_CLK12M_PU);
+		msleep(100);
+		if (snd_soc_read(rt5651_codec, RT5651_IRQ_CTRL2) & RT5651_MB1_OC_CLR) {
+			jack_type = SND_JACK_HEADPHONE;
+		} else {
+			jack_type = SND_JACK_HEADSET;
+		}
+		snd_soc_update_bits(rt5651_codec, RT5651_IRQ_CTRL2,
+						RT5651_MB1_OC_CLR, 0);
+	} else { /* jack out */
+		jack_type = 0;
+	
+		snd_soc_update_bits(rt5651_codec, RT5651_MICBIAS,
+						RT5651_MIC1_OVCD_MASK,
+						RT5651_MIC1_OVCD_DIS);
+	}
+	return jack_type;
+}
+
 #define RT5651_STEREO_RATES SNDRV_PCM_RATE_8000_96000
 #define RT5651_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | \
 			SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S8)
@@ -1805,6 +1856,7 @@ static int rt5651_i2c_probe(struct i2c_client *i2c,
 
 	rt5651 = devm_kzalloc(&i2c->dev, sizeof(*rt5651),
 				GFP_KERNEL);
+	rt5651_tmp=rt5651;
 	if (NULL == rt5651)
 		return -ENOMEM;
 
@@ -1847,7 +1899,6 @@ static int rt5651_i2c_probe(struct i2c_client *i2c,
 
 	ret = snd_soc_register_codec(&i2c->dev, &soc_codec_dev_rt5651,
 				rt5651_dai, ARRAY_SIZE(rt5651_dai));
-
 	return ret;
 }
 
