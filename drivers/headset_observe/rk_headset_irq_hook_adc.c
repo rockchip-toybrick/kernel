@@ -86,6 +86,10 @@ extern int rt3261_headset_mic_detect(int jack_insert);
 #ifdef CONFIG_SND_SOC_RT5651
 extern int rt5651_headset_mic_detect(int jack_insert);
 #endif
+#ifdef CONFIG_SND_SOC_ES7243
+extern int es7243_standby(void);
+extern int es7243_start(void);
+#endif
 #if defined(CONFIG_SND_SOC_ES8316)
 extern int es8316_headset_detect(int jack_insert);
 #endif
@@ -208,11 +212,17 @@ static irqreturn_t headset_interrupt(int irq, void *dev_id)
 			irq_set_irq_type(headset_info->irq[HEADSET],IRQF_TRIGGER_FALLING);
 		else
 			irq_set_irq_type(headset_info->irq[HEADSET],IRQF_TRIGGER_RISING);
+		#ifdef CONFIG_SND_SOC_ES7243
+		es7243_standby();
+		#endif
 	}
 	else if(headset_info->headset_status == HEADSET_OUT)
 	{
 		headset_info->cur_headset_status = HEADSET_OUT;
 		cancel_delayed_work(&headset_info->hook_work);
+		#ifdef CONFIG_SND_SOC_ES7243
+		es7243_start();
+		#endif
 		if(headset_info->isMic)
 		{
 			headset_info->hook_status = HOOK_UP;
@@ -329,7 +339,7 @@ static void hook_once_work(struct work_struct *work)
 			(cx2072x_jack_report() == 3) ?
 			BIT_HEADSET : BIT_HEADSET_NO_MIC;
 	#endif
-	printk(KERN_INFO "%s,val is %d,headset_info->isMic is %d\n",__func__,val,headset_info->isMic);
+	printk(KERN_INFO "%s,mic adc val is %d,headset_info->isMic is %d\n",__func__,val,headset_info->isMic);
 	switch_set_state(&headset_info->sdev, headset_info->cur_headset_status);	
 	DBG("%s notice android headset status = %d\n",__func__,headset_info->cur_headset_status);
 }
