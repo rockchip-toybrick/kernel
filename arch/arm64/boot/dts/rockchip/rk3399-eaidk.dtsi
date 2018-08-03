@@ -268,7 +268,19 @@
 		simple-audio-card,codec {
 			sound-dai = <&rt5651>;
 		};
-        };
+	};
+
+	rockchip_msm261s4030h0_codec: rockchip-msm261s4030h0-codec {
+		status = "okay";
+		compatible = "rockchip-msm261s4030h0-codec";
+	};
+
+	rockchip_msm261s4030h0:rockchip-msm261s4030h0 {
+		compatible = "rockchip-msm261s4030h0";
+		status = "okay";
+		rockchip,codec = <&rockchip_msm261s4030h0_codec>;
+		rockchip,cpu = <&i2s0>;
+	};
 };
 
 &i2c1 {
@@ -287,6 +299,20 @@
                 spk-con-gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
                 hp-det-gpio = <&gpio4 28 GPIO_ACTIVE_HIGH>;
         };
+
+		es7243: es7243@13 {
+			status = "okay";
+			compatible = "everest,es7243";
+			reg = <0x13>;
+		};
+};
+
+&i2s0 {
+	status = "okay";
+	rockchip,i2s-broken-burst-len;
+	rockchip,playback-channels = <8>;
+	rockchip,capture-channels = <8>;
+	#sound-dai-cells = <0>;
 };
 
 &i2s1 {
@@ -312,6 +338,14 @@
 
 &saradc {
         status = "okay";
+};
+
+&rockchip_msm261s4030h0_codec {
+	status = "okay";
+};
+
+&rockchip_msm261s4030h0 {
+	status="okay";
 };
 
 &i2c0 {
