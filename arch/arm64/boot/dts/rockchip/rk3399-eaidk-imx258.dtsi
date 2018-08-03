@@ -146,10 +146,11 @@
 		rockchip,camera-module-orientation = <0>;
 		rockchip,camera-module-iq-flip = <0>;
 		rockchip,camera-module-iq-mirror = <0>;
-		rockchip,camera-module-flip = <0>;
-		rockchip,camera-module-mirror = <0>;
+		rockchip,camera-module-flip = <1>;
+		rockchip,camera-module-mirror = <1>;
 
-		rockchip,camera-module-defrect0 = <1920 1080 0 0 1920 1080>;
+		rockchip,camera-module-defrect0 = <2100 1560 0 0 2100 1560>;
+		rockchip,camera-module-defrect1 = <4208 3120 0 0 4208 3120>;
 		rockchip,camera-module-flash-support = <0>;
 		rockchip,camera-module-mipi-dphy-index = <0>;
 		//as-master = <1>;
@@ -182,10 +183,11 @@
 		rockchip,camera-module-orientation = <0>;
 		rockchip,camera-module-iq-flip = <0>;
 		rockchip,camera-module-iq-mirror = <0>;
-		rockchip,camera-module-flip = <0>;
-		rockchip,camera-module-mirror = <0>;
+		rockchip,camera-module-flip = <1>;
+		rockchip,camera-module-mirror = <1>;
 
-		rockchip,camera-module-defrect0 = <1920 1080 0 0 1920 1080>;
+		rockchip,camera-module-defrect0 = <2100 1560 0 0 2100 1560>;
+		rockchip,camera-module-defrect1 = <4208 3120 0 0 4208 3120>;
 		rockchip,camera-module-flash-support = <0>;
 		rockchip,camera-module-mipi-dphy-index = <1>;
 		//as-master = <1>;
