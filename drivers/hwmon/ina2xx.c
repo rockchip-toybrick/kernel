@@ -61,7 +61,8 @@
 #define INA2XX_MAX_REGISTERS		8
 
 /* settings - depend on use case */
-#define INA219_CONFIG_DEFAULT		0x399F	/* PGA=8 */
+//#define INA219_CONFIG_DEFAULT		0x399F	/* PGA=8 */
+#define INA219_CONFIG_DEFAULT		0x199F	/* PGA=1 */
 #define INA226_CONFIG_DEFAULT		0x4527	/* averages=16 */
 
 /* worst case is 68.10 ms (~14.6Hz, ina219) */
