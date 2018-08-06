@@ -77,6 +77,11 @@
 			sound-dai = <&hdmi>;
 		};
 	};
+
+	extbrd: extbrd {
+		compatible = "eaidk-extboard";
+		io-channels = <&saradc 0>, <&saradc 3>;
+	};
 };
 
 &hdmi_codec{
