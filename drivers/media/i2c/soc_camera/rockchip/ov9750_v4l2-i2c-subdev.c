@@ -344,7 +344,6 @@ static struct ov_camera_module_config ov9750_configs[] = {
 
 static int ov9750_dual_mode(struct ov_camera_module *cam_mod)
 {
-/*
 	if (cam_mod->as_master) {
 		ov_camera_module_write_reg(cam_mod, 0x3002, 0xa1);
 		ov_camera_module_write_reg(cam_mod, 0x3007, 0x02);
@@ -359,7 +358,6 @@ static int ov9750_dual_mode(struct ov_camera_module *cam_mod)
 		ov_camera_module_write_reg(cam_mod, 0x3823, 0x48);
 		ov_camera_module_write_reg(cam_mod, 0x3824, 0x11);
 	}
-*/
 	return 0;
 }
 
