@@ -379,7 +379,7 @@ static int ov9750_set_flip(struct ov_camera_module *cam_mod,
 	}
 
 	if (mode == OV_FLIP_BIT_MASK) {
-		match_reg[0] = 0xc6;
+		match_reg[0] = 0x86;
 		match_reg[1] = 0x40;
 		match_reg[2] = 0x20;
 	} else if (mode == OV_MIRROR_BIT_MASK) {
