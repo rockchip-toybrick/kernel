@@ -51,6 +51,11 @@
 
 / {
 	compatible = "rockchip,rk3399-eaidk-android","rockchip,rk3399";
+
+	extbrd: extbrd {
+		compatible = "eaidk-extboard";
+		io-channels = <&saradc 0>, <&saradc 3>;
+	};
 };
 
 &hdmi_dp_sound {
