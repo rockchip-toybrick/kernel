@@ -579,7 +579,7 @@ static int soc_init(struct cif_isp10_rk3399 **isp_cfg, struct pltfrm_soc_init_pa
 			goto clk_failed;
 		}
 
-		clk_set_rate(clk_rst->clk_isp0, 420000000);
+		clk_set_rate(clk_rst->clk_isp0, 600000000);
 		isp_cfg_tmp->isp_idx = CIF_ISP10_ISP0;
 	} else {
 		res = platform_get_resource_byname(pdev,
@@ -643,7 +643,7 @@ static int soc_init(struct cif_isp10_rk3399 **isp_cfg, struct pltfrm_soc_init_pa
 			goto clk_failed;
 		}
 
-		clk_set_rate(clk_rst->clk_isp1, 420000000);
+		clk_set_rate(clk_rst->clk_isp1, 600000000);
 		isp_cfg_tmp->isp_idx = CIF_ISP10_ISP1;
 	}
 
