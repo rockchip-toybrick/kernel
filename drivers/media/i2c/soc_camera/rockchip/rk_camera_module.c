@@ -189,9 +189,11 @@ static int pltfrm_camera_module_set_pinctrl_state(
 
 	if (!IS_ERR_OR_NULL(state)) {
 		ret = pinctrl_select_state(pdata->pinctrl, state);
-		if (ret < 0)
-			pltfrm_camera_module_pr_debug(sd,
+		if (ret < 0) {
+			pltfrm_camera_module_pr_err(sd,
 				"could not set pins\n");
+			ret = (ret == -EINVAL)?0:ret;
+		}
 	}
 
 	return ret;
