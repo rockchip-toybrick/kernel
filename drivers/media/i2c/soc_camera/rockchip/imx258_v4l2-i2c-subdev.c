@@ -424,8 +424,8 @@ static struct imx_camera_module_reg imx258_init_tab_4208_3120_20fps[] =
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0220, 0x00},
 };
 
-/* MCLK:24MHz  2100x1560  30fps  4Lane   798Mbps/lane */
-static struct imx_camera_module_reg imx258_init_tab_2100_1560_30fps[] =
+/* MCLK:24MHz  2096x1560  30fps  4Lane   798Mbps/lane */
+static struct imx_camera_module_reg imx258_init_tab_2096_1560_30fps[] =
 {
 	/* External Clock Setting*/
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0136, 0x18},
@@ -674,7 +674,7 @@ static struct imx_camera_module_reg imx258_init_tab_2100_1560_30fps[] =
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x030e, 0x00},
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x030f, 0xd8},
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0310, 0x00},
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0820, 0x0c},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0820, 0x0C},
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0821, 0x78},
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0822, 0x00},
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0823, 0x00},
@@ -690,7 +690,7 @@ static struct imx_camera_module_reg imx258_init_tab_2100_1560_30fps[] =
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0343, 0xe8},//HTS[7:0]
 	/* Frame Length Setting */
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0340, 0x07},//VTS[15:8]
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0341, 0xc4},//VTS[7:0]
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0341, 0xC4},//VTS[7:0]
 	/* ROI Setting */
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0344, 0x00},//X_ADD_STA[12:8]
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0345, 0x00},//X_ADD_STA[7:0]
@@ -712,11 +712,11 @@ static struct imx_camera_module_reg imx258_init_tab_2100_1560_30fps[] =
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0404, 0x00},//SCALE_M[8]
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0405, 0x20},//SCALE_M[7:0]
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0408, 0x00},//DIG_CROP_X_OFFSET[12:8]
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0409, 0x00},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0409, 0x06},
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x040a, 0x00},//DIG_CROP_Y_OFFSET[11:8]
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x040b, 0x00},//DIG_CROP_Y_OFFSET[7:0]
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x040c, 0x10},//DIG_CROP_IMAGE_WIDTH[12:8]
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x040d, 0x70},//DIG_CROP_IMAGE_WIDTH[7:0]
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x040d, 0x62},//DIG_CROP_IMAGE_WIDTH[7:0]
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x040e, 0x06},//DIG_CROP_IMAGE_HEIGHT[11:8]
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x040f, 0x18},//DIG_CROP_IMAGE_HEIGHT[7:0]
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3038, 0x00},//SCALE_MODE_EXT
@@ -725,12 +725,12 @@ static struct imx_camera_module_reg imx258_init_tab_2100_1560_30fps[] =
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x300d, 0x00},//FORCE_FD_SUM
 	/* Output Size Setting */
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x034c, 0x08},//X_OUT_SIZE[12:8]
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x034d, 0x38},//X_OUT_SIZE[7:0]
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x034d, 0x30},//X_OUT_SIZE[7:0]
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x034e, 0x06},//Y_OUT_SIZE[11:8]
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x034f, 0x18},//Y_OUT_SIZE[7:0]
 	/* Integration Time Setting */
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0202, 0x07},//COARSE_INTEG_TIME[15:8]
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0203, 0xba},//COARSE_INTEG_TIME[7:0]
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0203, 0xBA},//COARSE_INTEG_TIME[7:0]
 	/* Gain Setting */
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0204, 0x00},//ANA_GAIN_GLOBAL[8]
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0205, 0x00},//ANA_GAIN_GLOBAL[7:0]
@@ -812,9 +812,9 @@ static struct imx_camera_module_config imx258_configs[] = {
 		PLTFRM_CAM_ITF_MIPI_CFG(0, 4, 996, IMX258_EXT_CLK)
 	},
 	{
-		.name = "2100x1560_30fps",
+		.name = "2096x1560_30fps",
 		.frm_fmt = {
-			.width = 2100,
+			.width = 2096,
 			.height = 1560,
 			.code = MEDIA_BUS_FMT_SBGGR10_1X10
 		},
@@ -827,8 +827,8 @@ static struct imx_camera_module_config imx258_configs[] = {
 		.auto_exp_enabled = false,
 		.auto_gain_enabled = false,
 		.auto_wb_enabled = false,
-		.reg_table = (void *)imx258_init_tab_2100_1560_30fps,
-		.reg_table_num_entries = ARRAY_SIZE(imx258_init_tab_2100_1560_30fps),
+		.reg_table = (void *)imx258_init_tab_2096_1560_30fps,
+		.reg_table_num_entries = ARRAY_SIZE(imx258_init_tab_2096_1560_30fps),
 		.v_blanking_time_us = 5000,
 		.max_exp_gain_h = 16,
 		.max_exp_gain_l = 0,
