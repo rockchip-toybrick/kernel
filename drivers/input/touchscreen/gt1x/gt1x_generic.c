@@ -919,6 +919,7 @@ static s32 gt1x_enter_sleep(void)
 #endif
 	if (gt1x_wakeup_level == 1) {	/* high level wakeup */
 		GTP_GPIO_OUTPUT(GTP_INT_PORT, 0);
+		GTP_GPIO_OUTPUT(GTP_INT_PORT, 1);
 	}
 	usleep_range(5000, 6000);
 

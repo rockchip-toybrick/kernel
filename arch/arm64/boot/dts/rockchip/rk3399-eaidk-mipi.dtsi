@@ -169,5 +169,6 @@
 		reg = <0x14>;
 		goodix,rst-gpio = <&gpio4 RK_PC6 GPIO_ACTIVE_HIGH>;
 		goodix,irq-gpio = <&gpio1 RK_PC4 IRQ_TYPE_LEVEL_LOW>;
+		goodix,enable-gpio = <&gpio1 13 GPIO_ACTIVE_HIGH>;
 	};
 };
