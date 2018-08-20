@@ -117,42 +117,6 @@
 		//rockchip,pwm_voltage = <1000000>;
 	};
 
-        vcc_dvdd: vcc-dvdd {
-		compatible = "regulator-gpio";
-		regulator-name = "vcc_dvdd";
-		pinctrl-names = "default";
-		pinctrl-0 = <&vcc_dvdd_pwr_en &vcc_dvdd_sel>;
-		enable-active-high;
-		enable-gpio = <&gpio1 19 GPIO_ACTIVE_HIGH>;
-		gpios = <&gpio4 25 GPIO_ACTIVE_HIGH>;
-		states = <1200000 0x0
-			  1800000 0x1 >;
-
-		regulator-min-microvolt = <1200000>;
-		regulator-max-microvolt = <1800000>;
-	};
-/*
-        vcc_avdd_3v2: vcc-avdd-3v2 {
-		compatible = "regulator-gpio";
-		regulator-name = "vcc_avdd_3v2";
-		pinctrl-names = "default";
-		pinctrl-0 = <&vcc_avdd_pwr_en>;
-		enable-active-high;
-		enable-gpio = <&gpio1 18 GPIO_ACTIVE_HIGH>;
-
-		regulator-min-microvolt = <3200000>;
-		regulator-max-microvolt = <3200000>;
-	};
-*/
-	vcc_avdd_3v2:  vcc-avdd-3v2 {
-		compatible = "regulator-fixed";
-		regulator-name = "vcc_avdd_3v2";
-		pinctrl-names = "default";
-		pinctrl-0 = <&vcc_avdd_pwr_en>;
-		enable-active-high;
-		gpio = <&gpio1 18 GPIO_ACTIVE_HIGH>;
-	};
-
 	clkin_gmac: external-gmac-clock {
 		compatible = "fixed-clock";
 		clock-frequency = <125000000>;
@@ -960,20 +924,6 @@
 				<0 13 RK_FUNC_GPIO &pcfg_pull_up>,
 				<2 27 RK_FUNC_GPIO &pcfg_pull_up>,
 				<2 28 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-	};
-
-	vcc_cam {
-		vcc_dvdd_pwr_en: vdd-dvdd-pwr-en {
-			rockchip,pins = <1 19 RK_FUNC_GPIO &pcfg_pull_down>;
-		};
-
-		vcc_dvdd_sel: vdd-dvdd-sel {
-			rockchip,pins = <4 25 RK_FUNC_GPIO &pcfg_pull_down>;
-		};
-
-		vcc_avdd_pwr_en: vdd-avdd-pwr-en {
-			rockchip,pins = <1 18 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 	};
 };

@@ -82,6 +82,30 @@
 		compatible = "eaidk-extboard";
 		io-channels = <&saradc 0>, <&saradc 3>;
 	};
+
+        vcc_dvdd: vcc-dvdd {
+		compatible = "regulator-gpio";
+		regulator-name = "vcc_dvdd";
+		pinctrl-names = "default";
+		pinctrl-0 = <&vcc_dvdd_pwr_en &vcc_dvdd_sel>;
+		enable-active-high;
+		enable-gpio = <&gpio1 19 GPIO_ACTIVE_HIGH>;
+		gpios = <&gpio4 25 GPIO_ACTIVE_HIGH>;
+		states = <1200000 0x0
+			  1800000 0x1 >;
+
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <1800000>;
+	};
+
+	vcc_avdd_3v2:  vcc-avdd-3v2 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_avdd_3v2";
+		pinctrl-names = "default";
+		pinctrl-0 = <&vcc_avdd_pwr_en>;
+		enable-active-high;
+		gpio = <&gpio1 18 GPIO_ACTIVE_HIGH>;
+	};
 };
 
 &hdmi_codec{
@@ -135,5 +159,21 @@
 		m25p,fast-read;
 		// The max SCLK of the flash 104/80 MHZ
 		spi-max-frequency = <50000000>;
+	};
+};
+
+&pinctrl {
+	vcc_cam {
+		vcc_dvdd_pwr_en: vdd-dvdd-pwr-en {
+			rockchip,pins = <1 19 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+
+		vcc_dvdd_sel: vdd-dvdd-sel {
+			rockchip,pins = <4 25 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+
+		vcc_avdd_pwr_en: vdd-avdd-pwr-en {
+			rockchip,pins = <1 18 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
 	};
 };
