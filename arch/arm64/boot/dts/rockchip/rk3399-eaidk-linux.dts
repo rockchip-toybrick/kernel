@@ -89,6 +89,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&vcc_dvdd_pwr_en &vcc_dvdd_sel>;
 		enable-active-high;
+		startup-delay-us = <1000>;
 		enable-gpio = <&gpio1 19 GPIO_ACTIVE_HIGH>;
 		gpios = <&gpio4 25 GPIO_ACTIVE_HIGH>;
 		states = <1200000 0x0
@@ -104,6 +105,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&vcc_avdd_pwr_en>;
 		enable-active-high;
+		startup-delay-us = <1000>;
 		gpio = <&gpio1 18 GPIO_ACTIVE_HIGH>;
 	};
 };
