@@ -176,4 +176,10 @@
 			rockchip,pins = <1 18 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 	};
+
+	cam_mclk {
+		cam_default_pins: cam-default-pins {
+			rockchip,pins = <2 11 RK_FUNC_3 &pcfg_pull_none>;
+		};
+	};
 };
