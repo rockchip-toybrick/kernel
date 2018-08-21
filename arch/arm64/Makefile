@@ -163,8 +163,9 @@ define archhelp
   echo  '                  install to $$(INSTALL_PATH) and run lilo'
 endef
 
+HOST_ARCH=$(shell uname -m)
 kernel.img: Image
-	$(Q)$(srctree)/scripts/mkkrnlimg $(objtree)/arch/arm64/boot/Image $(objtree)/kernel.img >/dev/null
+	$(Q)$(srctree)/scripts/mkkrnlimg.$(HOST_ARCH) $(objtree)/arch/arm64/boot/Image $(objtree)/kernel.img >/dev/null
 	@echo '  Image:  kernel.img is ready'
 ifdef CONFIG_MODULES
 	$(Q)$(MAKE) modules
@@ -175,7 +176,7 @@ LOGO_KERNEL := $(notdir $(wildcard $(srctree)/logo_kernel.bmp))
 %.img: rockchip/%.dtb kernel.img $(LOGO) $(LOGO_KERNEL)
 	$(Q) if [ -f $(srctree)/$(LOGO) -a "$(srctree)" != "$(objtree)" ]; then cp -a $(srctree)/$(LOGO) $(objtree)/; fi
 	$(Q) if [ -f $(srctree)/$(LOGO_KERNEL) -a "$(srctree)" != "$(objtree)" ]; then cp -a $(srctree)/$(LOGO_KERNEL) $(objtree)/; fi
-	$(Q)$(srctree)/scripts/resource_tool $(objtree)/arch/arm64/boot/dts/rockchip/$*.dtb $(LOGO) $(LOGO_KERNEL)
+	$(Q)$(srctree)/scripts/resource_tool.$(HOST_ARCH) $(objtree)/arch/arm64/boot/dts/rockchip/$*.dtb $(LOGO) $(LOGO_KERNEL)
 	@echo '  Image:  resource.img (with $*.dtb $(LOGO) $(LOGO_KERNEL)) is ready'
 	$(Q) if [ -x $(srctree)/scripts/mkbootimg ]; then $(srctree)/scripts/mkbootimg --kernel $(objtree)/arch/arm64/boot/Image --second resource.img -o boot.img && echo '  Image:  boot.img (with Image resource.img) is ready'; fi
 
