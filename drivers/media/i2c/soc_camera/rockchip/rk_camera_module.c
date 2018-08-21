@@ -212,8 +212,10 @@ static int pltfrm_camera_module_init_gpio(
 		goto err;
 
 	for (i = 0; i < ARRAY_SIZE(pdata->gpios); i++) {
-		if (pdata->gpios[i].label == NULL)
+		if (pdata->gpios[i].label == NULL) {
+			pdata->gpios[i].pltfrm_gpio = -1;
 			continue;
+		}
 
 		if (gpio_is_valid(pdata->gpios[i].pltfrm_gpio)) {
 			if (pdata->gpios[i].label ==
