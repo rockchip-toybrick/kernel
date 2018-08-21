@@ -11,7 +11,6 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
-
 #ifndef CONFIG_OF
 #error "this file requires device tree support"
 #endif
@@ -213,8 +212,7 @@ static int pltfrm_camera_module_init_gpio(
 		goto err;
 
 	for (i = 0; i < ARRAY_SIZE(pdata->gpios); i++) {
-
-		if (pdata->gpios[i].label == PLTFRM_CAMERA_MODULE_PIN_PWR || pdata->gpios[i].label == NULL)
+		if (pdata->gpios[i].label == NULL)
 			continue;
 
 		if (gpio_is_valid(pdata->gpios[i].pltfrm_gpio)) {
@@ -480,7 +478,7 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 		&pdata->gpios[0].active_low);
 
 	pdata->gpios[1].label = PLTFRM_CAMERA_MODULE_PIN_PWR;
-	pdata->gpios[1].pltfrm_gpio = rk_camera_get_power(&client->dev,
+	pdata->gpios[1].pltfrm_gpio = of_get_named_gpio_flags(
 		np,
 		pdata->gpios[1].label,
 		0,
@@ -1503,6 +1501,7 @@ int pltfrm_camera_module_set_pm_state(
 			PLTFRM_CAMERA_MODULE_PIN_PWR,
 			PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
 
+
 		if (pdata->regulators.regulator) {
 			for (i = 0; i < pdata->regulators.cnt; i++) {
 				struct pltfrm_camera_module_regulator
@@ -1532,11 +1531,6 @@ int pltfrm_camera_module_set_pin_state(
 
 	for (i = 0; i < ARRAY_SIZE(pdata->gpios); i++) {
 		if (pin == pdata->gpios[i].label) {
-			if (pin == PLTFRM_CAMERA_MODULE_PIN_PWR) {
-				rk_camera_set_power_value(&client->dev, pdata->gpios[i].pltfrm_gpio, state);
-				return 0;
-			}
-
 			if (!gpio_is_valid(pdata->gpios[i].pltfrm_gpio))
 				return 0;
 
@@ -1575,9 +1569,6 @@ int pltfrm_camera_module_get_pin_state(
 
 	for (i = 0; i < ARRAY_SIZE(pdata->gpios); i++) {
 		if (pin == pdata->gpios[i].label) {
-			if (pin == PLTFRM_CAMERA_MODULE_PIN_PWR) {
-				return rk_camera_get_power_value(&client->dev, pdata->gpios[i].pltfrm_gpio);
-			}
 			if (!gpio_is_valid(pdata->gpios[i].pltfrm_gpio))
 				return 0;
 
@@ -1758,10 +1749,6 @@ void pltfrm_camera_module_release(
 
 	/* GPIOs also needs to be freed for other sensors to use */
 	for (i = 0; i < ARRAY_SIZE(pdata->gpios); i++) {
-		if (pdata->gpios[i].label == PLTFRM_CAMERA_MODULE_PIN_PWR) {
-			rk_camera_power_free(&client->dev, pdata->gpios[i].pltfrm_gpio);
-			return ;
-		}
 		if (gpio_is_valid(pdata->gpios[i].pltfrm_gpio)) {
 			pltfrm_camera_module_pr_debug(sd,
 				"free GPIO #%d ('%s')\n",
