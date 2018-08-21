@@ -1442,6 +1442,7 @@ int pltfrm_camera_module_set_pm_state(
 			}
 		}
 
+		usleep_range(3000, 5000);
 		pltfrm_camera_module_set_pin_state(
 			sd,
 			PLTFRM_CAMERA_MODULE_PIN_PWR,
