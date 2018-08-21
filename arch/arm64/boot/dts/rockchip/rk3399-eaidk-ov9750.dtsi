@@ -120,29 +120,37 @@
 &i2c1 {
 	status = "okay";
 
-	camera0: camera-module@10 {
+	camera0: camera-module@36 {
 		status = "okay";
 		compatible = "omnivision,ov9750-v4l2-i2c-subdev";
-		reg = <0x10>;
+		reg = <0x36>;
 		device_type = "v4l2-i2c-subdev";
 		clocks = <&cru SCLK_CIF_OUT>;
 		clock-names = "clk_cif_out";
-		dvdd-supply = <&vcc_dvdd_1v8>;
-		dvp-supply = <&vcc1v8_dvp>;
+
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&cam_default_pins>;
 
 		rockchip,pd-gpio = <&gpio1 RK_PA0 GPIO_ACTIVE_LOW>;
-		rockchip,pwr-gpio = <&gpio4 RK_PD1 GPIO_ACTIVE_HIGH>;
-		/* mipi switch control */
+		//rockchip,pwr-gpio = <&gpio4 RK_PD1 GPIO_ACTIVE_HIGH>;
 		rockchip,rst-gpio = <&gpio1 RK_PA3 GPIO_ACTIVE_LOW>;
 
-		rockchip,camera-module-regulator-names = "dvp", "dvdd";
-		rockchip,camera-module-regulator-voltages = <1800000 1800000>;
+		dvp-supply = <&vcc1v8_dvp>;
+		dvdd-supply = <&vcc_dvdd>;		//gpio1_c3 gpio4_d1
+		avdd-3v2-supply = <&vcc_avdd_3v2>;	//gpio1_c2
+		avdd-2v8-supply = <&vcc_avdd_2v8>;	//ldo2
+
+		rockchip,camera-module-regulator-names = "dvp", "dvdd", "avdd-3v2";
+		// OV9750: dvp 1.8V, dvdd 1.8v, avdd 3.2v
+		rockchip,camera-module-regulator-voltages = <1800000 1800000 3200000>;
+		// IMX258: dvp 1.8V, dvdd 1.2v, avdd 2.8v
+		//rockchip,camera-module-regulator-voltages = <1800000 1200000 2800000>;
 		rockchip,camera-module-mclk-name = "clk_cif_out";
 		rockchip,camera-module-facing = "back";
 		rockchip,camera-module-name = "MDG001";
 		rockchip,camera-module-len-name = "NONE";
-		rockchip,camera-module-fov-h = "119";
-		rockchip,camera-module-fov-v = "90";
+		rockchip,camera-module-fov-h = "80";
+		rockchip,camera-module-fov-v = "65";
 		rockchip,camera-module-orientation = <0>;
 		rockchip,camera-module-iq-flip = <0>;
 		rockchip,camera-module-iq-mirror = <0>;
@@ -155,29 +163,37 @@
 		//as-master = <1>;
 	};
 
-	camera1: camera-module@36 {
+	camera1: camera-module@10 {
 		status = "okay";
 		compatible = "omnivision,ov9750-v4l2-i2c-subdev";
-		reg = <0x36>;
+		reg = <0x10>;
 		device_type = "v4l2-i2c-subdev";
 		clocks = <&cru SCLK_CIF_OUT>;
 		clock-names = "clk_cif_out";
 
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&cam_default_pins>;
+
 		rockchip,pd-gpio = <&gpio1 RK_PA1 GPIO_ACTIVE_LOW>;
-		rockchip,pwr-gpio = <&gpio4 RK_PD1 GPIO_ACTIVE_HIGH>;
+		//rockchip,pwr-gpio = <&gpio4 RK_PD1 GPIO_ACTIVE_HIGH>;
 		rockchip,rst-gpio = <&gpio1 RK_PA4 GPIO_ACTIVE_LOW>;
 
-		dvdd-supply = <&vcc_dvdd_1v8>;
 		dvp-supply = <&vcc1v8_dvp>;
+		dvdd-supply = <&vcc_dvdd>;		//gpio1_c3 gpio4_d1
+		avdd-3v2-supply = <&vcc_avdd_3v2>;	//gpio1_c2
+		avdd-2v8-supply = <&vcc_avdd_2v8>;	//ldo2
 
-		rockchip,camera-module-regulator-names = "dvp", "dvdd";
-		rockchip,camera-module-regulator-voltages = <1800000 1800000>;
+		rockchip,camera-module-regulator-names = "dvp", "dvdd", "avdd-3v2";
+		// OV9750: dvp 1.8V, dvdd 1.8v, avdd 3.2v
+		rockchip,camera-module-regulator-voltages = <1800000 1800000 3200000>;
+		// IMX258: dvp 1.8V, dvdd 1.2v, avdd 2.8v
+		//rockchip,camera-module-regulator-voltages = <1800000 1200000 0 2800000>;
 		rockchip,camera-module-mclk-name = "clk_cif_out";
 		rockchip,camera-module-facing = "back";
 		rockchip,camera-module-name = "MDG001";
 		rockchip,camera-module-len-name = "NONE";
-		rockchip,camera-module-fov-h = "119";
-		rockchip,camera-module-fov-v = "90";
+		rockchip,camera-module-fov-h = "80";
+		rockchip,camera-module-fov-v = "65";
 		rockchip,camera-module-orientation = <0>;
 		rockchip,camera-module-iq-flip = <0>;
 		rockchip,camera-module-iq-mirror = <0>;
