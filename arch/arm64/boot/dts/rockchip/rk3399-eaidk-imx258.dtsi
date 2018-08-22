@@ -120,6 +120,16 @@
 &i2c1 {
 	status = "okay";
 
+	afc0: af-controller@0 {
+		status = "okay";
+		compatible = "dongwoon,dw9714-v4l2-i2c-subdev";
+		reg = <0x0C>;
+
+		rockchip,vcm-start-current = <20>;
+		rockchip,vcm-rated-current = <76>;
+		rockchip,vcm-step-mode = <0>;
+	};
+
 	camera0: camera-module@10 {
 		status = "okay";
 		compatible = "sony,imx258-v4l2-i2c-subdev";
@@ -156,6 +166,7 @@
 		rockchip,camera-module-iq-mirror = <0>;
 		rockchip,camera-module-flip = <1>;
 		rockchip,camera-module-mirror = <1>;
+		rockchip,af-ctrl = <&afc0>;
 
 		rockchip,camera-module-defrect0 = <2096 1560 0 0 2096 1560>;
 		rockchip,camera-module-defrect1 = <4208 3120 0 0 4208 3120>;
@@ -201,6 +212,7 @@
 		rockchip,camera-module-iq-mirror = <0>;
 		rockchip,camera-module-flip = <1>;
 		rockchip,camera-module-mirror = <1>;
+		rockchip,af-ctrl = <&afc0>;
 
 		rockchip,camera-module-defrect0 = <2096 1560 0 0 2096 1560>;
 		rockchip,camera-module-defrect1 = <4208 3120 0 0 4208 3120>;
