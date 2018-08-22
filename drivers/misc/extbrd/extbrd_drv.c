@@ -658,10 +658,12 @@ static __init int extbrd_modinit(void)
 }
 late_initcall(extbrd_modinit);
 
+/*
 static __exit void extbrd_exit(void)
 {
 	platform_driver_unregister(&extbrd_driver);
 }
+*/
 #endif
 
 MODULE_AUTHOR(" <jax.fang@rock-chips.com>");
