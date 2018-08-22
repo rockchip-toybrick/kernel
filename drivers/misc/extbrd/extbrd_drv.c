@@ -649,7 +649,20 @@ static struct platform_driver extbrd_driver = {
 	},
 };
 
+#if 0  /* Use this function when driver module loaded */
 module_platform_driver(extbrd_driver);
+#else  /* Build in kernel, because saradc driver must be early loaded than this driver */
+static __init int extbrd_modinit(void)
+{
+	return platform_driver_register(&extbrd_driver);
+}
+late_initcall(extbrd_modinit);
+
+static __exit void extbrd_exit(void)
+{
+	platform_driver_unregister(&extbrd_driver);
+}
+#endif
 
 MODULE_AUTHOR(" <jax.fang@rock-chips.com>");
 MODULE_DESCRIPTION("EAIDK ExtBoard Driver");
