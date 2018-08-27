@@ -36,11 +36,11 @@
 #define GPIO_BANK	32
 #define RK_GPIO(chip, offset)		(chip * GPIO_BANK + offset)
 
-#define JAX_DEBUG 1
+#define JAX_DEBUG 0
 #if JAX_DEBUG
 #define EXTBRD_DEBUG(s, ...) printk("## " s, ##__VA_ARGS__)
 #else
-#define EXTBRD_DEBUG
+#define EXTBRD_DEBUG(s, ...) do {} while(0)
 #endif
 #define EXTBRD_ERROR(s, ...) printk("** " s, ##__VA_ARGS__)
 
