@@ -274,6 +274,11 @@ endif
 endif
 CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
 
+HOST_ARCH=$(shell uname -m)
+ifeq ($(HOST_ARCH),aarch64)
+CROSS_COMPILE	=
+endif
+
 # Architecture as present in compile.h
 UTS_MACHINE 	:= $(ARCH)
 SRCARCH 	:= $(ARCH)
