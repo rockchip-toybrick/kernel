@@ -64,6 +64,7 @@ struct rfkill_rk_platform_data {
     struct rfkill_rk_gpio   wake_gpio;      // Host wake or sleep BT
     struct rfkill_rk_irq    wake_host_irq;  // BT wakeup host
     struct rfkill_rk_gpio   rts_gpio;
+	struct rfkill_rk_gpio   work_led_gpio;
     struct clk              *ext_clk;
 };
 

@@ -268,6 +268,7 @@ static int rfkill_rk_set_power(void *data, bool blocked)
     struct rfkill_rk_gpio *poweron = &rfkill->pdata->poweron_gpio;
     struct rfkill_rk_gpio *reset = &rfkill->pdata->reset_gpio;
     struct rfkill_rk_gpio* rts = &rfkill->pdata->rts_gpio;
+	struct rfkill_rk_gpio *work_led = &rfkill->pdata->work_led_gpio;
     struct pinctrl *pinctrl = rfkill->pdata->pinctrl;
     int power = 0, vref_ctrl_enable = 0;
     bool toggle = false;
@@ -324,6 +325,7 @@ static int rfkill_rk_set_power(void *data, bool blocked)
         }
 
         bt_power_state = 1;
+		gpio_set_value(work_led->io, work_led->enable);
     	LOG("bt turn on power\n");
 	} else {
             if (gpio_is_valid(poweron->io))
@@ -333,6 +335,7 @@ static int rfkill_rk_set_power(void *data, bool blocked)
             }
 
             bt_power_state = 0;
+			gpio_set_value(work_led->io, !work_led->enable);
     		LOG("bt shut off power\n");
 		if (gpio_is_valid(reset->io))
         {      
@@ -529,6 +532,13 @@ static int bluetooth_platdata_parse_dt(struct device *dev,
         data->wake_host_irq.gpio.enable = flags;
         LOG("%s: get property: BT,wake_host_irq = %d.\n", __func__, gpio);
     } else data->wake_host_irq.gpio.io = -1;
+	gpio = of_get_named_gpio_flags(node, "BT,work_led_gpio", 0, &flags);
+	if (gpio_is_valid(gpio)) {
+		data->work_led_gpio.io = gpio;
+		data->work_led_gpio.enable = 1;
+		LOG("%s: get property: BT,work_led_gpio = %d.\n", __func__, gpio);
+	} else
+		data->work_led_gpio.io = -1;
 
 	data->ext_clk = devm_clk_get(dev, "ext_clock");
 	if (IS_ERR(data->ext_clk)) {

@@ -298,7 +298,7 @@ int rfkill_get_wifi_power_state(int *power, int *vref_ctrl_enable)
 int rockchip_wifi_power(int on)
 {
 	struct rfkill_wlan_data *mrfkill = g_rfkill;
-    struct rksdmmc_gpio *poweron, *reset;
+    struct rksdmmc_gpio *poweron, *reset, *work_led;
     struct regulator *ldo = NULL;
     int power = 0;
     bool toggle = false;
@@ -360,6 +360,7 @@ int rockchip_wifi_power(int on)
     } else {
 		poweron = &mrfkill->pdata->power_n;
 		reset = &mrfkill->pdata->reset_n;
+		work_led = &mrfkill->pdata->work_led_gpio;
 
 		if (on){
 			if (gpio_is_valid(poweron->io)) {
@@ -373,6 +374,7 @@ int rockchip_wifi_power(int on)
 			}
 
             wifi_power_state = 1;
+			gpio_set_value(work_led->io, work_led->enable);
 			LOG("wifi turn on power. %d\n", poweron->io);
 		}else{
 			if (gpio_is_valid(poweron->io)) {
@@ -385,6 +387,7 @@ int rockchip_wifi_power(int on)
 			}
 
             wifi_power_state = 0;
+			gpio_set_value(work_led->io, !(work_led->enable));
 			LOG("wifi shut off power.\n");
 		}
     }
@@ -673,6 +676,13 @@ static int wlan_platdata_parse_dt(struct device *dev,
 			data->wifi_int_b.enable = !flags;
 			LOG("%s: get property: WIFI,host_wake_irq = %d, flags = %d.\n", __func__, gpio, flags);
         } else data->wifi_int_b.io = -1;
+		gpio = of_get_named_gpio_flags(node, "WIFI,work_led_gpio", 0, &flags);
+		if (gpio_is_valid(gpio)) {
+			data->work_led_gpio.io = gpio;
+			data->work_led_gpio.enable = 1;
+			LOG("%s: get property: WIFI,work_led_gpio = %d, flags = %d.\n", __func__, gpio, flags);
+		} else
+			data->work_led_gpio.io = -1;
 	}
 
     return 0;

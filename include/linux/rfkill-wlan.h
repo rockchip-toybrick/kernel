@@ -41,6 +41,7 @@ struct rksdmmc_gpio_wifi_moudle {
     struct rksdmmc_gpio   ANTSEL2;  //pin5--ANTSEL2  
     struct rksdmmc_gpio   ANTSEL3;  //pin6--ANTSEL3 
     struct rksdmmc_gpio   GPS_LAN;  //pin33--GPS_LAN
+	struct rksdmmc_gpio   work_led_gpio;
     struct regmap *grf;
 };
 
