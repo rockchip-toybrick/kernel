@@ -120,10 +120,10 @@
 &i2c1 {
 	status = "okay";
 
-	camera0: camera-module@36 {
+	camera0: camera-module@10 {
 		status = "okay";
 		compatible = "omnivision,ov9750-v4l2-i2c-subdev";
-		reg = <0x36>;
+		reg = <0x10>;
 		device_type = "v4l2-i2c-subdev";
 		clocks = <&cru SCLK_CIF_OUT>;
 		clock-names = "clk_cif_out";
@@ -163,10 +163,10 @@
 		//as-master = <1>;
 	};
 
-	camera1: camera-module@10 {
+	camera1: camera-module@36 {
 		status = "okay";
 		compatible = "omnivision,ov9750-v4l2-i2c-subdev";
-		reg = <0x10>;
+		reg = <0x36>;
 		device_type = "v4l2-i2c-subdev";
 		clocks = <&cru SCLK_CIF_OUT>;
 		clock-names = "clk_cif_out";
