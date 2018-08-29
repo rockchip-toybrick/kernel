@@ -146,6 +146,7 @@
 		wifi_chip_type = "ap6255";
 		sdio_vref = <1800>;
 		WIFI,host_wake_irq = <&gpio0 3 GPIO_ACTIVE_HIGH>;
+		WIFI,work_led_gpio = <&gpio2 27 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
 
@@ -162,6 +163,7 @@
 		BT,reset_gpio    = <&gpio0 9 GPIO_ACTIVE_HIGH>;
 		BT,wake_gpio     = <&gpio2 26 GPIO_ACTIVE_HIGH>;
 		BT,wake_host_irq = <&gpio0 4 GPIO_ACTIVE_HIGH>;
+		BT,work_led_gpio = <&gpio2 28 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
 
