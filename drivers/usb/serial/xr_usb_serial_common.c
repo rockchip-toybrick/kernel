@@ -1065,11 +1065,54 @@ static int xr_usb_serial_tty_ioctl(struct tty_struct *tty,
 		 xr_usb_serial_set_wide_mode(xr_usb_serial,xr_usb_serial->preciseflags);
 		 xr_usb_serial_enable(xr_usb_serial);
 		 break;	 
-		
 	}
 
 	return rv;
 }
+
+#ifdef CONFIG_COMPAT
+static long xr_usb_serial_tty_compat_ioctl(struct tty_struct *tty,
+					unsigned int cmd, unsigned long arg)
+{
+	void __user *arg64 = compat_ptr(arg);
+	int rv = -ENOIOCTLCMD;
+
+	switch (cmd) {
+	case TIOCGSERIAL: /* gets serial port data */
+		rv = xr_usb_serial_tty_ioctl(tty, TIOCGSERIAL, (unsigned long)arg64);
+		break;
+	case TIOCSSERIAL:
+		rv = xr_usb_serial_tty_ioctl(tty, TIOCSSERIAL, (unsigned long)arg64);
+		break;
+    case XR_USB_SERIAL_GET_REG:
+		rv = xr_usb_serial_tty_ioctl(tty, XR_USB_SERIAL_GET_REG, (unsigned long)arg64);
+		break;
+	case XR_USB_SERIAL_SET_REG:
+		rv = xr_usb_serial_tty_ioctl(tty, XR_USB_SERIAL_SET_REG, (unsigned long)arg64);
+		break;
+	case XR_USB_SERIAL_LOOPBACK:
+		rv = xr_usb_serial_tty_ioctl(tty, XR_USB_SERIAL_LOOPBACK, (unsigned long)arg64);
+		break;
+	case XR_USB_SERIAL_SET_GPIO_MODE_REG:
+		rv = xr_usb_serial_tty_ioctl(tty, XR_USB_SERIAL_SET_GPIO_MODE_REG, (unsigned long)arg64);
+		break;
+	case XR_USB_SERIAL_GET_GPIO_MODE_REG:
+		rv = xr_usb_serial_tty_ioctl(tty, XR_USB_SERIAL_GET_GPIO_MODE_REG, (unsigned long)arg64);
+		break;
+	case XRIOC_SET_ANY_BAUD_RATE:
+		rv = xr_usb_serial_tty_ioctl(tty, XRIOC_SET_ANY_BAUD_RATE, (unsigned long)arg64);
+		break;
+	case XRIOC_SET_PRECISE_FLAGS:
+		rv = xr_usb_serial_tty_ioctl(tty, XRIOC_SET_PRECISE_FLAGS, (unsigned long)arg64);
+		break;
+	default:
+		//printk("Unsupport IOCTL CMD : 0x%08x!\n", cmd);
+		break;
+	}
+
+	return rv;
+}
+#endif
 
 static void xr_usb_serial_tty_set_termios(struct tty_struct *tty,
 						struct ktermios *termios_old)
@@ -1868,6 +1911,9 @@ static const struct tty_operations xr_usb_serial_ops = {
 	.write =		xr_usb_serial_tty_write,
 	.write_room =		xr_usb_serial_tty_write_room,
 	.ioctl =		xr_usb_serial_tty_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = xr_usb_serial_tty_compat_ioctl,
+#endif
 	.throttle =		xr_usb_serial_tty_throttle,
 	.unthrottle =		xr_usb_serial_tty_unthrottle,
 	.chars_in_buffer =	xr_usb_serial_tty_chars_in_buffer,
