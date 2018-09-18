@@ -1371,6 +1371,7 @@ static struct v4l2_subdev_pad_ops imx258_camera_module_pad_ops = {
 	.enum_frame_interval = imx_camera_module_enum_frameintervals,
 	.get_fmt = imx_camera_module_g_fmt,
 	.set_fmt = imx_camera_module_s_fmt,
+	.enum_frame_size = imx_camera_module_enum_frame_size,
 };
 
 static struct v4l2_subdev_ops imx258_camera_module_ops = {
