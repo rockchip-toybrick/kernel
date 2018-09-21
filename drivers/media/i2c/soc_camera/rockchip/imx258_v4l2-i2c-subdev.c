@@ -977,10 +977,11 @@ static int imx258_write_aec(struct imx_camera_module *cam_mod)
 		u32 exp_time = cam_mod->exp_config.exp_time;
 		a_gain = a_gain * cam_mod->exp_config.gain_percent / 100;
 
+		mutex_lock(&cam_mod->lock);
+
 		if (!IS_ERR_VALUE(ret) && cam_mod->auto_adjust_fps)
 			ret = imx258_auto_adjust_fps(cam_mod, cam_mod->exp_config.exp_time);
 
-		mutex_lock(&cam_mod->lock);
 		// Hold
 		ret = imx_camera_module_write_reg(cam_mod, 0x0104, 1);
 
