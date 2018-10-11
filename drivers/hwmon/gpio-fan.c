@@ -38,7 +38,7 @@
 #include <linux/of_gpio.h>
 #include <linux/thermal.h>
 
-#define TEMP_TEST
+//#define TEMP_TEST
 
 struct temp_trips {
 	int temp;
