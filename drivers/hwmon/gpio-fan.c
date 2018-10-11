@@ -38,6 +38,8 @@
 #include <linux/of_gpio.h>
 #include <linux/thermal.h>
 
+#define TEMP_TEST
+
 struct temp_trips {
 	int temp;
 	int speed_index;
@@ -64,6 +66,10 @@ struct gpio_fan_data {
 	struct thermal_cooling_device *devfreq_cooling;
 	struct notifier_block	thermal_nb;
 	struct temp_trips	*temp_trips;
+	unsigned int		temp_tolerate;
+#ifdef TEMP_TEST
+	int			temp_test;
+#endif
 };
 
 #define to_gpio_fan(nb) container_of(nb, struct gpio_fan_data, \
@@ -551,25 +557,48 @@ static const struct of_device_id of_gpio_fan_match[] = {
 MODULE_DEVICE_TABLE(of, of_gpio_fan_match);
 #endif /* CONFIG_OF_GPIO */
 
+static int gpio_fan_thermal_to_speed_index(struct gpio_fan_data *fan_data, int temp)
+{
+	struct temp_trips *trips = fan_data->temp_trips;
+	int index = fan_data->speed_index;
+	int tol = (int)fan_data->temp_tolerate;
+
+	printk("temp %d, index %d, tol %d\n", temp, index, tol);
+
+	if(index == 0) {
+		if(temp >= trips[index + 1].temp + tol)
+			return index + 1;
+	} else if(trips[index + 1].speed_index < 0) {
+		if(temp < trips[index].temp - tol)
+			return index - 1;
+	} else {
+		if(temp >= trips[index + 1].temp + tol)
+			return index + 1;
+		if(temp < trips[index].temp - tol)
+			return index - 1;
+
+	}
+
+	return index;
+}
 static int  gpio_fan_thermal_notifier_call(struct notifier_block *nb,
 					   unsigned long value, void *data)
 {
 	struct gpio_fan_data *fan_data = to_gpio_fan(nb);
-	struct temp_trips *trips = fan_data->temp_trips;
+	int speed_index;
+#ifdef TEMP_TEST
+	int temperature = (int)fan_data->temp_test;
+#else
 	int temperature = (int)value;
-	int i, speed_index = -1;
+#endif
 
 	dev_dbg(&fan_data->pdev->dev, "temp=%d\n", temperature);
 
 	mutex_lock(&fan_data->lock);
 
-	for (i = 0; trips[i].speed_index >= 0; i++) {
-		if (temperature >= trips[i].temp)
-			speed_index = trips[i].speed_index;
-	}
-	if (speed_index >= 0){
-		set_fan_speed(fan_data, speed_index);
-	}
+	speed_index = gpio_fan_thermal_to_speed_index(fan_data, temperature);
+	printk("speed_index %d\n", speed_index);
+	set_fan_speed(fan_data, speed_index);
 
 	mutex_unlock(&fan_data->lock);
 
@@ -620,6 +649,8 @@ static int gpio_fan_register_thermal_notifier(struct device *dev,
 	struct thermal_zone_device *tz;
 	const char *tz_name;
 
+	of_property_read_u32(np, "rockchip,temp-tolerate", &fan_data->temp_tolerate); 
+
 	if (gpio_fan_get_temp_trips(dev, "rockchip,temp-trips",
 				    &fan_data->temp_trips))
 		return -EINVAL;
@@ -642,9 +673,13 @@ static ssize_t temp_show(struct device *dev,
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct gpio_fan_data *fan_data = platform_get_drvdata(pdev);
-	struct temp_trips *trips = fan_data->temp_trips;
 
+#ifdef TEMP_TEST
+	return sprintf(buf, "%d\n", fan_data->temp_test);	
+#else
+	struct temp_trips *trips = fan_data->temp_trips;
 	return sprintf(buf, "%d\n", trips[1].temp);	
+#endif
 }
 
 static ssize_t temp_store(struct device *dev,
@@ -653,23 +688,54 @@ static ssize_t temp_store(struct device *dev,
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct gpio_fan_data *fan_data = platform_get_drvdata(pdev);
+#ifndef TEMP_TEST
 	struct temp_trips *trips = fan_data->temp_trips;
+#endif
 
 	mutex_lock(&fan_data->lock);
+#ifdef TEMP_TEST
+	sscanf(buf, "%d", &fan_data->temp_test);
+#else
 	sscanf(buf, "%d", &trips[1].temp);
+#endif
+	mutex_unlock(&fan_data->lock);
+
+	return count;
+}
+
+static ssize_t tolerate_show(struct device *dev,
+				 struct device_attribute *devattr, char *buf)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct gpio_fan_data *fan_data = platform_get_drvdata(pdev);
+
+	return sprintf(buf, "%u\n", fan_data->temp_tolerate);	
+}
+
+static ssize_t tolerate_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct gpio_fan_data *fan_data = platform_get_drvdata(pdev);
+
+	mutex_lock(&fan_data->lock);
+	sscanf(buf, "%u", &fan_data->temp_tolerate);
 	mutex_unlock(&fan_data->lock);
 
 	return count;
 }
 
 static DEVICE_ATTR(temp, 0644, temp_show, temp_store);
-static struct attribute *temp_attrs[] = {
+static DEVICE_ATTR(tolerate, 0644, tolerate_show, tolerate_store);
+static struct attribute *temp_trips_attrs[] = {
         &dev_attr_temp.attr,
+        &dev_attr_tolerate.attr,
         NULL
 };
 
 static struct attribute_group temp_trips_attribute_group = {
-        .attrs = temp_attrs,
+        .attrs = temp_trips_attrs,
         .name = "temp_trips",
 };
 
