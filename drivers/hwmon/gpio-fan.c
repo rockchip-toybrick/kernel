@@ -563,8 +563,6 @@ static int gpio_fan_thermal_to_speed_index(struct gpio_fan_data *fan_data, int t
 	int index = fan_data->speed_index;
 	int tol = (int)fan_data->temp_tolerate;
 
-	printk("temp %d, index %d, tol %d\n", temp, index, tol);
-
 	if(index == 0) {
 		if(temp >= trips[index + 1].temp + tol)
 			return index + 1;
@@ -597,7 +595,6 @@ static int  gpio_fan_thermal_notifier_call(struct notifier_block *nb,
 	mutex_lock(&fan_data->lock);
 
 	speed_index = gpio_fan_thermal_to_speed_index(fan_data, temperature);
-	printk("speed_index %d\n", speed_index);
 	set_fan_speed(fan_data, speed_index);
 
 	mutex_unlock(&fan_data->lock);
