@@ -50,7 +50,7 @@ static int es7243_i2c_read(struct i2c_client *client, u8 reg)
 
 	ret = i2c_transfer(client->adapter, xfer, 2);
 	if (ret != 2) {
-		dev_err(&client->dev, "i2c_transfer() returned %d\n", ret);
+		printk(KERN_DEBUG "%s:i2c_transfer() returned %d\n",__FUNCTION__,ret);
 		return 0;
 	}
 
@@ -101,8 +101,7 @@ int es7243_init_mode(struct i2c_client *client)
 		err = es7243_i2c_write(client, init_mode[i].reg_index,
 				init_mode[i].reg_value);
 		if(err != 0 ) {
-			dev_err(&client->dev, "i2c write 0x%0x failed\n",
-					init_mode[i].reg_index);
+			printk(KERN_DEBUG "%s:i2c write 0x%0x failed\n",__FUNCTION__,init_mode[i].reg_index);
 			//return err;
 		}
 	}
