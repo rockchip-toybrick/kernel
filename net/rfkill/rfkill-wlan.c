@@ -374,6 +374,8 @@ int rockchip_wifi_power(int on)
 			}
 
             wifi_power_state = 1;
+
+		if(gpio_is_valid(work_led->io))
 			gpio_set_value(work_led->io, work_led->enable);
 			LOG("wifi turn on power. %d\n", poweron->io);
 		}else{
@@ -387,6 +389,7 @@ int rockchip_wifi_power(int on)
 			}
 
             wifi_power_state = 0;
+		if(gpio_is_valid(work_led->io))
 			gpio_set_value(work_led->io, !(work_led->enable));
 			LOG("wifi shut off power.\n");
 		}

@@ -325,6 +325,7 @@ static int rfkill_rk_set_power(void *data, bool blocked)
         }
 
         bt_power_state = 1;
+	if(gpio_is_valid(work_led->io))
 		gpio_set_value(work_led->io, work_led->enable);
     	LOG("bt turn on power\n");
 	} else {
@@ -335,6 +336,7 @@ static int rfkill_rk_set_power(void *data, bool blocked)
             }
 
             bt_power_state = 0;
+		if(gpio_is_valid(work_led->io))
 			gpio_set_value(work_led->io, !work_led->enable);
     		LOG("bt shut off power\n");
 		if (gpio_is_valid(reset->io))
