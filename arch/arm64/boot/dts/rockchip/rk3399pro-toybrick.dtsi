@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 // Copyright (c) 2018 Fuzhou Rockchip Electronics Co., Ltd
 
-/dts-v1/;
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/input/input.h>
@@ -519,9 +518,9 @@
 		};
 	};
 
-	vdd_cpu_b: syr837@40 {
-		compatible = "silergy,syr827";
-		reg = <0x40>;
+	vdd_cpu_b: tcs452x@1c {
+		compatible = "tcs,tcs452x";
+		reg = <0x1c>;
 		vin-supply = <&vcc5v0_sys>;
 		regulator-compatible = "fan53555-reg";
 		pinctrl-0 = <&vsel1_gpio>;
@@ -529,7 +528,7 @@
 		regulator-name = "vdd_cpu_b";
 		regulator-min-microvolt = <712500>;
 		regulator-max-microvolt = <1500000>;
-		regulator-ramp-delay = <1000>;
+		regulator-ramp-delay = <2300>;
 		fcs,suspend-voltage-selector = <1>;
 		regulator-always-on;
 		regulator-boot-on;
@@ -539,10 +538,10 @@
 		};
 	};
 
-	vdd_gpu: syr828@41 {
-		compatible = "silergy,syr828";
+	vdd_gpu: tcs452x@10 {
+		compatible = "tcs,tcs452x";
 		status = "okay";
-		reg = <0x41>;
+		reg = <0x10>;
 		vin-supply = <&vcc5v0_sys>;
 		regulator-compatible = "fan53555-reg";
 		pinctrl-0 = <&vsel2_gpio>;
@@ -550,7 +549,7 @@
 		regulator-name = "vdd_gpu";
 		regulator-min-microvolt = <735000>;
 		regulator-max-microvolt = <1400000>;
-		regulator-ramp-delay = <1000>;
+		regulator-ramp-delay = <2300>;
 		fcs,suspend-voltage-selector = <1>;
 		regulator-always-on;
 		regulator-boot-on;
@@ -559,38 +558,6 @@
 		};
 	};
 
-};
-
-&i2c1 {
-	status = "okay";
-	i2c-scl-rising-time-ns = <140>;
-	i2c-scl-falling-time-ns = <30>;
-	/*
-	mpu6500@68 {
-		status = "okay";
-		compatible = "invensense,mpu6500";
-		reg = <0x68>;
-		irq-gpio = <&gpio3 RK_PD2 IRQ_TYPE_EDGE_RISING>;
-		mpu-int_config = <0x10>;
-		mpu-level_shifter = <0>;
-		mpu-orientation = <0 1 0 1 0 0 0 0 1>;
-		orientation-x= <1>;
-		orientation-y= <0>;
-		orientation-z= <0>;
-		mpu-debug = <1>;
-	};
-
-	sensor@d {
-		status = "okay";
-		compatible = "ak8963";
-		reg = <0x0d>;
-		type = <SENSOR_TYPE_COMPASS>;
-		irq-gpio = <&gpio3 RK_PD7 IRQ_TYPE_EDGE_RISING>;
-		irq_enable = <0>;
-		poll_delay_ms = <30>;
-		layout = <3>;
-	};
-	*/
 };
 
 &i2c4 {
@@ -603,16 +570,9 @@
 		reg = <0x40>;
 		screen_max_x = <1536>;
 		screen_max_y = <2048>;
-		irq_gpio_number = <&gpio4 RK_PC3 IRQ_TYPE_LEVEL_LOW>;
+		irq_gpio_number = <&gpio4 RK_PC5 IRQ_TYPE_LEVEL_LOW>;
 		rst_gpio_number = <&gpio4 RK_PC6 GPIO_ACTIVE_HIGH>;
 	};
-};
-
-&i2c5 {
-	status = "okay";
-	i2c-scl-rising-time-ns = <150>;
-	i2c-scl-falling-time-ns = <30>;
-	clock-frequency = <100000>;
 };
 
 &i2c8 {

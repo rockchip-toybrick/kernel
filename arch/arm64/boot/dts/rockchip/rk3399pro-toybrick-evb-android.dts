@@ -1,3 +1,4 @@
+/dts-v1/;
 #include "rk3399pro-toybrick-evb.dtsi"
 #include "rk3399-android.dtsi"
 
@@ -7,7 +8,7 @@
 
 
 &fiq_debugger {
-	pinctrl-0 = <&uart2a_xfer>;
+	pinctrl-0 = <&uart2c_xfer>;
 };
 
 &firmware_android {

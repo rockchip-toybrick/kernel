@@ -6,7 +6,7 @@
 };
 
 &dsi {
-        status = "okay";
+        status = "disabled";
 
         panel@0 {
                 compatible = "sitronix,st7703", "simple-panel-dsi";
