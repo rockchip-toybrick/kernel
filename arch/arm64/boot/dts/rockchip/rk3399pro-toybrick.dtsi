@@ -725,6 +725,8 @@
 
 &usbdrd3_1 {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&usb3_host_en>;
 };
 
 &usbdrd_dwc3_0 {
@@ -749,6 +751,12 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&npu_ref_clk>;
 
+	usb3 {
+		usb3_host_en: usb3-host-en {
+			rockchip,pins =
+				<2 RK_PA2 RK_FUNC_GPIO &pcfg_output_high>;
+		};
+	};
 	bq2570 {
 		charger_ok_int: charger-ok-int {
 			rockchip,pins =
