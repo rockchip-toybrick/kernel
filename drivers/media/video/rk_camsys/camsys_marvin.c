@@ -519,9 +519,9 @@ static int camsys_mrv_drm_iommu_cb(void *ptr, camsys_sysctrl_t *devctl)
 
 static int camsys_mrv_reset_cb(void *ptr, unsigned int on)
 {
+#if 0// just for system dead
 	camsys_dev_t *camsys_dev = (camsys_dev_t *)ptr;
 	camsys_soc_priv_t *soc;
-
 	if (camsys_dev->soc) {
 		soc = (camsys_soc_priv_t *)camsys_dev->soc;
 		if (soc->soc_cfg) {
@@ -534,7 +534,7 @@ static int camsys_mrv_reset_cb(void *ptr, unsigned int on)
 	} else {
 		camsys_err("camsys_dev->soc is NULL!");
 	}
-
+#endif
 	return 0;
 }
 
