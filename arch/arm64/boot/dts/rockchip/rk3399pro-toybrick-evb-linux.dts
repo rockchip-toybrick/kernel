@@ -1,0 +1,44 @@
+/dts-v1/;
+#include "rk3399pro-toybrick-evb.dtsi"
+#include "rk3399-android.dtsi"
+
+/ {
+        compatible = "rockchip,rk3399pro-toybrick-evb-linux","rockchip,rk3399pro";
+};
+
+
+&fiq_debugger {
+	pinctrl-0 = <&uart2c_xfer>;
+};
+
+&hdmi_dp_sound {
+	status = "okay";
+};
+
+&isp0 {
+	status = "okay";
+};
+
+&isp1 {
+	status = "okay";
+};
+
+&isp0_mmu {
+	status = "okay";
+};
+
+&isp1_mmu {
+	status = "okay";
+};
+
+&rk_key {
+	status = "disabled";
+};
+
+&route_edp {
+	status = "okay";
+};
+
+&route_dsi {
+	status = "okay";
+};
