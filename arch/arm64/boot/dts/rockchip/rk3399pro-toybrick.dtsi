@@ -156,6 +156,30 @@
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 	};
+
+	leds: gpio-leds {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 =<&leds_gpio>;
+
+		led@1 {
+			gpios = <&gpio2 5 GPIO_ACTIVE_HIGH>;
+			label = "system_work_led1";
+			retain-state-suspended;
+		};
+
+		led@2 {
+			gpios = <&gpio2 4 GPIO_ACTIVE_HIGH>;
+			label = "system_work_led2";
+			retain-state-suspended;
+		};
+
+		led@3 {
+			gpios = <&gpio2 3 GPIO_ACTIVE_HIGH>;
+			label = "system_work_led3";
+			retain-state-suspended;
+		};
+	};
 };
 
 &cdn_dp {
@@ -833,6 +857,15 @@
 		tp_irq_gpio: tp-irq-gpio {
 			rockchip,pins =
 				<3 RK_PB0 0 &pcfg_pull_up>;
+		};
+	};
+
+    gpio-leds {
+		leds_gpio: leds-gpio {
+			rockchip,pins =
+				<2 5 RK_FUNC_GPIO &pcfg_pull_up>,
+				<2 4 RK_FUNC_GPIO &pcfg_pull_up>,
+				<2 3 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 };
