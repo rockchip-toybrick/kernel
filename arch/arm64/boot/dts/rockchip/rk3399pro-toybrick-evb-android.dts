@@ -58,6 +58,14 @@
 	/delete-node/ power-key;
 };
 
+&uart4 {
+	status = "okay";
+};
+
+&spi1 {
+	status = "disabled";
+};
+
 &route_edp {
 	status = "okay";
 };
