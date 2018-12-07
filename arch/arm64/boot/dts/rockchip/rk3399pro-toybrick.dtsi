@@ -621,6 +621,11 @@
 	#sound-dai-cells = <0>;
 };
 
+&i2s2 {
+    status = "okay";
+    #sound-dai-cells = <0>;
+};
+
 &io_domains {
 	status = "okay";
 	bt656-supply = <&vcca_1v8>;
