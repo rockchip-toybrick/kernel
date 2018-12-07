@@ -53,7 +53,9 @@
 };
 
 &rk_key {
-	status = "disabled";
+	status = "okay";
+	io-channels = <&saradc 2>;
+	/delete-node/ power-key;
 };
 
 &route_edp {
