@@ -86,7 +86,10 @@ extern int es8316_headset_detect(int jack_insert);
 #if defined(CONFIG_SND_SOC_CX2072X)
 extern int cx2072x_jack_report(void);
 #endif
-
+#ifdef CONFIG_SND_SOC_ES7243
+extern int es7243_standby(void);
+extern int es7243_start(void);
+#endif
 /* headset private data */
 struct headset_priv {
 	struct input_dev *input_dev;
@@ -196,11 +199,17 @@ static irqreturn_t headset_interrupt(int irq, void *dev_id)
 			irq_set_irq_type(headset_info->irq[HEADSET],IRQF_TRIGGER_FALLING);
 		else
 			irq_set_irq_type(headset_info->irq[HEADSET],IRQF_TRIGGER_RISING);
+		#ifdef CONFIG_SND_SOC_ES7243
+		es7243_standby();
+		#endif
 	}
 	else if(headset_info->headset_status == HEADSET_OUT)
 	{
 		headset_info->cur_headset_status = HEADSET_OUT;
 		cancel_delayed_work(&headset_info->hook_work);
+		#ifdef CONFIG_SND_SOC_ES7243
+		es7243_start();
+		#endif
 		if(headset_info->isMic)
 		{
 			headset_info->hook_status = HOOK_UP;

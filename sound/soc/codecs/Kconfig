@@ -1007,3 +1007,8 @@ config SND_SOC_TPA6130A2
 	depends on I2C
 
 endmenu
+config SND_SOC_MSM261S4030H0
+	tristate "ASoC support for Rockchip msm261s4030h0"
+
+config SND_SOC_ES7243
+	tristate "ASoC support for Rockchip es7243"
