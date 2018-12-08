@@ -169,6 +169,15 @@
 		regulator-max-microvolt = <5000000>;
 	};
 
+	vdd_log: vdd_log {
+		compatible = "regulator-fixed";
+		regulator-name = "vdd_log";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <900000>;
+		regulator-max-microvolt = <900000>;
+	};
+
 	leds: gpio-leds {
 		compatible = "gpio-leds";
 		pinctrl-names = "default";
@@ -346,7 +355,7 @@
 		};
 
 		regulators {
-			vdd_log: DCDC_REG1 {
+			vdd_center: DCDC_REG1 {
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <750000>;
@@ -674,10 +683,10 @@
 
 &io_domains {
 	status = "okay";
-	bt656-supply = <&vcca_1v8>;
-	audio-supply = <&vcca_1v8>;
-	sdmmc-supply = <&vccio_sd>;
-	gpio1830-supply = <&vcc_3v0>;
+	bt656-supply = <&vcca_1v8>; /* APIO2_VDD */
+	audio-supply = <&vcca_1v8>; /* APIO5_VDD */
+	sdmmc-supply = <&vccio_sd>; /* SDMMC0_VDD */
+	gpio1830-supply = <&vcc_3v0>; /* APIO4_VDD */
 };
 
 &pmu_io_domains {
