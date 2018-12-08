@@ -37,6 +37,7 @@
 #include <linux/platform_data/rk_isp10_platform_camera_module.h>
 #include <linux/platform_data/rk_isp10_platform.h>
 #include <media/v4l2-controls_rockchip.h>
+#include "rk_camera_mclk.h"
 
 #define OF_OV_GPIO_PD "rockchip,pd-gpio"
 #define OF_OV_GPIO_PWR "rockchip,pwr-gpio"
@@ -188,9 +189,10 @@ static int pltfrm_camera_module_set_pinctrl_state(
 
 	if (!IS_ERR_OR_NULL(state)) {
 		ret = pinctrl_select_state(pdata->pinctrl, state);
-		if (ret < 0)
-			pltfrm_camera_module_pr_debug(sd,
-				"could not set pins\n");
+		if (ret < 0) {
+			pltfrm_camera_module_pr_err(sd, "could not set pins\n");
+			ret = (ret == -EINVAL) ? 0 : ret;
+		}
 	}
 
 	return ret;
@@ -314,8 +316,8 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 		goto err;
 	}
 
-	pdata->mclk = devm_clk_get(&client->dev, str);
-	if (IS_ERR_OR_NULL(pdata->mclk)) {
+	ret = rk_camera_mclk_get(&client->dev, str);
+	if (ret) {
 		pltfrm_camera_module_pr_err(sd,
 			"cannot not get %s property of node %s\n",
 			str, np->name);
@@ -694,10 +696,8 @@ err:
 		pdata->regulators.regulator = NULL;
 	}
 
-	if (!IS_ERR_OR_NULL(pdata->mclk)) {
-		devm_clk_put(&client->dev, pdata->mclk);
-		pdata->mclk = NULL;
-	}
+	rk_camera_mclk_put(&client->dev);
+
 	if (!IS_ERR_OR_NULL(pdata)) {
 		devm_kfree(&client->dev, pdata);
 		pdata = NULL;
@@ -1479,16 +1479,15 @@ int pltfrm_camera_module_set_pm_state(
 			ioctl,
 			PLTFRM_CIFCAM_G_ITF_CFG,
 			(void *)&itf_cfg) == 0) {
-			clk_set_rate(pdata->mclk, itf_cfg.mclk_hz);
+			rk_camera_mclk_set_rate(&client->dev, itf_cfg.mclk_hz);
 		} else {
 			pltfrm_camera_module_pr_err(sd,
 				"PLTFRM_CIFCAM_G_ITF_CFG failed, mclk set 24m default.\n");
-			clk_set_rate(pdata->mclk, 24000000);
+			rk_camera_mclk_set_rate(&client->dev, 24000000);
 		}
-		clk_prepare_enable(pdata->mclk);
+		rk_camera_mclk_prepare_enable(&client->dev);
 	} else {
-		clk_disable_unprepare(pdata->mclk);
-
+		rk_camera_mclk_disable_unprepare(&client->dev);
 		pltfrm_camera_module_set_pin_state(
 			sd,
 			PLTFRM_CAMERA_MODULE_PIN_PWR_3RD,
@@ -1771,6 +1770,8 @@ void pltfrm_camera_module_release(
 	}
 	if (pdata->pinctrl)
 		devm_pinctrl_put(pdata->pinctrl);
+
+	rk_camera_mclk_put(&client->dev);
 	if (!IS_ERR_OR_NULL(pdata)) {
 		devm_kfree(&client->dev, pdata);
 		pdata = NULL;
