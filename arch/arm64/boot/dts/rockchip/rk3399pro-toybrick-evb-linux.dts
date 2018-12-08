@@ -125,7 +125,7 @@
 		clocks = <&cru SCLK_CIF_OUT>;
 		clock-names = "clk_cif_out";
 
-		pinctrl-names = "rockchip,camera_default";
+		pinctrl-names = "default";
 		pinctrl-0 = <&cam_default_pins>;
 
 		rockchip,pd-gpio = <&gpio4 RK_PD1 GPIO_ACTIVE_LOW>;
@@ -162,7 +162,7 @@
 		clocks = <&cru SCLK_CIF_OUT>;
 		clock-names = "clk_cif_out";
 
-		pinctrl-names = "rockchip,camera_default";
+		pinctrl-names = "default";
 		pinctrl-0 = <&cam_default_pins>;
 
 		rockchip,pd-gpio = <&gpio3 RK_PD2 GPIO_ACTIVE_LOW>;
