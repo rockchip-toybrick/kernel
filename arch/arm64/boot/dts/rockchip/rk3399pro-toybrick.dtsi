@@ -124,6 +124,18 @@
 		pinctrl-0 = <&hp_det>;
 		io-channels = <&saradc 3>;
 	};
+	
+	rockchip_msm261s4030h0_codec: rockchip-msm261s4030h0-codec {
+		status = "okay";
+		compatible = "rockchip-msm261s4030h0-codec";
+	};
+	
+	rockchip_msm261s4030h0:rockchip-msm261s4030h0 {
+		compatible = "rockchip-msm261s4030h0";
+		status = "okay";
+		rockchip,codec = <&rockchip_msm261s4030h0_codec>;
+		rockchip,cpu = <&i2s0>;
+	};
 
 	sdio_pwrseq: sdio-pwrseq {
 		compatible = "mmc-pwrseq-simple";
@@ -613,6 +625,18 @@
 	};
 };
 
+&i2c7 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <345>;
+	i2c-scl-falling-time-ns = <11>;
+	clock-frequency = <400000>;
+	es7243: es7243@13 {
+		status = "okay";
+		compatible = "everest,es7243";
+		reg = <0x13>;
+	};
+};
+
 &i2c8 {
 	status = "okay";
 	i2c-scl-rising-time-ns = <345>;
@@ -628,6 +652,14 @@
 		status = "okay";
 	};
 
+};
+
+&i2s0 {
+	status = "okay";
+	rockchip,i2s-broken-burst-len;
+	rockchip,playback-channels = <8>;
+	rockchip,capture-channels = <8>;
+	#sound-dai-cells = <0>;
 };
 
 &i2s1 {
