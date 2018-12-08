@@ -1800,11 +1800,17 @@ long pltfrm_camera_module_ioctl(struct v4l2_subdev *sd,
 		struct camera_module_info_s *p_camera_module =
 		(struct camera_module_info_s *)arg;
 
-		/*
-		 * strlcpy((char *)p_camera_module->sensor_name,
-		 * (char *)client->driver->driver.name,
-		 * sizeof(p_camera_module->sensor_name));
-		 */
+		char tmp_buf[32];
+		char delim[] = "-";
+		char *s = tmp_buf;
+
+		memset(tmp_buf, 0x00, sizeof(tmp_buf[32]));
+		strlcpy(tmp_buf,
+			(char *)client->name,
+			sizeof(tmp_buf));
+		strlcpy((char *)p_camera_module->sensor_name,
+			strsep(&s, delim),
+			sizeof(p_camera_module->sensor_name));
 
 		if (pdata->info.module_name)
 			strcpy((char *)p_camera_module->module_name,
