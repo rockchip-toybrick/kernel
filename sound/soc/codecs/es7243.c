@@ -203,6 +203,7 @@ static int es7243_i2c_probe(struct i2c_client *client,
 	es7243_i2c_client[count] = client;
 	count++;
 	es7243_init();
+	es7243_start();
 	printk("csq es7243_i2c_probe finish\n");
 	return 0;
 }
