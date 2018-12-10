@@ -68,8 +68,10 @@
 
 &route_edp {
 	status = "okay";
+	connect = <&vopb_out_edp>;
 };
 
 &route_dsi {
 	status = "okay";
+	connect = <&vopl_out_dsi>;
 };

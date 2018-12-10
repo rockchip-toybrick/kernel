@@ -64,7 +64,7 @@
 	panel: panel {
 		compatible = "simple-panel";
 		backlight = <&backlight>;
-		enable-gpios = <&gpio4 RK_PD6 GPIO_ACTIVE_HIGH>;
+		//enable-gpios = <&gpio4 RK_PD6 GPIO_ACTIVE_HIGH>;
 		prepare-delay-ms = <20>;
 		enable-delay-ms = <20>;
 		reset-delay-ms = <20>;
@@ -254,6 +254,10 @@
 
 &edp_in_vopl {
 	status = "disabled";
+};
+
+&edp_in_vopb {
+	status = "okay";
 };
 
 &emmc_phy {
