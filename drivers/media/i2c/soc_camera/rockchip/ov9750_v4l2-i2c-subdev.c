@@ -76,7 +76,7 @@
 #define OV9750_V_WIN_OFF_LOW_REG 0x3813
 
 static int cam_num;
-static struct ov_camera_module ov9750[2];
+static struct ov_camera_module ov9750[4];
 
 /* ======================================================================== */
 /* Base sensor configs */
