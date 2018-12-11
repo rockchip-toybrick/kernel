@@ -61,12 +61,12 @@
 };
 
 &cif_isp0 {
-	rockchip,camera-modules-attached = <&camera0>;
+	rockchip,camera-modules-attached = <&camera0 &camera2>;
 	status = "okay";
 };
 
 &cif_isp1 {
-	rockchip,camera-modules-attached = <&camera1>;
+	rockchip,camera-modules-attached = <&camera1 &camera3>;
 	status = "okay";
 };
 
@@ -145,12 +145,74 @@
 		as-master = <0>;
 	};
 
+	camera2: camera-module@36 {
+		status = "okay";
+		compatible = "omnivision,ov9750-v4l2-i2c-subdev";
+		reg = <0x36>;
+		device_type = "v4l2-i2c-subdev";
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "clk_cif_out";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_default_pins>;
+
+		rockchip,pd-gpio = <&gpio4 RK_PD1 GPIO_ACTIVE_LOW>;
+		rockchip,rst-gpio = <&gpio4 RK_PD2 GPIO_ACTIVE_LOW>;
+
+		rockchip,camera-module-mclk-name = "clk_cif_out";
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "MDG001";
+		rockchip,camera-module-len-name = "NONE";
+		rockchip,camera-module-fov-h = "80";
+		rockchip,camera-module-fov-v = "65";
+		rockchip,camera-module-orientation = <0>;
+		rockchip,camera-module-iq-flip = <0>;
+		rockchip,camera-module-iq-mirror = <0>;
+		rockchip,camera-module-flip = <1>;
+		rockchip,camera-module-mirror = <1>;
+
+		rockchip,camera-module-defrect0 = <1280 960 0 0 1280 960>;
+		rockchip,camera-module-flash-support = <0>;
+		rockchip,camera-module-mipi-dphy-index = <0>;
+		as-master = <0>;
+	};
 };
 
 &i2c2 {
 	status = "okay";
 
-	camera1: camera-module@36 {
+	camera1: camera-module@10 {
+		status = "okay";
+		compatible = "omnivision,ov9750-v4l2-i2c-subdev";
+		reg = <0x10>;
+		device_type = "v4l2-i2c-subdev";
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "clk_cif_out";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_default_pins>;
+
+		rockchip,pd-gpio = <&gpio3 RK_PD2 GPIO_ACTIVE_LOW>;
+		rockchip,rst-gpio = <&gpio3 RK_PD7 GPIO_ACTIVE_LOW>;
+
+		rockchip,camera-module-mclk-name = "clk_cif_out";
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "MDG001";
+		rockchip,camera-module-len-name = "NONE";
+		rockchip,camera-module-fov-h = "80";
+		rockchip,camera-module-fov-v = "65";
+		rockchip,camera-module-orientation = <0>;
+		rockchip,camera-module-iq-flip = <0>;
+		rockchip,camera-module-iq-mirror = <0>;
+		rockchip,camera-module-flip = <1>;
+		rockchip,camera-module-mirror = <1>;
+
+		rockchip,camera-module-defrect0 = <1280 960 0 0 1280 960>;
+		rockchip,camera-module-flash-support = <0>;
+		rockchip,camera-module-mipi-dphy-index = <1>;
+		as-master = <0>;
+	};
+	camera3: camera-module@36 {
 		status = "okay";
 		compatible = "omnivision,ov9750-v4l2-i2c-subdev";
 		reg = <0x36>;
