@@ -126,7 +126,7 @@
 	};
 	
 	hdmi_codec: hdmi-codec {
-		status="okay";
+		status="disabled";
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
 		simple-audio-card,mclk-fs = <256>;
