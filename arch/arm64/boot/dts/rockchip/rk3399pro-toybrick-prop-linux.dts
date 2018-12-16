@@ -1,0 +1,29 @@
+/dts-v1/;
+#include "rk3399pro-toybrick.dtsi"
+#include "rk3399-vop-clk-set.dtsi"
+#include "rk3399-android.dtsi"
+#include "rk3399pro-toybrick-ov9750.dtsi"
+
+/ {
+	compatible = "rockchip,rk3399pro-toybrick-evb-linux","rockchip,rk3399pro";
+};
+
+&fiq_debugger {
+	pinctrl-0 = <&uart2c_xfer>;
+};
+
+&rk_key {
+	status = "disabled";
+};
+
+&route_edp {
+	status = "okay";
+};
+
+&route_dsi {
+	status = "okay";
+};
+
+&hdmi_codec {
+	status = "okay";
+};

@@ -1,0 +1,77 @@
+/dts-v1/;
+#include "rk3399pro-toybrick.dtsi"
+#include "rk3399-vop-clk-set.dtsi"
+#include "rk3399-android.dtsi"
+
+/ {
+	compatible = "rockchip,rk3399pro-toybrick-evb-android","rockchip,rk3399pro";
+};
+
+&fiq_debugger {
+	pinctrl-0 = <&uart2c_xfer>;
+};
+
+&firmware_android {
+	compatible = "android,firmware";
+	fstab {
+		compatible = "android,fstab";
+		system {
+			compatible = "android,system";
+			dev = "/dev/block/by-name/system";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait,verify";
+		};
+		vendor {
+			compatible = "android,vendor";
+			dev = "/dev/block/by-name/vendor";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait,verify";
+		};
+	};
+};
+
+&hdmi_dp_sound {
+	status = "okay";
+};
+
+&isp0 {
+	status = "okay";
+};
+
+&isp1 {
+	status = "okay";
+};
+
+&isp0_mmu {
+	status = "okay";
+};
+
+&isp1_mmu {
+	status = "okay";
+};
+
+&rk_key {
+	status = "okay";
+	io-channels = <&saradc 2>;
+	/delete-node/ power-key;
+};
+
+&uart4 {
+	status = "okay";
+};
+
+&spi1 {
+	status = "disabled";
+};
+
+&route_edp {
+	status = "okay";
+	connect = <&vopb_out_edp>;
+};
+
+&route_dsi {
+	status = "okay";
+	connect = <&vopl_out_dsi>;
+};
