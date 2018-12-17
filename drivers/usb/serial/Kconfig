@@ -715,4 +715,10 @@ config USB_SERIAL_DEBUG
 	  To compile this driver as a module, choose M here: the
 	  module will be called usb-debug.
 
+config USB_SERIAL_XR21V1414
+       tristate "USB Serial Exar XR21V1414 support"
+       depends on USB
+       help
+         This selects support for Exar XR21V1414 serial ports.
+
 endif # USB_SERIAL
