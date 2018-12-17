@@ -212,6 +212,11 @@
 		pinctrl-0 = <&mini_pcie_pins>;
 		status = "okay";
 	};
+
+	usbhub-reset {
+		compatible = "usbhub-reset";
+		uhrst-gpio = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+	};
 };
 
 &cdn_dp {
