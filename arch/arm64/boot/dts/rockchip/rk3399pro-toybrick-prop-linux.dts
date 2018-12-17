@@ -27,8 +27,3 @@
 &hdmi_codec {
 	status = "okay";
 };
-
-usbhub-reset {
-    compatible = "usbhub-reset";
-    uhrst-gpio = <&gpio1 10 GPIO_ACTIVE_HIGH>;
-};

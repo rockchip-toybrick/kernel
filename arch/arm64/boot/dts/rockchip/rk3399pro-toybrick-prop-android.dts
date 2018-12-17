@@ -75,8 +75,3 @@
 	status = "okay";
 	connect = <&vopl_out_dsi>;
 };
-
-usbhub-reset {
-    compatible = "usbhub-reset";
-    uhrst-gpio = <&gpio1 10 GPIO_ACTIVE_HIGH>;
-};
