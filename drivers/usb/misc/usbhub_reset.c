@@ -87,6 +87,7 @@ static int uhrst_probe(struct platform_device *pdev)
 	}
 
 	gpio_direction_output(uhrst_gpio, GPIO_HIGH);
+	gpio_export(uhrst_gpio, true);
 
 	return ret;
 
