@@ -5,6 +5,24 @@
 
 / {
 	compatible = "rockchip,rk3399pro-toybrick-evb-android","rockchip,rk3399pro";
+
+	wireless-wlan {
+		compatible = "wlan-platdata";
+		wifi_chip_type = "rtl8188eu";
+		status = "okay";
+	};
+};
+
+&pcie_phy {
+	status = "okay";
+};
+
+&pcie0 {
+	ep-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;
+	num-lines = <4>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie_clkreqn_cpm &pcie_ep>;
+	status = "okay";
 };
 
 &fiq_debugger {
@@ -74,4 +92,13 @@
 &route_dsi {
 	status = "okay";
 	connect = <&vopl_out_dsi>;
+};
+
+&pinctrl {
+	pcie {
+		pcie_ep: pcie-ep {
+			rockchip,pins =
+				<0 12 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
 };
