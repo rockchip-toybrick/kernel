@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2007 - 2012 Realtek Corporation. All rights reserved.
+ * Copyright(c) 2007 - 2017 Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -11,12 +11,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
- *
- *
- ******************************************************************************/
+ *****************************************************************************/
 
 #define _USB_HALINIT_C_
 
@@ -117,11 +112,11 @@ void rtl8723du_interface_configure(
 #endif
 
 #ifdef CONFIG_USB_RX_AGGREGATION
-	pHalData->UsbRxAggMode = USB_RX_AGG_USB;
-	pHalData->UsbRxAggBlockCount = 0x5; /* unit: 4KB, for USB mode */
-	pHalData->UsbRxAggBlockTimeout = 0x20; /* unit: 32us, for USB mode */
-	pHalData->UsbRxAggPageCount = 0xF; /* uint: 1KB, for DMA mode */
-	pHalData->UsbRxAggPageTimeout = 0x20; /* unit: 32us, for DMA mode */
+	pHalData->rxagg_mode = RX_AGG_USB;
+	pHalData->rxagg_usb_size = 0x5; /* unit: 4KB, for USB mode */
+	pHalData->rxagg_usb_timeout = 0x20; /* unit: 32us, for USB mode */
+	pHalData->rxagg_dma_size = 0xF; /* uint: 1KB, for DMA mode */
+	pHalData->rxagg_dma_timeout = 0x20; /* unit: 32us, for DMA mode */
 #endif
 
 	HalUsbSetQueuePipeMapping8723DUsb(padapter,
@@ -212,31 +207,6 @@ static u32 _InitPowerOn_8723du(PADAPTER padapter)
 
 	value8 = _TRUE;
 	rtw_hal_set_hwreg(padapter, HW_VAR_APFM_ON_MAC, &value8);
-
-#ifdef CONFIG_BT_COEXIST
-	rtw_btcoex_PowerOnSetting(padapter);
-
-	/* external switch to S1 */
-	/* 0x38[11] = 0x1 */
-	/* 0x4c[23] = 0x1 */
-	/* 0x64[0] = 0 */
-	value16 = rtw_read16(padapter, REG_PWR_DATA);
-
-	/* Switch the control of EESK, EECS to RFC for DPDT or Antenna switch */
-	value16 |= BIT(11); /* BIT_EEPRPAD_RFE_CTRL_EN */
-	rtw_write16(padapter, REG_PWR_DATA, value16);
-	/*RTW_INFO("%s: REG_PWR_DATA(0x%x)=0x%04X\n", __func__, REG_PWR_DATA, rtw_read16(padapter, REG_PWR_DATA)); */
-
-	value32 = rtw_read32(padapter, REG_LEDCFG0);
-	value32 |= BIT(23); /* DPDT_SEL_EN, 1 for SW control */
-	rtw_write32(padapter, REG_LEDCFG0, value32);
-	/*RTW_INFO("%s: REG_LEDCFG0(0x%x)=0x%08X\n", __func__, REG_LEDCFG0, rtw_read32(padapter, REG_LEDCFG0)); */
-
-	value8 = rtw_read8(padapter, REG_PAD_CTRL1_8723D);
-	value8 &= ~BIT(0); /* BIT_SW_DPDT_SEL_DATA, DPDT_SEL default configuration */
-	rtw_write8(padapter, REG_PAD_CTRL1_8723D, value8);
-	/*RTW_INFO("%s: REG_PAD_CTRL1(0x%x)=0x%02X\n", __func__, REG_PAD_CTRL1_8188F, rtw_read8(padapter, REG_PAD_CTRL1_8188F)); */
-#endif /* CONFIG_BT_COEXIST */
 
 	return status;
 }
@@ -570,10 +540,10 @@ _InitWMACSetting(
 {
 	u16 value16;
 	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(padapter);
+	u32 rcr;
 
-	pHalData->ReceiveConfig = RCR_APM | RCR_AM | RCR_AB | RCR_CBSSID_DATA | RCR_CBSSID_BCN | RCR_APP_ICV | RCR_AMF | RCR_HTC_LOC_CTRL | RCR_APP_MIC | RCR_APP_PHYST_RXFF;
-
-	rtw_write32(padapter, REG_RCR, pHalData->ReceiveConfig);
+	rcr = RCR_APM | RCR_AM | RCR_AB | RCR_CBSSID_DATA | RCR_CBSSID_BCN | RCR_APP_ICV | RCR_AMF | RCR_HTC_LOC_CTRL | RCR_APP_MIC | RCR_APP_PHYST_RXFF;
+	rtw_hal_set_hwreg(padapter, HW_VAR_RCR, (u8 *)&rcr);
 
 	/* Accept all data frames */
 	value16 = 0xFFFF;
@@ -614,24 +584,10 @@ _InitAdaptiveCtrl(
 	rtw_write16(padapter, REG_SPEC_SIFS, value16);
 
 	/* Retry Limit */
-	value16 = _LRL(0x30) | _SRL(0x30);
+	value16 = _LRL(RL_VAL_STA) | _SRL(RL_VAL_STA);
 	rtw_write16(padapter, REG_RL, value16);
 
 }
-
-static void
-_InitRateFallback(
-	IN PADAPTER padapter
-)
-{
-	/* Set Data Auto Rate Fallback Retry Count register. */
-	rtw_write32(padapter, REG_DARFRC, 0x00000000);
-	rtw_write32(padapter, REG_DARFRC + 4, 0x10080404);
-	rtw_write32(padapter, REG_RARFRC, 0x04030201);
-	rtw_write32(padapter, REG_RARFRC + 4, 0x08070605);
-
-}
-
 
 static void
 _InitEDCA(
@@ -656,7 +612,7 @@ _InitEDCA(
 
 }
 
-#ifdef CONFIG_LED
+#ifdef CONFIG_RTW_LED
 static void _InitHWLed(PADAPTER padapter)
 {
 	struct led_priv *pledpriv = &(padapter->ledpriv);
@@ -669,7 +625,7 @@ static void _InitHWLed(PADAPTER padapter)
 	/* must consider cases of antenna diversity/ commbo card/solo card/mini card */
 
 }
-#endif /* CONFIG_LED */
+#endif /* CONFIG_RTW_LED */
 
 static void
 _InitRDGSetting_8723du(
@@ -808,9 +764,9 @@ usb_AggSettingRxUpdate(PADAPTER padapter)
 	aggrx &= ~0xFF0F; /* reset agg size and timeout */
 
 #ifdef CONFIG_USB_RX_AGGREGATION
-	switch (pHalData->UsbRxAggMode) {
-	case USB_RX_AGG_DMA:
-		agg_size = pHalData->UsbRxAggPageCount << 10;
+	switch (pHalData->rxagg_mode) {
+	case RX_AGG_DMA:
+		agg_size = pHalData->rxagg_dma_size << 10;
 		if (agg_size > RX_DMA_BOUNDARY_8723D)
 			agg_size = RX_DMA_BOUNDARY_8723D >> 1;
 		if ((agg_size + 2048) > MAX_RECVBUF_SZ)
@@ -822,14 +778,14 @@ usb_AggSettingRxUpdate(PADAPTER padapter)
 		aggctrl |= RXDMA_AGG_EN;
 		aggrx |= BIT_USB_RXDMA_AGG_EN;
 		aggrx |= agg_size;
-		aggrx |= (pHalData->UsbRxAggPageTimeout << 8);
+		aggrx |= (pHalData->rxagg_dma_timeout << 8);
 		RTW_INFO("%s: RX Agg-DMA mode, size=%dKB, timeout=%dus\n",
-			__func__, agg_size, pHalData->UsbRxAggPageTimeout * 32);
+			__func__, agg_size, pHalData->rxagg_dma_timeout * 32);
 		break;
 
-	case USB_RX_AGG_USB:
-	case USB_RX_AGG_MIX:
-		agg_size = pHalData->UsbRxAggBlockCount << 12;
+	case RX_AGG_USB:
+	case RX_AGG_MIX:
+		agg_size = pHalData->rxagg_usb_size << 12;
 		if ((agg_size + 2048) > MAX_RECVBUF_SZ)
 			agg_size = MAX_RECVBUF_SZ - 2048;
 		agg_size >>= 12; /* unit: 4K */
@@ -839,12 +795,12 @@ usb_AggSettingRxUpdate(PADAPTER padapter)
 		aggctrl |= RXDMA_AGG_EN;
 		aggrx &= ~BIT_USB_RXDMA_AGG_EN;
 		aggrx |= agg_size;
-		aggrx |= (pHalData->UsbRxAggBlockTimeout << 8);
+		aggrx |= (pHalData->rxagg_usb_timeout << 8);
 		RTW_INFO("%s: RX Agg-USB mode, size=%dKB, timeout=%dus\n",
-			__func__, agg_size * 4, pHalData->UsbRxAggBlockTimeout * 32);
+				 __func__, agg_size * 4, pHalData->rxagg_usb_timeout * 32);
 		break;
 
-	case USB_RX_AGG_DISABLE:
+	case RX_AGG_DISABLE:
 	default:
 		RTW_INFO("%s: RX Aggregation Disable!\n", __func__);
 		break;
@@ -879,17 +835,6 @@ PHY_InitAntennaSelection8723D(
 {
 }
 
-static void _InitAdhocWorkaroundParams(IN PADAPTER padapter)
-{
-#ifdef CONFIG_ADHOC_WORKAROUND_SETTING
-	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(padapter);
-
-	pHalData->RegBcnCtrlVal = rtw_read8(padapter, REG_BCN_CTRL);
-	pHalData->RegTxPause = rtw_read8(padapter, REG_TXPAUSE);
-	pHalData->RegFwHwTxQCtrl = rtw_read8(padapter, REG_FWHW_TXQ_CTRL + 2);
-	pHalData->RegReg542 = rtw_read8(padapter, REG_TBTT_PROHIBIT + 2);
-#endif
-}
 
 static void
 _InitRFType(
@@ -920,8 +865,8 @@ static void _BBTurnOnBlock(
 	return;
 #endif
 
-	PHY_SetBBReg(padapter, rFPGA0_RFMOD, bCCKEn, 0x1);
-	PHY_SetBBReg(padapter, rFPGA0_RFMOD, bOFDMEn, 0x1);
+	phy_set_bb_reg(padapter, rFPGA0_RFMOD, bCCKEn, 0x1);
+	phy_set_bb_reg(padapter, rFPGA0_RFMOD, bOFDMEn, 0x1);
 }
 
 #define MgntActSet_RF_State(...)
@@ -1071,28 +1016,28 @@ void _InitBBRegBackup_8723du(PADAPTER padapter)
 	/* For Channel 1~11 (Default Value)*/
 	pHalData->RegForRecover[0].offset = rCCK0_TxFilter2;
 	pHalData->RegForRecover[0].value =
-		PHY_QueryBBReg(padapter,
+		phy_query_bb_reg(padapter,
 			       pHalData->RegForRecover[0].offset, bMaskDWord);
 
 	pHalData->RegForRecover[1].offset = rCCK0_DebugPort;
 	pHalData->RegForRecover[1].value =
-		PHY_QueryBBReg(padapter,
+		phy_query_bb_reg(padapter,
 			       pHalData->RegForRecover[1].offset, bMaskDWord);
 
 	pHalData->RegForRecover[2].offset = 0xAAC;
 	pHalData->RegForRecover[2].value =
-		PHY_QueryBBReg(padapter,
+		phy_query_bb_reg(padapter,
 			       pHalData->RegForRecover[2].offset, bMaskDWord);
 #if 0
 	/* For 20 MHz	(Default Value)*/
 	pHalData->RegForRecover[2].offset = rBBrx_DFIR;
-	pHalData->RegForRecover[2].value = PHY_QueryBBReg(padapter, pHalData->RegForRecover[2].offset, bMaskDWord);
+	pHalData->RegForRecover[2].value = phy_query_bb_reg(padapter, pHalData->RegForRecover[2].offset, bMaskDWord);
 
 	pHalData->RegForRecover[3].offset = rOFDM0_XATxAFE;
-	pHalData->RegForRecover[3].value = PHY_QueryBBReg(padapter, pHalData->RegForRecover[3].offset, bMaskDWord);
+	pHalData->RegForRecover[3].value = phy_query_bb_reg(padapter, pHalData->RegForRecover[3].offset, bMaskDWord);
 
 	pHalData->RegForRecover[4].offset = 0x1E;
-	pHalData->RegForRecover[4].value = PHY_QueryRFReg(padapter, ODM_RF_PATH_A, pHalData->RegForRecover[4].offset, bRFRegOffsetMask);
+	pHalData->RegForRecover[4].value = phy_query_rf_reg(padapter, RF_PATH_A, pHalData->RegForRecover[4].offset, bRFRegOffsetMask);
 #endif
 }
 
@@ -1106,7 +1051,7 @@ u32 rtl8723du_hal_init(PADAPTER padapter)
 	rt_rf_power_state eRfPowerStateToSet;
 	u32 NavUpper = WiFiNavUpperUs;
 	u32 value32;
-	u32 init_start_time = rtw_get_current_time();
+	systime init_start_time = rtw_get_current_time();
 
 
 	/* if (rtw_is_surprise_removed(padapter)) */
@@ -1163,10 +1108,6 @@ u32 rtl8723du_hal_init(PADAPTER padapter)
 		goto exit;
 	}
 
-	/* rx shift by DaQin 20150421 */
-	rtw_write8(padapter, REG_TRXDMA_CTRL, (rtw_read8(padapter, REG_TRXDMA_CTRL) | BIT(1)));
-	rtw_write8(padapter, REG_RX_DRVINFO_SZ, (rtw_read8(padapter, REG_RX_DRVINFO_SZ) | BIT(6)));
-
 	if (pHalData->bRDGEnable)
 		_InitRDGSetting_8723du(padapter);
 
@@ -1202,14 +1143,18 @@ u32 rtl8723du_hal_init(PADAPTER padapter)
 	/* <Kordan> InitHalDm should be put ahead of FirmwareDownload. (HWConfig flow: FW->MAC->-BB->RF) */
 	/* rtl8723d_InitHalDm(padapter); */
 
-	if (padapter->registrypriv.mp_mode == 0) {
+	if (padapter->registrypriv.mp_mode == 0
+		#if defined(CONFIG_MP_INCLUDED) && defined(CONFIG_RTW_CUSTOMER_STR)
+		|| padapter->registrypriv.mp_customer_str
+		#endif
+	) {
 		status = rtl8723d_FirmwareDownload(padapter, _FALSE);
 		if (status != _SUCCESS) {
-			padapter->bFWReady = _FALSE;
+			pHalData->bFWReady = _FALSE;
 			pHalData->fw_ractrl = _FALSE;
 			goto exit;
 		} else {
-			padapter->bFWReady = _TRUE;
+			pHalData->bFWReady = _TRUE;
 			pHalData->fw_ractrl = _TRUE;
 		}
 	}
@@ -1256,8 +1201,8 @@ u32 rtl8723du_hal_init(PADAPTER padapter)
 		goto exit;
 	}
 	/*---- Set CCK and OFDM Block "ON"----*/
-	PHY_SetBBReg(padapter, rFPGA0_RFMOD, bCCKEn, 0x1);
-	PHY_SetBBReg(padapter, rFPGA0_RFMOD, bOFDMEn, 0x1);
+	phy_set_bb_reg(padapter, rFPGA0_RFMOD, bCCKEn, 0x1);
+	phy_set_bb_reg(padapter, rFPGA0_RFMOD, bOFDMEn, 0x1);
 #endif
 
 	_InitBBRegBackup_8723du(padapter);
@@ -1278,7 +1223,6 @@ u32 rtl8723du_hal_init(PADAPTER padapter)
 	_InitWMACSetting(padapter);
 	_InitAdaptiveCtrl(padapter);
 	_InitEDCA(padapter);
-	_InitRateFallback(padapter);
 	_InitRetryFunction(padapter);
 	/* _InitOperationMode(padapter);*/ /*todo */
 	rtl8723d_InitBeaconParameters(padapter);
@@ -1295,7 +1239,7 @@ u32 rtl8723du_hal_init(PADAPTER padapter)
 
 #ifdef CONFIG_CHECK_AC_LIFETIME
 	/* Enable lifetime check for the four ACs */
-	rtw_write8(padapter, REG_LIFETIME_CTRL, 0x0F);
+	rtw_write8(padapter, REG_LIFETIME_CTRL, rtw_read8(padapter, REG_LIFETIME_CTRL) | 0x0f);
 #endif	/* CONFIG_CHECK_AC_LIFETIME */
 
 #ifdef CONFIG_TX_MCAST2UNI
@@ -1308,9 +1252,9 @@ u32 rtl8723du_hal_init(PADAPTER padapter)
 #endif	/* CONFIG_CONCURRENT_MODE || CONFIG_TX_MCAST2UNI */
 
 
-#ifdef CONFIG_LED
+#ifdef CONFIG_RTW_LED
 	_InitHWLed(padapter);
-#endif /* CONFIG_LED */
+#endif /* CONFIG_RTW_LED */
 
 	_BBTurnOnBlock(padapter);
 	/* NicIFSetMacAddress(padapter, padapter->PermanentAddress); */
@@ -1322,7 +1266,7 @@ u32 rtl8723du_hal_init(PADAPTER padapter)
 	invalidate_cam_all(padapter);
 
 	/* 2010/12/17 MH We need to set TX power according to EFUSE content at first. */
-	/* PHY_SetTxPowerLevel8723D(padapter, pHalData->CurrentChannel); */
+	/* PHY_SetTxPowerLevel8723D(padapter, pHalData->current_channel); */
 	rtl8723d_InitAntenna_Selection(padapter);
 
 	/* HW SEQ CTRL */
@@ -1346,7 +1290,7 @@ u32 rtl8723du_hal_init(PADAPTER padapter)
 
 #if (MP_DRIVER == 1)
 	if (padapter->registrypriv.mp_mode == 1) {
-		padapter->mppriv.channel = pHalData->CurrentChannel;
+		padapter->mppriv.channel = pHalData->current_channel;
 		MPT_InitializeAdapter(padapter, padapter->mppriv.channel);
 	} else
 #endif
@@ -1355,14 +1299,15 @@ u32 rtl8723du_hal_init(PADAPTER padapter)
 
 		if (pwrctrlpriv->rf_pwrstate == rf_on) {
 			struct pwrctrl_priv *pwrpriv;
-			u32 start_time;
+			systime start_time;
 			u8 restore_iqk_rst;
 			u8 b2Ant;
 			u8 h2cCmdBuf;
 
 			pwrpriv = adapter_to_pwrctl(padapter);
 
-			PHY_LCCalibrate_8723D(&pHalData->odmpriv);
+			/*phy_lc_calibrate_8723d(&pHalData->odmpriv);*/
+			halrf_lck_trigger(&pHalData->odmpriv);
 
 			/* Inform WiFi FW that it is the beginning of IQK */
 			h2cCmdBuf = 1;
@@ -1381,13 +1326,11 @@ u32 rtl8723du_hal_init(PADAPTER padapter)
 #endif
 			restore_iqk_rst = (pwrpriv->bips_processing == _TRUE) ? _TRUE : _FALSE;
 			b2Ant = pHalData->EEPROMBluetoothAntNum == Ant_x2 ? _TRUE : _FALSE;
-			pHalData->odmpriv.nIQK_Cnt = 0;
-			pHalData->odmpriv.nIQK_OK_Cnt = 0;
-			pHalData->odmpriv.nIQK_Fail_Cnt = 0;
 #if 1
-			PHY_IQCalibrate_8723D(padapter, _FALSE);
+			halrf_iqk_trigger(&pHalData->odmpriv, _FALSE);
+			/*phy_iq_calibrate_8723d(padapter, _FALSE);*/
 #else
-			PHY_IQCalibrate_8723D(padapter, _FALSE, restore_iqk_rst, b2Ant, pHalData->ant_path);
+			phy_iq_calibrate_8723d(padapter, _FALSE, restore_iqk_rst, b2Ant, pHalData->ant_path);
 #endif
 			pHalData->bIQKInitialized = _TRUE;
 #ifdef CONFIG_BT_COEXIST
@@ -1398,7 +1341,7 @@ u32 rtl8723du_hal_init(PADAPTER padapter)
 			h2cCmdBuf = 0;
 			FillH2CCmd8723D(padapter, H2C_8723D_BT_WLAN_CALIBRATION, 1, &h2cCmdBuf);
 
-			ODM_TXPowerTrackingCheck(&pHalData->odmpriv);
+			odm_txpowertracking_check(&pHalData->odmpriv);
 		}
 	}
 
@@ -1433,13 +1376,16 @@ u32 rtl8723du_hal_init(PADAPTER padapter)
 	rtw_write32(padapter, REG_FWHW_TXQ_CTRL, rtw_read32(padapter, REG_FWHW_TXQ_CTRL) | BIT(12));
 #endif /*CONFIG_XMIT_ACK */
 
-	PHY_SetBBReg(padapter, rOFDM0_XAAGCCore1, bMaskByte0, 0x50);
-	PHY_SetBBReg(padapter, rOFDM0_XAAGCCore1, bMaskByte0, 0x20);
+	phy_set_bb_reg(padapter, rOFDM0_XAAGCCore1, bMaskByte0, 0x50);
+	phy_set_bb_reg(padapter, rOFDM0_XAAGCCore1, bMaskByte0, 0x20);
 	/* Enable MACTXEN/MACRXEN block */
 	u1bRegCR = rtw_read8(padapter, REG_CR);
 	u1bRegCR |= (MACTXEN | MACRXEN);
 	rtw_write8(padapter, REG_CR, u1bRegCR);
 
+	if (padapter->registrypriv.wifi_spec == 1)
+		phy_set_bb_reg(padapter, rOFDM0_ECCAThreshold,
+			       0x00ff00ff, 0x00250029);
 	/*_dbg_dump_macreg(padapter); */
 
 exit:
@@ -1591,10 +1537,10 @@ _DisableRFAFEAndResetBB(
 	 * d.	SYS_FUNC_EN 0x02[7:0] = 0x16		reset BB state machine
 	 * e.	SYS_FUNC_EN 0x02[7:0] = 0x14		reset BB state machine
 	 */
-	u8 eRFPath = 0, value8 = 0;
+	enum rf_path eRFPath = RF_PATH_A, value8 = 0;
 
 	rtw_write8(padapter, REG_TXPAUSE, 0xFF);
-	PHY_SetRFReg(padapter, eRFPath, 0x0, bMaskByte0, 0x0);
+	phy_set_rf_reg(padapter, eRFPath, 0x0, bMaskByte0, 0x0);
 
 	value8 |= APSDOFF;
 	rtw_write8(padapter, REG_APSD_CTRL, value8); /*0x40 */
@@ -1617,7 +1563,7 @@ _ResetDigitalProcedure1(
 
 	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(padapter);
 
-	if (pHalData->FirmwareVersion <= 0x20) {
+	if (pHalData->firmware_version <= 0x20) {
 #if 0
 		/*
 		 * f.	SYS_FUNC_EN 0x03[7:0]=0x54		reset MAC register, DCORE
@@ -1670,7 +1616,7 @@ _ResetDigitalProcedure1(
 			/* IF fw in RAM code, do reset */
 
 			rtw_write8(padapter, REG_MCUFWDL, 0);
-			if (padapter->bFWReady) {
+			if (GET_HAL_DATA(padapter)->bFWReady) {
 				/* 2010/08/25 MH According to RD alfred's suggestion, we need to disable other */
 				/* HRCV INT to influence 8051 reset. */
 				rtw_write8(padapter, REG_FWIMR, 0x20);
@@ -1693,7 +1639,7 @@ _ResetDigitalProcedure1(
 					/*RTW_INFO("%s =====> 8051 reset success (%d) .\n", __func__, retry_cnts); */
 				}
 			} else
-				RTW_INFO("%s =====> 8051 in RAM but !padapter->bFWReady\n", __func__);
+				RTW_INFO("%s =====> 8051 in RAM but !hal_data->bFWReady\n", __func__);
 		} else {
 			/*RTW_INFO("%s =====> 8051 in ROM.\n", __func__); */
 		}
@@ -1861,7 +1807,7 @@ CardDisableRTL8723du(
 	HalPwrSeqCmdParsing(padapter, PWR_CUT_ALL_MSK, PWR_FAB_ALL_MSK, PWR_INTF_USB_MSK, rtl8723D_enter_lps_flow);
 
 	if ((rtw_read8(padapter, REG_MCUFWDL_8723D) & BIT(7)) &&
-	    padapter->bFWReady) /*8051 RAM code */
+	    GET_HAL_DATA(padapter)->bFWReady) /*8051 RAM code */
 		rtl8723d_FirmwareSelfReset(padapter);
 
 	/* Reset MCU. Suggested by Filen. 2011.01.26. by tynli. */
@@ -1874,7 +1820,7 @@ CardDisableRTL8723du(
 	/* Card disable power action flow */
 	HalPwrSeqCmdParsing(padapter, PWR_CUT_ALL_MSK, PWR_FAB_ALL_MSK, PWR_INTF_USB_MSK, rtl8723D_card_disable_flow);
 
-	padapter->bFWReady = _FALSE;
+	GET_HAL_DATA(padapter)->bFWReady = _FALSE;
 }
 
 
@@ -2019,7 +1965,7 @@ hal_EfuseParseLEDSetting(
 	struct led_priv *pledpriv = &(padapter->ledpriv);
 	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(padapter);
 
-#ifdef CONFIG_SW_LED
+#ifdef CONFIG_RTW_SW_LED
 	pledpriv->bRegUseLed = _TRUE;
 
 	/* Led mode */
@@ -2041,7 +1987,7 @@ hal_EfuseParseLEDSetting(
 	pHalData->bLedOpenDrain = _TRUE; /* Support Open-drain arrangement for controlling the LED. Added by Roger, 2009.10.16. */
 #else /* HW LED */
 	pledpriv->LedStrategy = HW_LED;
-#endif /*CONFIG_SW_LED */
+#endif /*CONFIG_RTW_SW_LED */
 #endif
 }
 
@@ -2132,13 +2078,14 @@ hal_EfuseParseIDs(
 	RTW_INFO("Customer ID: 0x%02X, SubCustomer ID: 0x%02X\n", pHalData->EEPROMCustomerID, pHalData->EEPROMSubCustomerID);
 }
 
-static void
+static u8
 InitpadapterVariablesByPROM_8723du(
 	IN PADAPTER padapter
 )
 {
 	PHAL_DATA_TYPE pHalData = GET_HAL_DATA(padapter);
 	u8 *hwinfo = NULL;
+	u8 ret = _FAIL;
 
 	if (sizeof(pHalData->efuse_eeprom_data) < HWSET_MAX_SIZE_8723D)
 		RTW_INFO("[WARNING] size of efuse_eeprom_data is less than HWSET_MAX_SIZE_8723D!\n");
@@ -2166,11 +2113,22 @@ InitpadapterVariablesByPROM_8723du(
 
 	hal_EfuseParseLEDSetting(padapter, hwinfo, pHalData->bautoload_fail_flag);
 
+	/* set coex. ant info once efuse parsing is done */
+	rtw_btcoex_set_ant_info(padapter);
+
 	/* Hal_EfuseParseKFreeData_8723D(padapter, hwinfo, pHalData->bautoload_fail_flag); */
-	hal_read_mac_hidden_rpt(padapter);
+#ifdef CONFIG_RTW_MAC_HIDDEN_RPT
+	if (hal_read_mac_hidden_rpt(padapter) != _SUCCESS)
+		goto exit;
+#endif
+
+	ret = _SUCCESS;
+
+exit:
+	return ret;
 }
 
-static void
+static u8
 hal_EfuseParsePROMContent(
 	IN PADAPTER padapter
 )
@@ -2180,6 +2138,7 @@ hal_EfuseParsePROMContent(
 	u8 eeValue;
 	u32 i;
 	u16 value16;
+	u8 ret = _FAIL;
 
 	eeValue = rtw_read8(padapter, REG_9346CR);
 	/* To check system boot selection. */
@@ -2189,7 +2148,13 @@ hal_EfuseParsePROMContent(
 	RTW_INFO("Boot from %s, Autoload %s !\n", (pHalData->EepromOrEfuse ? "EEPROM" : "EFUSE"),
 		 (pHalData->bautoload_fail_flag ? "Fail" : "OK"));
 
-	InitpadapterVariablesByPROM_8723du(padapter);
+	if (InitpadapterVariablesByPROM_8723du(padapter) != _SUCCESS)
+		goto exit;
+
+	ret = _SUCCESS;
+
+exit:
+	return ret;
 }
 
 static void
@@ -2220,8 +2185,10 @@ hal_EfuseCellSel(IN PADAPTER padapter)
 	rtw_write32(padapter, EFUSE_TEST, value32);
 }
 
-static void rtl8723du_read_adapter_info(PADAPTER padapter)
+static u8 rtl8723du_read_adapter_info(PADAPTER padapter)
 {
+	u8 ret = _FAIL;
+
 	/* Read EEPROM size before call any EEPROM function */
 	padapter->EepromAddressSize = GetEEPROMSize8723D(padapter);
 
@@ -2230,7 +2197,13 @@ static void rtl8723du_read_adapter_info(PADAPTER padapter)
 	hal_EfuseCellSel(padapter);
 
 	_ReadRFType(padapter);
-	hal_EfuseParsePROMContent(padapter);
+	if (hal_EfuseParsePROMContent(padapter) != _SUCCESS)
+		goto exit;
+
+	ret = _SUCCESS;
+
+exit:
+	return ret;
 }
 
 #define GPIO_DEBUG_PORT_NUM 0
@@ -2254,10 +2227,10 @@ static void rtl8723du_trigger_gpio_0(PADAPTER padapter)
  * If variable not handled here,
  * some variables will be processed in SetHwReg8723A()
  */
-void SetHwReg8723du(PADAPTER padapter, u8 variable, u8 *val)
+u8 SetHwReg8723du(PADAPTER padapter, u8 variable, u8 *val)
 {
 	PHAL_DATA_TYPE pHalData = GET_HAL_DATA(padapter);
-
+	u8 ret = _SUCCESS;
 
 	switch (variable) {
 	case HW_VAR_RXDMA_AGG_PG_TH:
@@ -2266,8 +2239,8 @@ void SetHwReg8723du(PADAPTER padapter, u8 variable, u8 *val)
 			u8 threshold = *val;
 
 			if (threshold == 0)
-				threshold = pHalData->UsbRxAggPageCount;
-			SetHwReg8723D(padapter, HW_VAR_RXDMA_AGG_PG_TH, &threshold);
+				threshold = pHalData->rxagg_dma_size;
+			ret = SetHwReg8723D(padapter, HW_VAR_RXDMA_AGG_PG_TH, &threshold);
 		}
 #endif
 		break;
@@ -2284,15 +2257,34 @@ void SetHwReg8723du(PADAPTER padapter, u8 variable, u8 *val)
 		u8 enable = *val;
 		u8 value = 0;
 
-		if (WAKEUP_GPIO_IDX != 8)
+		if (WAKEUP_GPIO_IDX != 6)
 			break;
 
+		value = rtw_read8(padapter, REG_GPIO_MUXCFG);
+
+		if (enable && (value & BIT(3))) {
+			value &= ~BIT(3);
+			rtw_write8(padapter, REG_GPIO_MUXCFG, value);
+		} else if (enable == _FALSE) {
+			RTW_INFO("%s: keep WLAN ctrl\n", __func__);
+		}
+		/*0x66 bit4*/
+		value = rtw_read8(padapter, REG_PAD_CTRL_1 + 2);
+		if (enable && (value & BIT(4))) {
+			value &= ~BIT(4);
+			rtw_write8(padapter, REG_PAD_CTRL_1 + 2, value);
+		} else if (enable == _FALSE) {
+			value |= BIT(4);
+			rtw_write8(padapter, REG_PAD_CTRL_1 + 2, value);
+		}
+
+		/*0x66 bit8*/
 		value = rtw_read8(padapter, REG_PAD_CTRL_1 + 3);
-		if (enable && (value & BIT(2))) {
-			value &= ~BIT(2);
+		if (enable && (value & BIT(0))) {
+			value &= ~BIT(0);
 			rtw_write8(padapter, REG_PAD_CTRL_1 + 3, value);
 		} else if (enable == _FALSE) {
-			value |= BIT(2);
+			value |= BIT(0);
 			rtw_write8(padapter, REG_PAD_CTRL_1 + 3, value);
 		}
 
@@ -2301,10 +2293,11 @@ void SetHwReg8723du(PADAPTER padapter, u8 variable, u8 *val)
 		break;
 #endif
 	default:
-		SetHwReg8723D(padapter, variable, val);
+		ret = SetHwReg8723D(padapter, variable, val);
 		break;
 	}
 
+	return ret;
 }
 
 /*
@@ -2434,7 +2427,7 @@ static u8 rtl8723du_ps_func(PADAPTER padapter, HAL_INTF_PS_FUNC efunc_id, u8 *va
 
 void rtl8723du_set_hal_ops(PADAPTER padapter)
 {
-	struct hal_ops *pHalFunc = &padapter->HalFunc;
+	struct hal_ops *pHalFunc = &padapter->hal_func;
 
 
 	rtl8723d_set_hal_ops(pHalFunc);
@@ -2454,21 +2447,18 @@ void rtl8723du_set_hal_ops(PADAPTER padapter)
 	pHalFunc->init_recv_priv = &rtl8723du_init_recv_priv;
 	pHalFunc->free_recv_priv = &rtl8723du_free_recv_priv;
 
-#ifdef CONFIG_SW_LED
+#ifdef CONFIG_RTW_SW_LED
 	pHalFunc->InitSwLeds = &rtl8723du_InitSwLeds;
 	pHalFunc->DeInitSwLeds = &rtl8723du_DeInitSwLeds;
-#else /*case of hw led or no led */
-	pHalFunc->InitSwLeds = NULL;
-	pHalFunc->DeInitSwLeds = NULL;
-#endif/*CONFIG_SW_LED */
+#endif/*CONFIG_RTW_SW_LED */
 
 	pHalFunc->init_default_value = &rtl8723d_init_default_value;
 	pHalFunc->intf_chip_configure = &rtl8723du_interface_configure;
 	pHalFunc->read_adapter_info = &rtl8723du_read_adapter_info;
 
-	pHalFunc->SetHwRegHandler = &SetHwReg8723du;
+	pHalFunc->set_hw_reg_handler = &SetHwReg8723du;
 	pHalFunc->GetHwRegHandler = &GetHwReg8723du;
-	pHalFunc->GetHalDefVarHandler = &GetHalDefVar8723du;
+	pHalFunc->get_hal_def_var_handler = &GetHalDefVar8723du;
 	pHalFunc->SetHalDefVarHandler = &SetHalDefVar8723du;
 
 	pHalFunc->hal_xmit = &rtl8723du_hal_xmit;

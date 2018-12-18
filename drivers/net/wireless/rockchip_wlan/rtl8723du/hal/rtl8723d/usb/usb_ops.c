@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2007 - 2012 Realtek Corporation. All rights reserved.
+ * Copyright(c) 2007 - 2017 Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -11,11 +11,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
- *
-  *******************************************************************************/
+ *****************************************************************************/
 #define _USB_OPS_C_
 
 #include <rtl8723d_hal.h>
@@ -107,7 +103,7 @@ int recvbuf2recvframe(PADAPTER padapter, void *ptr)
 	u8 pkt_cnt = 0;
 	u32 pkt_offset;
 	s32 transfer_len;
-	u8 *pdata, *pphy_status;
+	u8 *pdata;
 	union recv_frame *precvframe = NULL;
 	struct rx_pkt_attrib *pattrib = NULL;
 	PHAL_DATA_TYPE pHalData;
@@ -170,7 +166,7 @@ int recvbuf2recvframe(PADAPTER padapter, void *ptr)
 
 #ifdef CONFIG_RX_PACKET_APPEND_FCS
 		if (check_fwstate(&padapter->mlmepriv, WIFI_MONITOR_STATE) == _FALSE)
-			if ((pattrib->pkt_rpt_type == NORMAL_RX) && (pHalData->ReceiveConfig & RCR_APPFCS))
+			if ((pattrib->pkt_rpt_type == NORMAL_RX) && rtw_hal_rcr_check(padapter, RCR_APPFCS))
 				pattrib->pkt_len -= IEEE80211_FCS_LEN;
 #endif
 
@@ -184,24 +180,9 @@ int recvbuf2recvframe(PADAPTER padapter, void *ptr)
 
 		recvframe_put(precvframe, pattrib->pkt_len);
 
-		if (pattrib->pkt_rpt_type == NORMAL_RX) {
-			if (pattrib->physt)
-				pphy_status = pbuf + RXDESC_OFFSET;
-			else
-				pphy_status = NULL;
-
-#ifdef CONFIG_CONCURRENT_MODE
-			pre_recv_entry(precvframe, pphy_status);
-#endif /* CONFIG_CONCURRENT_MODE */
-
-			if (pphy_status)
-				rx_query_phy_status(precvframe, pphy_status);
-
-			if (rtw_recv_entry(precvframe) != _SUCCESS) {
-				/* Return fail except data frame */
-				/*RTW_INFO("%s: RX Error! rtw_recv_entry FAIL!\n", __func__); */
-			}
-		} else {
+		if (pattrib->pkt_rpt_type == NORMAL_RX)
+			pre_recv_entry(precvframe, pattrib->physt ? (pbuf + RXDESC_OFFSET) : NULL);
+		else {
 #ifdef CONFIG_FW_C2H_PKT
 			if (pattrib->pkt_rpt_type == C2H_PACKET)
 				rtw_hal_c2h_pkt_pre_hdl(padapter, precvframe->u.hdr.rx_data, pattrib->pkt_len);

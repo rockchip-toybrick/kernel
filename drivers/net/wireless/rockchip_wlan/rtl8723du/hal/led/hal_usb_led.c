@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2007 - 2012 Realtek Corporation. All rights reserved.
+ * Copyright(c) 2007 - 2017 Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -11,15 +11,11 @@
  * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
- *
- *
- ******************************************************************************/
+ *****************************************************************************/
 
 #include <drv_types.h>
 #include <hal_data.h>
+#ifdef CONFIG_RTW_SW_LED
 
 /*
  *	Description:
@@ -1840,7 +1836,7 @@ void BlinkTimerCallback(void *data)
 		return;
 	}
 
-#ifdef CONFIG_LED_HANDLED_BY_CMD_THREAD
+#ifdef CONFIG_RTW_LED_HANDLED_BY_CMD_THREAD
 	rtw_led_blink_cmd(padapter, (PVOID)pLed);
 #else
 	_set_workitem(&(pLed->BlinkWorkItem));
@@ -3413,7 +3409,7 @@ SwLedControlMode10(
 			if (pLed->bLedWPSBlinkInProgress == _TRUE || pLed1->bLedWPSBlinkInProgress == _TRUE)
 				;
 			else {
-				if (pHalData->CurrentBandType == BAND_ON_2_4G)
+				if (pHalData->current_band_type == BAND_ON_2_4G)
 					/* LED0 settings */
 				{
 					pLed->CurrLedState = RTW_LED_ON;
@@ -3427,7 +3423,7 @@ SwLedControlMode10(
 					pLed1->CurrLedState = RTW_LED_OFF;
 					pLed1->BlinkingLedState = RTW_LED_OFF;
 					_set_timer(&(pLed1->BlinkTimer), 0);
-				} else if (pHalData->CurrentBandType == BAND_ON_5G)
+				} else if (pHalData->current_band_type == BAND_ON_5G)
 					/* LED1 settings */
 				{
 					pLed1->CurrLedState = RTW_LED_ON;
@@ -3523,7 +3519,7 @@ SwLedControlMode10(
 		break;
 
 	case LED_CTL_STOP_WPS:	/* WPS connect success */
-		if (pHalData->CurrentBandType == BAND_ON_2_4G)
+		if (pHalData->current_band_type == BAND_ON_2_4G)
 			/* LED0 settings */
 		{
 			pLed->bLedWPSBlinkInProgress = _FALSE;
@@ -3538,7 +3534,7 @@ SwLedControlMode10(
 			pLed1->CurrLedState = RTW_LED_OFF;
 			pLed1->BlinkingLedState = RTW_LED_OFF;
 			_set_timer(&(pLed1->BlinkTimer), 0);
-		} else if (pHalData->CurrentBandType == BAND_ON_5G)
+		} else if (pHalData->current_band_type == BAND_ON_5G)
 			/* LED1 settings */
 		{
 			pLed1->bLedWPSBlinkInProgress = _FALSE;
@@ -4267,7 +4263,7 @@ InitLed(
 	pLed->LedPin = LedPin;
 
 	ResetLedStatus(pLed);
-	_init_timer(&(pLed->BlinkTimer), padapter->pnetdev, BlinkTimerCallback, pLed);
+	rtw_init_timer(&(pLed->BlinkTimer), padapter, BlinkTimerCallback, pLed);
 	_init_workitem(&(pLed->BlinkWorkItem), BlinkWorkItemCallback, pLed);
 }
 
@@ -4285,3 +4281,4 @@ DeInitLed(
 	_cancel_timer_ex(&(pLed->BlinkTimer));
 	ResetLedStatus(pLed);
 }
+#endif

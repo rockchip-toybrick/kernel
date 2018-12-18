@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
+ * Copyright(c) 2007 - 2017 Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -11,31 +11,17 @@
  * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
- *
- *
- ******************************************************************************/
+ *****************************************************************************/
 #define _HAL_USB_C_
 
 #include <drv_types.h>
 #include <hal_data.h>
-
-#ifdef CONFIG_RTL8821C
-	#include <rtl8821cu_hal.h>	/* MAX_RECVBUF_SZ */
-#endif /* CONFIG_RTL8821C */
 
 int	usb_init_recv_priv(_adapter *padapter, u16 ini_in_buf_sz)
 {
 	struct recv_priv	*precvpriv = &padapter->recvpriv;
 	int	i, res = _SUCCESS;
 	struct recv_buf *precvbuf;
-
-#ifdef CONFIG_RECV_THREAD_MODE
-	_rtw_init_sema(&precvpriv->recv_sema, 0);/* will be removed */
-	_rtw_init_sema(&precvpriv->terminate_recvthread_sema, 0);/* will be removed */
-#endif /* CONFIG_RECV_THREAD_MODE */
 
 #ifdef PLATFORM_LINUX
 	tasklet_init(&precvpriv->recv_tasklet,
@@ -110,10 +96,6 @@ int	usb_init_recv_priv(_adapter *padapter, u16 ini_in_buf_sz)
 #if defined(PLATFORM_LINUX) || defined(PLATFORM_FREEBSD)
 
 	skb_queue_head_init(&precvpriv->rx_skb_queue);
-
-#ifdef CONFIG_RTW_NAPI
-	skb_queue_head_init(&precvpriv->rx_napi_skb_queue);
-#endif
 
 #ifdef CONFIG_RX_INDICATE_QUEUE
 	memset(&precvpriv->rx_indicate_queue, 0, sizeof(struct ifqueue));
@@ -196,14 +178,6 @@ void usb_free_recv_priv(_adapter *padapter, u16 ini_in_buf_sz)
 
 	rtw_skb_queue_purge(&precvpriv->rx_skb_queue);
 
-#ifdef CONFIG_RTW_NAPI
-	
-	if (skb_queue_len(&precvpriv->rx_napi_skb_queue)) 
-		RTW_WARN("rx_napi_skb_queue not empty\n");
-	
-	rtw_skb_queue_purge(&precvpriv->rx_napi_skb_queue);
-#endif	
-
 	if (skb_queue_len(&precvpriv->free_recv_skb_queue))
 		RTW_WARN("free_recv_skb_queue not empty, %d\n", skb_queue_len(&precvpriv->free_recv_skb_queue));
 
@@ -239,7 +213,7 @@ void usb_free_recv_priv(_adapter *padapter, u16 ini_in_buf_sz)
 		IF_DEQUEUE(&precvpriv->rx_indicate_queue, m);
 		if (m == NULL)
 			break;
-		m_freem(m);
+		rtw_os_pkt_free(m);
 	}
 	mtx_destroy(&precvpriv->rx_indicate_queue.ifq_mtx);
 #endif /* CONFIG_RX_INDICATE_QUEUE */

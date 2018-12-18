@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
+ * Copyright(c) 2007 - 2017 Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -11,12 +11,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
- *
- *
- ******************************************************************************/
+ *****************************************************************************/
 #ifndef __RTW_P2P_H_
 #define __RTW_P2P_H_
 
@@ -66,7 +61,7 @@ u8 process_p2p_group_negotation_confirm(struct wifidirect_info *pwdinfo, u8 *pfr
 u8 process_p2p_presence_req(struct wifidirect_info *pwdinfo, u8 *pframe, uint len);
 int process_p2p_cross_connect_ie(PADAPTER padapter, u8 *IEs, u32 IELength);
 
-void p2p_protocol_wk_hdl(_adapter *padapter, int intCmdType);
+s32 p2p_protocol_wk_hdl(_adapter *padapter, int intCmdType, u8 *buf);
 
 #ifdef CONFIG_P2P_PS
 void	process_p2p_ps_ie(PADAPTER padapter, u8 *IEs, u32 IELength);
@@ -75,6 +70,7 @@ u8	p2p_ps_wk_cmd(_adapter *padapter, u8 p2p_ps_state, u8 enqueue);
 #endif /* CONFIG_P2P_PS */
 
 #ifdef CONFIG_IOCTL_CFG80211
+u8 roch_stay_in_cur_chan(_adapter *padapter);
 void rtw_init_cfg80211_wifidirect_info(_adapter	*padapter);
 int rtw_p2p_check_frames(_adapter *padapter, const u8 *buf, u32 len, u8 tx);
 #endif /* CONFIG_IOCTL_CFG80211 */

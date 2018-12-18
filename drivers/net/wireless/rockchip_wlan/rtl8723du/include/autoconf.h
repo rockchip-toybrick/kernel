@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2007 - 2014 Realtek Corporation. All rights reserved.
+ * Copyright(c) 2007 - 2017 Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -11,12 +11,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
- *
- *
- ******************************************************************************/
+ *****************************************************************************/
 /*
  * Public General Configure
  */
@@ -57,7 +52,6 @@
 	/* #define CONFIG_DRV_ISSUE_PROV_REQ */ /* IOT FOR S2 */
 
 	#define CONFIG_SET_SCAN_DENY_TIMER
-	/*#define SUPPLICANT_RTK_VERSION_LOWER_THAN_JB42*/ /* wpa_supplicant realtek version <= jb42 will be defined this */
 #endif
 
 #define CONFIG_AP_MODE
@@ -111,8 +105,6 @@
 	/* #define CONFIG_HWPORT_SWAP	*/			/* Port0->Sec , Port1->Pri */
 	#define CONFIG_RUNTIME_PORT_SWITCH
 	/* #define DBG_RUNTIME_PORT_SWITCH */
-	#define CONFIG_SCAN_BACKOP
-
 #endif /* CONFIG_CONCURRENT_MODE */
 
 #define CONFIG_LAYER2_ROAMING
@@ -127,13 +119,13 @@
 /* #define CONFIG_ANTENNA_DIVERSITY	 */ /* Set from Makefile */
 /* #define SUPPORT_HW_RFOFF_DETECTED */
 
-#define CONFIG_LED
-#ifdef CONFIG_LED
-	#define CONFIG_SW_LED
-	#ifdef CONFIG_SW_LED
-		/* define CONFIG_LED_HANDLED_BY_CMD_THREAD */
+#define CONFIG_RTW_LED
+#ifdef CONFIG_RTW_LED
+	#define CONFIG_RTW_SW_LED
+	#ifdef CONFIG_RTW_SW_LED
+		/* define CONFIG_RTW_LED_HANDLED_BY_CMD_THREAD */
 	#endif
-#endif /* CONFIG_LED */
+#endif /* CONFIG_RTW_LED */
 
 #define CONFIG_XMIT_ACK
 #ifdef CONFIG_XMIT_ACK
@@ -207,10 +199,11 @@
 /* #define CONFIG_CHECK_AC_LIFETIME	*/ /* Check packet lifetime of 4 ACs. */
 
 #define CONFIG_EMBEDDED_FWIMG
-/* #define CONFIG_FILE_FWIMG */
+
 #ifdef CONFIG_EMBEDDED_FWIMG
 	#define	LOAD_FW_HEADER_FROM_DRIVER
 #endif
+/* #define CONFIG_FILE_FWIMG */
 
 #define CONFIG_LONG_DELAY_ISSUE
 #define CONFIG_ATTEMPT_TO_FIX_AP_BEACON_ERROR
@@ -259,16 +252,12 @@
 #endif /* CONFIG_BT_COEXIST */
 
 #ifdef CONFIG_WOWLAN
-	#define CONFIG_GTK_OL
-	#define CONFIG_ARP_KEEP_ALIVE
-	#ifndef CONFIG_DEFAULT_PATTERNS_EN
-		#define CONFIG_DEFAULT_PATTERNS_EN 1
-	#endif
+	/* #define CONFIG_GTK_OL */
 #endif /* CONFIG_WOWLAN */
 
 #ifdef CONFIG_GPIO_WAKEUP
 	#ifndef WAKEUP_GPIO_IDX
-		#define WAKEUP_GPIO_IDX	8	/* WIFI Chip Side */
+		#define WAKEUP_GPIO_IDX	6/* WIFI Chip Side */
 	#endif /* !WAKEUP_GPIO_IDX */
 #endif /* CONFIG_GPIO_WAKEUP */
 
@@ -321,6 +310,7 @@
 
 
 #define CONFIG_PROC_DEBUG
+/* #define CONFIG_DIS_UPHY */
 
 /*
 #define DBG_CONFIG_ERROR_DETECT

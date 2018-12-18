@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
+ * Copyright(c) 2007 - 2017 Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -11,12 +11,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
- *
- *
- ******************************************************************************/
+ *****************************************************************************/
 #ifndef __USB_OPS_LINUX_H__
 #define __USB_OPS_LINUX_H__
 
@@ -95,9 +90,6 @@ int usb_write32(struct intf_hdl *pintfhdl, u32 addr, u32 val);
 int usb_writeN(struct intf_hdl *pintfhdl, u32 addr, u32 length, u8 *pdata);
 u32 usb_read_port(struct intf_hdl *pintfhdl, u32 addr, u32 cnt, u8 *rmem);
 void usb_recv_tasklet(void *priv);
-#ifdef CONFIG_RTW_NAPI
-int recv_napi_poll(struct napi_struct *napi, int budget);
-#endif
 
 #ifdef CONFIG_USB_INTERRUPT_IN_PIPE
 void usb_read_interrupt_complete(struct urb *purb, struct pt_regs *regs);

@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2007 - 2012 Realtek Corporation. All rights reserved.
+ * Copyright(c) 2007 - 2017 Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -11,12 +11,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
- *
- *
- ******************************************************************************/
+ *****************************************************************************/
 #ifndef __COMMON_C2H_H__
 #define __COMMON_C2H_H__
 
@@ -57,10 +52,12 @@ typedef enum _C2H_EVT {
 	C2H_LB = 0x01,
 	C2H_TXBF = 0x02,
 	C2H_CCX_TX_RPT = 0x03,
+	C2H_AP_REQ_TXRPT = 0x04,
 	C2H_FW_SCAN_COMPLETE = 0x7,
 	C2H_BT_INFO = 0x09,
 	C2H_BT_MP_INFO = 0x0B,
 	C2H_RA_RPT = 0x0C,
+	C2H_SPC_STAT = 0x0D,
 	C2H_RA_PARA_RPT = 0x0E,
 	C2H_FW_CHNL_SWITCH_COMPLETE = 0x10,
 	C2H_IQK_FINISH = 0x11,
@@ -71,6 +68,9 @@ typedef enum _C2H_EVT {
 	C2H_MAC_HIDDEN_RPT_2 = 0x1A,
 	C2H_BCN_EARLY_RPT = 0x1E,
 	C2H_DEFEATURE_DBG = 0x22,
+	C2H_CUSTOMER_STR_RPT = 0x24,
+	C2H_CUSTOMER_STR_RPT_2 = 0x25,
+	C2H_WLAN_INFO = 0x27,
 	C2H_DEFEATURE_RSVD = 0xFD,
 	C2H_EXTEND = 0xff,
 } C2H_EVT;
@@ -87,6 +87,7 @@ void c2h_iqk_offload(_adapter *adapter, u8 *data, u8 len);
 int	c2h_iqk_offload_wait(_adapter *adapter, u32 timeout_ms);
 #define rtl8812_iqk_wait c2h_iqk_offload_wait /* TODO: remove this after phydm call c2h_iqk_offload_wait instead */
 
+#ifdef CONFIG_RTW_MAC_HIDDEN_RPT
 /* C2H_MAC_HIDDEN_RPT, 0x19 */
 #define MAC_HIDDEN_RPT_LEN 8
 int c2h_mac_hidden_rpt_hdl(_adapter *adapter, u8 *data, u8 len);
@@ -95,9 +96,20 @@ int c2h_mac_hidden_rpt_hdl(_adapter *adapter, u8 *data, u8 len);
 #define MAC_HIDDEN_RPT_2_LEN 5
 int c2h_mac_hidden_rpt_2_hdl(_adapter *adapter, u8 *data, u8 len);
 int hal_read_mac_hidden_rpt(_adapter *adapter);
+#endif /* CONFIG_RTW_MAC_HIDDEN_RPT */
 
 /* C2H_DEFEATURE_DBG, 0x22 */
 #define DEFEATURE_DBG_LEN 1
 int c2h_defeature_dbg_hdl(_adapter *adapter, u8 *data, u8 len);
+
+#ifdef CONFIG_RTW_CUSTOMER_STR
+/* C2H_CUSTOMER_STR_RPT, 0x24 */
+#define CUSTOMER_STR_RPT_LEN 8
+int c2h_customer_str_rpt_hdl(_adapter *adapter, u8 *data, u8 len);
+
+/* C2H_CUSTOMER_STR_RPT_2, 0x25 */
+#define CUSTOMER_STR_RPT_2_LEN 8
+int c2h_customer_str_rpt_2_hdl(_adapter *adapter, u8 *data, u8 len);
+#endif /* CONFIG_RTW_CUSTOMER_STR */
 
 #endif /* __COMMON_C2H_H__ */

@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2007 - 2012 Realtek Corporation. All rights reserved.
+ * Copyright(c) 2007 - 2017 Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -11,12 +11,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
- *
- *
- ******************************************************************************/
+ *****************************************************************************/
 
 #define _RTL8723DU_XMIT_C_
 
@@ -142,6 +137,10 @@ s32 rtl8723du_xmit_buf_handler(PADAPTER padapter)
 	}
 
 	if (RTW_CANNOT_RUN(padapter)) {
+		RTW_DBG(FUNC_ADPT_FMT "- bDriverStopped(%s) bSurpriseRemoved(%s)\n",
+			FUNC_ADPT_ARG(padapter),
+			rtw_is_drv_stopped(padapter) ? "True" : "False",
+			rtw_is_surprise_removed(padapter) ? "True" : "False");
 		return _FAIL;
 	}
 
@@ -246,24 +245,6 @@ static s32 rtw_dump_xframe(PADAPTER padapter, struct xmit_frame *pxmitframe)
 }
 
 #ifdef CONFIG_USB_TX_AGGREGATION
-static u32 xmitframe_need_length(struct xmit_frame *pxmitframe)
-{
-	struct pkt_attrib *pattrib = &pxmitframe->attrib;
-
-	u32 len = 0;
-
-	/* no consider fragement */
-	len = pattrib->hdrlen + pattrib->iv_len +
-	      SNAP_SIZE + sizeof(u16) +
-	      pattrib->pktlen +
-	      ((pattrib->bswenc) ? pattrib->icv_len : 0);
-
-	if (pattrib->encrypt == _TKIP_)
-		len += 8;
-
-	return len;
-}
-
 #define IDEA_CONDITION 1	/* check all packets before enqueue */
 s32 rtl8723du_xmitframe_complete(PADAPTER padapter, struct xmit_priv *pxmitpriv, struct xmit_buf *pxmitbuf)
 {
@@ -355,7 +336,7 @@ s32 rtl8723du_xmitframe_complete(PADAPTER padapter, struct xmit_priv *pxmitpriv,
 
 	/* 3 2. aggregate same priority and same DA(AP or STA) frames */
 	pfirstframe = pxmitframe;
-	len = xmitframe_need_length(pfirstframe) + TXDESC_OFFSET;
+	len = rtw_wlan_pkt_size(pfirstframe) + TXDESC_OFFSET;
 	pbuf_tail = len;
 	pbuf = _RND8(pbuf_tail);
 
@@ -413,7 +394,7 @@ s32 rtl8723du_xmitframe_complete(PADAPTER padapter, struct xmit_priv *pxmitpriv,
 		if (_FAIL == rtw_hal_busagg_qsel_check(padapter, pfirstframe->attrib.qsel, pxmitframe->attrib.qsel))
 			break;
 
-		len = xmitframe_need_length(pxmitframe) + TXDESC_SIZE; /* no offset */
+		len = rtw_wlan_pkt_size(pxmitframe) + TXDESC_SIZE; /* no offset */
 		if (pbuf + len > MAX_XMITBUF_SZ)
 			break;
 
@@ -621,7 +602,7 @@ static s32 pre_xmitframe(PADAPTER padapter, struct xmit_frame *pxmitframe)
 	if (rtw_xmit_ac_blocked(padapter) == _TRUE)
 		goto enqueue;
 
-	if (padapter->dvobj->iface_state.lg_sta_num)
+	if (DEV_STA_LG_NUM(padapter->dvobj))
 		goto enqueue;
 
 	pxmitbuf = rtw_alloc_xmitbuf(pxmitpriv);

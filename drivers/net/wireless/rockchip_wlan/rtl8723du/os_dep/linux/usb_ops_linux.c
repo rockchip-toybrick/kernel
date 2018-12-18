@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2007 - 2012 Realtek Corporation. All rights reserved.
+ * Copyright(c) 2007 - 2017 Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -11,11 +11,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
- *
- *******************************************************************************/
+ *****************************************************************************/
 #define _USB_OPS_LINUX_C_
 
 #include <drv_types.h>
@@ -144,6 +140,35 @@ int usbctrl_vendorreq(struct intf_hdl *pintfhdl, u8 request, u16 value, u16 inde
 			break;
 
 	}
+
+#if (defined(CONFIG_RTL8822B) || defined(CONFIG_RTL8821C))
+	
+	if (GET_HAL_DATA(padapter)->bFWReady) {
+		if (value < 0xFE00) {
+			unsigned int t_pipe = usb_sndctrlpipe(udev, 0);/* write_out */
+			u8 t_reqtype =  REALTEK_USB_VENQT_WRITE;
+			u8 t_len = 1;
+			u8 t_req = 0x05;
+			u16 t_reg = 0;
+			u16 t_index = 0;
+
+			if (0x00 <= value && value <= 0xff)
+				t_reg = 0xe1;
+			else if (0x1000 <= value && value <= 0x10ff)
+				t_reg = 0xe1;
+			else
+				t_reg = 0x4e0;
+
+			status = rtw_usb_control_msg(udev, t_pipe, t_req, t_reqtype, t_reg, t_index, pIo_buf, t_len, RTW_USB_CONTROL_MSG_TIMEOUT);
+
+			if (status == t_len)
+				rtw_reset_continual_io_error(pdvobjpriv);
+			else {
+				RTW_INFO("reg 0x%x, usb %s %u fail, status:%d\n", t_reg, "write" , t_len, status);
+			}
+		}
+	}
+#endif
 
 	/* release IO memory used by vendorreq */
 #ifdef CONFIG_USB_VENDOR_REQ_BUFFER_DYNAMIC_ALLOCATE
@@ -724,7 +749,7 @@ void usb_read_port_complete(struct urb *purb, struct pt_regs *regs)
 			 , __func__
 			 , rtw_is_drv_stopped(padapter) ? "True" : "False"
 			, rtw_is_surprise_removed(padapter) ? "True" : "False");
-		goto exit;
+		return;
 	}
 
 	if (purb->status == 0) {
@@ -777,8 +802,6 @@ void usb_read_port_complete(struct urb *purb, struct pt_regs *regs)
 			break;
 		}
 	}
-
-exit:
 
 }
 
@@ -1022,82 +1045,6 @@ exit:
 	return ret;
 }
 #endif /* CONFIG_USE_USB_BUFFER_ALLOC_RX */
-
-#ifdef CONFIG_RTW_NAPI
-int usb_napi_recv(_adapter *padapter, int budget)
-{
-
-	_pkt *pskb;
-	struct recv_priv *precvpriv = &padapter->recvpriv;
-	struct recv_buf *precvbuf = NULL;
-	int work_done=0;
-	_pkt *pskb2;
-	int pktcnt;
-	struct registry_priv	*pregistrypriv = &padapter->registrypriv;
-
-	while ( (work_done < budget) && 
-		(!skb_queue_empty(&precvpriv->rx_napi_skb_queue))) {
-
-		pskb = skb_dequeue(&precvpriv->rx_napi_skb_queue);
-
-		if(!pskb)
-			break;
-
-		if (rtw_is_drv_stopped(padapter) || rtw_is_surprise_removed(padapter)) {
-			RTW_INFO("usb_napi_recv => bDriverStopped or bSurpriseRemoved \n");
-			rtw_skb_free(pskb);
-			goto exit;
-			break;
-		}
-
-#ifdef CONFIG_RTW_GRO	
-		if (pregistrypriv->en_gro == TRUE) {
-			if (napi_gro_receive(&padapter->napi, pskb) != GRO_DROP) {
-				work_done++;
-				DBG_COUNTER(padapter->rx_logs.os_netif_ok);
-			}else
-				DBG_COUNTER(padapter->rx_logs.os_netif_err);
-
-			continue;
-		} 
-#endif
-
-		if(netif_receive_skb(pskb) == NET_RX_SUCCESS) {
-			work_done++;
-			DBG_COUNTER(padapter->rx_logs.os_netif_ok);
-		}else
-			DBG_COUNTER(padapter->rx_logs.os_netif_err);
-
-	}
-
-exit:
-	return work_done;
-
-}
-
-
-
-int recv_napi_poll(struct napi_struct *napi, int budget)
-{
-	_adapter *padapter = container_of(napi, _adapter, napi);
-	int work_done = 0;
-	_pkt *pskb;
-	struct recv_priv *precvpriv = &padapter->recvpriv;	
-
-	work_done = usb_napi_recv(padapter, budget);
-
-	if (work_done < budget) {
-		napi_complete(napi);
-		if(!skb_queue_empty(&precvpriv->rx_napi_skb_queue) || 
-			!skb_queue_empty(&precvpriv->rx_skb_queue)) {     
-			napi_schedule(napi);
-		}
-	}
-
-	return work_done;
-}
-
-#endif /* CONFIG_RTW_NAPI */
 
 #ifdef CONFIG_USB_INTERRUPT_IN_PIPE
 void usb_read_interrupt_complete(struct urb *purb, struct pt_regs *regs)
