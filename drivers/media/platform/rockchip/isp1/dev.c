@@ -50,6 +50,12 @@
 #include "regs.h"
 #include "rkisp1.h"
 #include "common.h"
+#include "version.h"
+
+struct isp_irqs_data {
+	const char *name;
+	irqreturn_t (*irq_hdl)(int irq, void *ctx);
+};
 
 struct isp_match_data {
 	const char * const *clks;
@@ -57,6 +63,8 @@ struct isp_match_data {
 	enum rkisp1_isp_ver isp_ver;
 	const unsigned int *clk_rate_tbl;
 	int num_clk_rate_tbl;
+	struct isp_irqs_data *irqs;
+	int num_irqs;
 };
 
 int rkisp1_debug;
@@ -556,6 +564,76 @@ err_cleanup_ctx:
 	return ret;
 }
 
+static irqreturn_t rkisp1_irq_handler(int irq, void *ctx)
+{
+	struct device *dev = ctx;
+	struct rkisp1_device *rkisp1_dev = dev_get_drvdata(dev);
+	unsigned int mis_val;
+
+	mis_val = readl(rkisp1_dev->base_addr + CIF_ISP_MIS);
+	if (mis_val)
+		rkisp1_isp_isr(mis_val, rkisp1_dev);
+
+	mis_val = readl(rkisp1_dev->base_addr + CIF_MIPI_MIS);
+	if (mis_val)
+		rkisp1_mipi_isr(mis_val, rkisp1_dev);
+
+	mis_val = readl(rkisp1_dev->base_addr + CIF_MI_MIS);
+	if (mis_val)
+		rkisp1_mi_isr(mis_val, rkisp1_dev);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t rkisp1_isp_irq_hdl(int irq, void *ctx)
+{
+	struct device *dev = ctx;
+	struct rkisp1_device *rkisp1_dev = dev_get_drvdata(dev);
+	unsigned int mis_val;
+
+	mis_val = readl(rkisp1_dev->base_addr + CIF_ISP_MIS);
+	if (mis_val)
+		rkisp1_isp_isr(mis_val, rkisp1_dev);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t rkisp1_mi_irq_hdl(int irq, void *ctx)
+{
+	struct device *dev = ctx;
+	struct rkisp1_device *rkisp1_dev = dev_get_drvdata(dev);
+	unsigned int mis_val;
+
+	mis_val = readl(rkisp1_dev->base_addr + CIF_MI_MIS);
+	if (mis_val)
+		rkisp1_mi_isr(mis_val, rkisp1_dev);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t rkisp1_mipi_irq_hdl(int irq, void *ctx)
+{
+	struct device *dev = ctx;
+	struct rkisp1_device *rkisp1_dev = dev_get_drvdata(dev);
+	unsigned int mis_val;
+	unsigned int err1, err2, err3;
+
+	if (rkisp1_dev->isp_ver == ISP_V13) {
+		err1 = readl(rkisp1_dev->base_addr + CIF_ISP_CSI0_ERR1);
+		err2 = readl(rkisp1_dev->base_addr + CIF_ISP_CSI0_ERR2);
+		err3 = readl(rkisp1_dev->base_addr + CIF_ISP_CSI0_ERR3);
+
+		if (err1 || err2 || err3)
+			rkisp1_mipi_v13_isr(err1, err2, err3, rkisp1_dev);
+	} else {
+		mis_val = readl(rkisp1_dev->base_addr + CIF_MIPI_MIS);
+		if (mis_val)
+			rkisp1_mipi_isr(mis_val, rkisp1_dev);
+	}
+
+	return IRQ_HANDLED;
+}
+
 static const char * const rk1808_isp_clks[] = {
 	"clk_isp",
 	"aclk_isp",
@@ -607,12 +685,34 @@ static const unsigned int rk3399_isp_clk_rate[] = {
 	300, 400, 600
 };
 
+static struct isp_irqs_data rk1808_isp_irqs[] = {
+	{"isp_irq", rkisp1_isp_irq_hdl},
+	{"mi_irq", rkisp1_mi_irq_hdl},
+	{"mipi_irq", rkisp1_mipi_irq_hdl}
+};
+
+static struct isp_irqs_data rk3288_isp_irqs[] = {
+	{"isp_irq", rkisp1_irq_handler}
+};
+
+static struct isp_irqs_data rk3326_isp_irqs[] = {
+	{"isp_irq", rkisp1_isp_irq_hdl},
+	{"mi_irq", rkisp1_mi_irq_hdl},
+	{"mipi_irq", rkisp1_mipi_irq_hdl}
+};
+
+static struct isp_irqs_data rk3399_isp_irqs[] = {
+	{"isp_irq", rkisp1_irq_handler}
+};
+
 static const struct isp_match_data rk1808_isp_match_data = {
 	.clks = rk1808_isp_clks,
 	.num_clks = ARRAY_SIZE(rk1808_isp_clks),
 	.isp_ver = ISP_V13,
 	.clk_rate_tbl = rk1808_isp_clk_rate,
 	.num_clk_rate_tbl = ARRAY_SIZE(rk1808_isp_clk_rate),
+	.irqs = rk1808_isp_irqs,
+	.num_irqs = ARRAY_SIZE(rk1808_isp_irqs)
 };
 
 static const struct isp_match_data rk3288_isp_match_data = {
@@ -621,6 +721,8 @@ static const struct isp_match_data rk3288_isp_match_data = {
 	.isp_ver = ISP_V10,
 	.clk_rate_tbl = rk3288_isp_clk_rate,
 	.num_clk_rate_tbl = ARRAY_SIZE(rk3288_isp_clk_rate),
+	.irqs = rk3288_isp_irqs,
+	.num_irqs = ARRAY_SIZE(rk3288_isp_irqs)
 };
 
 static const struct isp_match_data rk3326_isp_match_data = {
@@ -629,6 +731,8 @@ static const struct isp_match_data rk3326_isp_match_data = {
 	.isp_ver = ISP_V12,
 	.clk_rate_tbl = rk3326_isp_clk_rate,
 	.num_clk_rate_tbl = ARRAY_SIZE(rk3326_isp_clk_rate),
+	.irqs = rk3326_isp_irqs,
+	.num_irqs = ARRAY_SIZE(rk3326_isp_irqs)
 };
 
 static const struct isp_match_data rk3399_isp_match_data = {
@@ -637,6 +741,8 @@ static const struct isp_match_data rk3399_isp_match_data = {
 	.isp_ver = ISP_V10,
 	.clk_rate_tbl = rk3399_isp_clk_rate,
 	.num_clk_rate_tbl = ARRAY_SIZE(rk3399_isp_clk_rate),
+	.irqs = rk3399_isp_irqs,
+	.num_irqs = ARRAY_SIZE(rk3399_isp_irqs)
 };
 
 static const struct of_device_id rkisp1_plat_of_match[] = {
@@ -655,37 +761,6 @@ static const struct of_device_id rkisp1_plat_of_match[] = {
 	},
 	{},
 };
-
-static irqreturn_t rkisp1_irq_handler(int irq, void *ctx)
-{
-	struct device *dev = ctx;
-	struct rkisp1_device *rkisp1_dev = dev_get_drvdata(dev);
-	unsigned int mis_val;
-	unsigned int err1, err2, err3;
-
-	mis_val = readl(rkisp1_dev->base_addr + CIF_ISP_MIS);
-	if (mis_val)
-		rkisp1_isp_isr(mis_val, rkisp1_dev);
-
-	if (rkisp1_dev->isp_ver == ISP_V13) {
-		err1 = readl(rkisp1_dev->base_addr + CIF_ISP_CSI0_ERR1);
-		err2 = readl(rkisp1_dev->base_addr + CIF_ISP_CSI0_ERR2);
-		err3 = readl(rkisp1_dev->base_addr + CIF_ISP_CSI0_ERR3);
-
-		if (err1 || err2 || err3)
-			rkisp1_mipi_v13_isr(err1, err2, err3, rkisp1_dev);
-	} else {
-		mis_val = readl(rkisp1_dev->base_addr + CIF_MIPI_MIS);
-		if (mis_val)
-			rkisp1_mipi_isr(mis_val, rkisp1_dev);
-	}
-
-	mis_val = readl(rkisp1_dev->base_addr + CIF_MI_MIS);
-	if (mis_val)
-		rkisp1_mi_isr(mis_val, rkisp1_dev);
-
-	return IRQ_HANDLED;
-}
 
 static void rkisp1_disable_sys_clk(struct rkisp1_device *rkisp1_dev)
 {
@@ -805,9 +880,13 @@ static int rkisp1_plat_probe(struct platform_device *pdev)
 	struct v4l2_device *v4l2_dev;
 	struct rkisp1_device *isp_dev;
 	const struct isp_match_data *match_data;
-
 	struct resource *res;
 	int i, ret, irq;
+
+	dev_info(dev, "rkisp1 driver version: v%x.%x.%x\n",
+		 RKISP1_DRIVER_VERSION >> 16,
+		 (RKISP1_DRIVER_VERSION & 0xff00) >> 8,
+		 RKISP1_DRIVER_VERSION & 0x00ff);
 
 	match = of_match_node(rkisp1_plat_of_match, node);
 	isp_dev = devm_kzalloc(dev, sizeof(*isp_dev), GFP_KERNEL);
@@ -827,19 +906,51 @@ static int rkisp1_plat_probe(struct platform_device *pdev)
 	if (IS_ERR(isp_dev->base_addr))
 		return PTR_ERR(isp_dev->base_addr);
 
-	irq = platform_get_irq(pdev, 0);
-	if (irq < 0)
-		return irq;
+	match_data = match->data;
+	res = platform_get_resource_byname(pdev, IORESOURCE_IRQ,
+					   match_data->irqs[0].name);
+	if (res) {
+		/* there are irq names in dts */
+		for (i = 0; i < match_data->num_irqs; i++) {
+			irq = platform_get_irq_byname(pdev,
+						      match_data->irqs[i].name);
+			if (irq < 0) {
+				dev_err(dev, "no irq %s in dts\n",
+					match_data->irqs[i].name);
+				return irq;
+			}
 
-	ret = devm_request_irq(dev, irq, rkisp1_irq_handler, IRQF_SHARED,
-			       dev_driver_string(dev), dev);
-	if (ret < 0) {
-		dev_err(dev, "request irq failed: %d\n", ret);
-		return ret;
+			ret = devm_request_irq(dev, irq,
+					       match_data->irqs[i].irq_hdl,
+					       IRQF_SHARED,
+					       dev_driver_string(dev),
+					       dev);
+			if (ret < 0) {
+				dev_err(dev, "request %s failed: %d\n",
+					match_data->irqs[i].name,
+					ret);
+				return ret;
+			}
+		}
+	} else {
+		/* no irq names in dts */
+		irq = platform_get_irq(pdev, 0);
+		if (irq < 0) {
+			dev_err(dev, "no isp irq in dts\n");
+			return irq;
+		}
+
+		ret = devm_request_irq(dev, irq,
+				       rkisp1_irq_handler,
+				       IRQF_SHARED,
+				       dev_driver_string(dev),
+				       dev);
+		if (ret < 0) {
+			dev_err(dev, "request irq failed: %d\n", ret);
+			return ret;
+		}
 	}
 
-	isp_dev->irq = irq;
-	match_data = match->data;
 	for (i = 0; i < match_data->num_clks; i++) {
 		struct clk *clk = devm_clk_get(dev, match_data->clks[i]);
 

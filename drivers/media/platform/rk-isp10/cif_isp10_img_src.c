@@ -206,8 +206,8 @@ int cif_isp10_img_src_g_frame_interval(
 }
 
 int cif_isp10_img_src_enum_frame_size(
-		struct cif_isp10_img_src *img_src,
-		void *fse)
+	struct cif_isp10_img_src *img_src,
+	void *fse)
 {
 	if (img_src)
 		return img_src->ops->enum_frame_size(

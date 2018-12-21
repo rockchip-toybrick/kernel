@@ -1,3 +1,4 @@
+dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-ad-d6-anx6345.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-ad-r35-mb-rk618-dual-lvds.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-ad-r35-mb-rk618-hdmi.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-ad-r35-mb-rk618-hdmi-lvds.dtb
@@ -9,6 +10,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-evb-ddr4-v10.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-evb-ext-rk618.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-z7-a0-rk618-dsi.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk1808-evb-v10.dtb
+dtb-$(CONFIG_ARCH_ROCKCHIP) += rk1808-evb-x4.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk1808-fpga.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3308-ai-va-v10.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3308-evb-amic-v10.dtb
