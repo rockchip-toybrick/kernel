@@ -63,6 +63,10 @@
 	status = "okay";
 };
 
+&backlight {
+	enable-gpios = <&gpio1 RK_PB5 GPIO_ACTIVE_HIGH>;
+};
+
 &i2c4 {
 	status = "okay";
 	i2c-scl-rising-time-ns = <345>;
