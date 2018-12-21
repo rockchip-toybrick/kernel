@@ -1,6 +1,6 @@
 #include "rk3399pro-toybrick.dtsi"
 #include "rk3399-vop-clk-set.dtsi"
-#include "lcd-mipi-for-toybrick.dtsi"
+//#include "lcd-mipi-for-toybrick.dtsi"
 
 / {
         compatible = "rockchip,rk3399pro-toybrick-evb","rockchip,rk3399pro";
