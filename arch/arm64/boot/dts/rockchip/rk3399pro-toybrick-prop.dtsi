@@ -43,7 +43,7 @@
 			248 249 250 251 252 253 254 255
 		>;
 		default-brightness-level = <200>;
-		//enable-gpios = <&gpio1 RK_PB5 GPIO_ACTIVE_HIGH>;
+		enable-gpios = <&gpio1 RK_PB5 GPIO_ACTIVE_HIGH>;
 	};
 
 };
