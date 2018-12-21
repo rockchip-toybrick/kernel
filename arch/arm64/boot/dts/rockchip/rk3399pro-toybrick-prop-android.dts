@@ -1,5 +1,7 @@
 /dts-v1/;
 #include "rk3399pro-toybrick-prop.dtsi"
+//#include "lcd-mipi2lvds-for-toybrick.dtsi"
+
 / {
 	compatible = "rockchip,rk3399pro-toybrick-evb-android","rockchip,rk3399pro";
 
