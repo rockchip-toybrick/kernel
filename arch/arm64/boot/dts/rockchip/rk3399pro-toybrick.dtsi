@@ -257,6 +257,10 @@
 	status = "okay";
 };
 
+&hdmi_in_vopl {
+	status = "disabled";
+};
+
 &i2c0 {
 	status = "okay";
 	i2c-scl-rising-time-ns = <180>;
