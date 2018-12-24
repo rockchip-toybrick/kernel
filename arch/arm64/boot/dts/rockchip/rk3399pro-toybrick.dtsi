@@ -775,6 +775,7 @@
 };
 
 &usbdrd_dwc3_1 {
+	snps,dis-u3-autosuspend-quirk;
 	status = "okay";
 };
 
