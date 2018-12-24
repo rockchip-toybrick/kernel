@@ -397,7 +397,7 @@ static const struct platform_suspend_ops psci_suspend_ops = {
 	.finish         = psci_system_suspend_finish,
 };
 
-static void __init psci_init_system_suspend(void)
+static __maybe_unused void __init psci_init_system_suspend(void)
 {
 	int ret;
 
@@ -505,7 +505,7 @@ static int __init psci_probe(void)
 
 	if (PSCI_VERSION_MAJOR(ver) >= 1) {
 		psci_init_cpu_suspend();
-		psci_init_system_suspend();
+		/* psci_init_system_suspend(); */
 	}
 
 	return 0;
