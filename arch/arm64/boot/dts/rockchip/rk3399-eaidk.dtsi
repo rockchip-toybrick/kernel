@@ -674,7 +674,7 @@
 &sdhci {
 	bus-width = <8>;
 	mmc-hs400-1_8v;
-	supports-emmc;
+	//supports-emmc;
 	non-removable;
 	keep-power-in-suspend;
 	mmc-hs400-enhanced-strobe;
