@@ -788,6 +788,10 @@
 	assigned-clock-parents = <&cru PLL_VPLL>;
 };
 
+&dmc {
+	status = "disabled";
+};
+
 &pinctrl {
 	pinctrl-names = "default";
 	pinctrl-0 = <&npu_ref_clk>;

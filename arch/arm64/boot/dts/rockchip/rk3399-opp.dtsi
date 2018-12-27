@@ -300,7 +300,7 @@
 
 	dmc_opp_table: opp-table3 {
 		compatible = "operating-points-v2";
-
+		/*
 		opp-200000000 {
 			opp-hz = /bits/ 64 <200000000>;
 			opp-microvolt = <900000>;
@@ -321,6 +321,7 @@
 			opp-hz = /bits/ 64 <600000000>;
 			opp-microvolt = <900000>;
 		};
+		*/
 		opp-800000000 {
 			opp-hz = /bits/ 64 <800000000>;
 			opp-microvolt = <900000>;
