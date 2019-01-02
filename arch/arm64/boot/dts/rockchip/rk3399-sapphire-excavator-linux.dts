@@ -280,6 +280,7 @@
 
 &edp {
 	status = "okay";
+	force-hpd;
 
 	ports {
 		edp_out: port@1 {
@@ -296,8 +297,8 @@
 };
 
 &hdmi {
-	/* remove the hdmi_cec, reused by edp_hpd */
-	pinctrl-0 = <&hdmi_i2c_xfer>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&hdmi_i2c_xfer>, <&hdmi_cec>;
 	#address-cells = <1>;
 	#size-cells = <0>;
 	#sound-dai-cells = <0>;

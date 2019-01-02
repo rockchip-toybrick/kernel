@@ -41,6 +41,20 @@
 #include <media/v4l2-fwnode.h>
 #include "common.h"
 
+#define CIF_ISP_INPUT_W_MAX		4416
+#define CIF_ISP_INPUT_H_MAX		3312
+#define CIF_ISP_INPUT_W_MAX_V12		3264
+#define CIF_ISP_INPUT_H_MAX_V12		2448
+#define CIF_ISP_INPUT_W_MAX_V13		1920
+#define CIF_ISP_INPUT_H_MAX_V13		1080
+#define CIF_ISP_INPUT_W_MIN		32
+#define CIF_ISP_INPUT_H_MIN		16
+#define CIF_ISP_OUTPUT_W_MAX		CIF_ISP_INPUT_W_MAX
+#define CIF_ISP_OUTPUT_H_MAX		CIF_ISP_INPUT_H_MAX
+#define CIF_ISP_OUTPUT_W_MIN		CIF_ISP_INPUT_W_MIN
+#define CIF_ISP_OUTPUT_H_MIN		CIF_ISP_INPUT_H_MIN
+#define CIF_ISP_ADD_DATA_VC_MAX		3
+
 struct rkisp1_stream;
 
 /*
@@ -123,6 +137,8 @@ void rkisp1_mipi_v13_isr(unsigned int err1, unsigned int err2,
 void rkisp1_isp_isr(unsigned int isp_mis, struct rkisp1_device *dev);
 
 irqreturn_t rkisp1_vs_isr_handler(int irq, void *ctx);
+
+int rkisp1_update_sensor_info(struct rkisp1_device *dev);
 
 static inline
 struct ispsd_out_fmt *rkisp1_get_ispsd_out_fmt(struct rkisp1_isp_subdev *isp_sdev)

@@ -28,6 +28,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/reset.h>
+#include <linux/phy/phy.h>
 #include <uapi/linux/videodev2.h>
 
 #include <video/display_timing.h>
@@ -35,6 +36,15 @@
 #include "rockchip_drm_drv.h"
 #include "rockchip_drm_vop.h"
 #include "rockchip_lvds.h"
+
+#define HIWORD_UPDATE(v, h, l)  (((v) << (l)) | (GENMASK(h, l) << 16))
+
+#define PX30_GRF_PD_VO_CON1		0x0438
+#define PX30_LVDS_SELECT(x)		HIWORD_UPDATE(x, 14, 13)
+#define PX30_LVDS_MODE_EN(x)		HIWORD_UPDATE(x, 12, 12)
+#define PX30_LVDS_MSBSEL(x)		HIWORD_UPDATE(x, 11, 11)
+#define PX30_LVDS_P2S_EN(x)		HIWORD_UPDATE(x, 10, 10)
+#define PX30_LVDS_VOP_SEL(x)		HIWORD_UPDATE(x,  1,  1)
 
 #define DISPLAY_OUTPUT_RGB		0
 #define DISPLAY_OUTPUT_LVDS		1
@@ -65,6 +75,7 @@ struct rockchip_lvds_soc_data {
 
 struct rockchip_lvds {
 	struct device *dev;
+	struct phy *phy;
 	void __iomem *regs;
 	void __iomem *regs_ctrl;
 	struct regmap *grf;
@@ -434,6 +445,7 @@ rockchip_lvds_encoder_atomic_check(struct drm_encoder *encoder,
 static void rockchip_lvds_encoder_enable(struct drm_encoder *encoder)
 {
 	struct rockchip_lvds *lvds = encoder_to_lvds(encoder);
+	int ret;
 
 	clk_prepare_enable(lvds->pclk);
 	clk_prepare_enable(lvds->pclk_ctrl);
@@ -446,6 +458,16 @@ static void rockchip_lvds_encoder_enable(struct drm_encoder *encoder)
 	if (lvds->soc_data->power_on)
 		lvds->soc_data->power_on(lvds);
 
+	if (lvds->phy) {
+		ret = phy_set_mode(lvds->phy, PHY_MODE_VIDEO_LVDS);
+		if (ret) {
+			dev_err(lvds->dev, "failed to set phy mode: %d\n", ret);
+			return;
+		}
+
+		phy_power_on(lvds->phy);
+	}
+
 	if (lvds->panel)
 		drm_panel_enable(lvds->panel);
 }
@@ -456,6 +478,9 @@ static void rockchip_lvds_encoder_disable(struct drm_encoder *encoder)
 
 	if (lvds->panel)
 		drm_panel_disable(lvds->panel);
+
+	if (lvds->phy)
+		phy_power_off(lvds->phy);
 
 	if (lvds->soc_data->power_off)
 		lvds->soc_data->power_off(lvds);
@@ -692,28 +717,44 @@ static int rockchip_lvds_probe(struct platform_device *pdev)
 	lvds->soc_data = of_device_get_match_data(dev);
 	platform_set_drvdata(pdev, lvds);
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	lvds->regs = devm_ioremap_resource(dev, res);
-	if (IS_ERR(lvds->regs))
-		return PTR_ERR(lvds->regs);
-
-	lvds->pclk = devm_clk_get(dev, "pclk_lvds");
-	if (IS_ERR(lvds->pclk)) {
-		dev_err(dev, "could not get pclk_lvds\n");
-		return PTR_ERR(lvds->pclk);
+	lvds->phy = devm_phy_optional_get(dev, "phy");
+	if (IS_ERR(lvds->phy)) {
+		ret = PTR_ERR(lvds->phy);
+		dev_err(dev, "failed to get phy: %d\n", ret);
+		return ret;
 	}
 
-	lvds->grf = syscon_regmap_lookup_by_phandle(dev->of_node,
-						    "rockchip,grf");
-	if (IS_ERR(lvds->grf)) {
-		dev_err(dev, "missing rockchip,grf property\n");
-		return PTR_ERR(lvds->grf);
-	}
-
-	if (lvds->soc_data->probe) {
-		ret = lvds->soc_data->probe(lvds);
-		if (ret)
+	if (lvds->phy) {
+		lvds->grf = syscon_node_to_regmap(dev->parent->of_node);
+		if (IS_ERR(lvds->grf)) {
+			ret = PTR_ERR(lvds->grf);
+			dev_err(dev, "Unable to get grf: %d\n", ret);
 			return ret;
+		}
+	} else {
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+		lvds->regs = devm_ioremap_resource(dev, res);
+		if (IS_ERR(lvds->regs))
+			return PTR_ERR(lvds->regs);
+
+		lvds->pclk = devm_clk_get(dev, "pclk_lvds");
+		if (IS_ERR(lvds->pclk)) {
+			dev_err(dev, "could not get pclk_lvds\n");
+			return PTR_ERR(lvds->pclk);
+		}
+
+		lvds->grf = syscon_regmap_lookup_by_phandle(dev->of_node,
+							    "rockchip,grf");
+		if (IS_ERR(lvds->grf)) {
+			dev_err(dev, "missing rockchip,grf property\n");
+			return PTR_ERR(lvds->grf);
+		}
+
+		if (lvds->soc_data->probe) {
+			ret = lvds->soc_data->probe(lvds);
+			if (ret)
+				return ret;
+		}
 	}
 
 	return component_add(dev, &rockchip_lvds_component_ops);
@@ -751,42 +792,25 @@ static int innov1_lvds_probe(struct rockchip_lvds *lvds)
 
 static int px30_lvds_power_on(struct rockchip_lvds *lvds)
 {
-	int pipe;
+	int pipe = drm_of_encoder_active_endpoint_id(lvds->dev->of_node,
+						     &lvds->encoder);
 
-	pipe = drm_of_encoder_active_endpoint_id(lvds->dev->of_node,
-						 &lvds->encoder);
+	regmap_write(lvds->grf, PX30_GRF_PD_VO_CON1,
+		     PX30_LVDS_SELECT(lvds->format) |
+		     PX30_LVDS_MODE_EN(1) | PX30_LVDS_MSBSEL(1) |
+		     PX30_LVDS_P2S_EN(1) | PX30_LVDS_VOP_SEL(pipe));
 
-	if (lvds->output == DISPLAY_OUTPUT_RGB) {
-		regmap_write(lvds->grf, PX30_GRF_PD_VO_CON1,
-			     PX30_RGB_VOP_SEL(pipe));
-		regmap_write(lvds->grf, PX30_GRF_PD_VO_CON1,
-			     PX30_DPHY_FORCERXMODE(1) |
-			     PX30_RGB_SYNC_BYPASS(1));
-	} else if (lvds->output == DISPLAY_OUTPUT_LVDS) {
-		regmap_write(lvds->grf, PX30_GRF_PD_VO_CON1,
-			     PX30_LVDS_VOP_SEL(pipe));
-		regmap_write(lvds->grf, PX30_GRF_PD_VO_CON1,
-			     PX30_LVDS_PHY_MODE(1) |
-			     PX30_LVDS_OUTPUT_FORMAT(lvds->format) |
-			     PX30_LVDS_MSBSEL(LVDS_MSB_D7) |
-			     PX30_DPHY_FORCERXMODE(1));
-		lvds_msk_reg(lvds, MIPIPHY_REG8,
-			     m_SAMPLE_CLK_DIR, v_SAMPLE_CLK_DIR_REVERSE);
-	}
-
-	return innov1_lvds_power_on(lvds);
+	return 0;
 }
 
 static void px30_lvds_power_off(struct rockchip_lvds *lvds)
 {
-	regmap_write(lvds->grf, PX30_GRF_PD_VO_CON1, PX30_LVDS_PHY_MODE(0));
-
-	innov1_lvds_power_off(lvds);
+	regmap_write(lvds->grf, PX30_GRF_PD_VO_CON1,
+		     PX30_LVDS_MODE_EN(0) | PX30_LVDS_P2S_EN(0));
 }
 
 static const struct rockchip_lvds_soc_data px30_lvds_soc_data = {
 	.chip_type = PX30,
-	.probe = innov1_lvds_probe,
 	.power_on = px30_lvds_power_on,
 	.power_off = px30_lvds_power_off,
 };

@@ -12,25 +12,13 @@
 	model = "Rockchip RK1808 EVB";
 	compatible = "rockchip,rk1808-evb", "rockchip,rk1808";
 
-	adc-keys {
+	adc_key: adc-keys {
 		compatible = "adc-keys";
 		autorepeat;
 		io-channels = <&saradc 2>;
 		io-channel-names = "buttons";
 		keyup-threshold-microvolt = <1800000>;
 		poll-interval = <100>;
-
-		vol-down-key {
-			linux,code = <KEY_VOLUMEDOWN>;
-			label = "volume down";
-			press-threshold-microvolt = <300000>;
-		};
-
-		vol-up-key {
-			linux,code = <KEY_VOLUMEUP>;
-			label = "volume up";
-			press-threshold-microvolt = <18000>;
-		};
 	};
 
 	backlight: backlight {
@@ -206,7 +194,7 @@
 		regulator-boot-on;
 	};
 
-	wireless-bluetooth {
+	wireless_bluetooth: wireless-bluetooth {
 		compatible = "bluetooth-platdata";
 		uart_rts_gpios = <&gpio4 RK_PB7 GPIO_ACTIVE_LOW>;
 		pinctrl-names = "default", "rts_gpio";
@@ -217,7 +205,7 @@
 		status = "okay";
 	};
 
-	wireless-wlan {
+	wireless_wlan: wireless-wlan {
 		compatible = "wlan-platdata";
 		rockchip,grf = <&grf>;
 		pinctrl-names = "default";

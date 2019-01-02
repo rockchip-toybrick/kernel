@@ -828,10 +828,9 @@
 		reset-names = "tsadc-apb";
 		rockchip,grf = <&grf>;
 		rockchip,hw-tshut-temp = <120000>;
-		pinctrl-names = "init", "default", "sleep";
+		pinctrl-names = "gpio", "otpout";
 		pinctrl-0 = <&otp_gpio>;
 		pinctrl-1 = <&otp_out>;
-		pinctrl-2 = <&otp_gpio>;
 		#thermal-sensor-cells = <1>;
 		status = "disabled";
 	};
@@ -1448,6 +1447,10 @@
 		clock-names = "pclk_efuse";
 
 		/* Data cells */
+		specification_serial_number: specification-serial-number@6 {
+			reg = <0x06 0x1>;
+			bits = <0 5>;
+		};
 		cpu_id: cpu-id@7 {
 			reg = <0x07 0x10>;
 		};
@@ -2110,8 +2113,6 @@
 		reset-names = "dp";
 		rockchip,grf = <&grf>;
 		status = "disabled";
-		pinctrl-names = "default";
-		pinctrl-0 = <&edp_hpd>;
 
 		ports {
 			#address-cells = <1>;

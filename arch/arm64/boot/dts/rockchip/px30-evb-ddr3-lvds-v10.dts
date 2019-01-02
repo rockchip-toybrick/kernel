@@ -509,11 +509,16 @@
 	};
 };
 
+&lvds_in_vopb {
+	status = "okay";
+};
+
 &lvds_in_vopl {
 	status = "disabled";
 };
 
 &route_lvds {
+	connect = <&vopb_out_lvds>;
 	status = "okay";
 };
 
@@ -586,7 +591,7 @@
 };
 
 &tsadc {
-	pinctrl-names = "init", "default";
+	pinctrl-names = "gpio", "otpout";
 	pinctrl-0 = <&tsadc_otp_gpio>;
 	pinctrl-1 = <&tsadc_otp_out>;
 	status = "okay";

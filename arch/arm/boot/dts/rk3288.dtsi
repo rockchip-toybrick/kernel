@@ -644,10 +644,9 @@
 		assigned-clock-rates = <5000>;
 		resets = <&cru SRST_TSADC>;
 		reset-names = "tsadc-apb";
-		pinctrl-names = "init", "default", "sleep";
+		pinctrl-names = "gpio", "otpout";
 		pinctrl-0 = <&otp_gpio>;
 		pinctrl-1 = <&otp_gpio>;
-		pinctrl-2 = <&otp_gpio>;
 		#thermal-sensor-cells = <1>;
 		rockchip,hw-tshut-temp = <120000>;
 		rockchip,hw-tshut-mode = <0>; /* tshut mode 0:CRU 1:GPIO */
@@ -972,6 +971,7 @@
 					 <&cru PCLK_MIPI_DSI1>,
 					 <&cru SCLK_EDP_24M>,
 					 <&cru SCLK_EDP>,
+					 <&cru SCLK_HDMI_CEC>,
 					 <&cru SCLK_ISP_JPE>,
 					 <&cru SCLK_ISP>,
 					 <&cru SCLK_RGA>;
@@ -1572,8 +1572,8 @@
 		reg-io-width = <4>;
 		rockchip,grf = <&grf>;
 		interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&cru  PCLK_HDMI_CTRL>, <&cru SCLK_HDMI_HDCP>;
-		clock-names = "iahb", "isfr";
+		clocks = <&cru  PCLK_HDMI_CTRL>, <&cru SCLK_HDMI_HDCP>, <&cru SCLK_HDMI_CEC>;
+		clock-names = "iahb", "isfr", "cec";
 		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&hdmi_ddc>;
 		pinctrl-1 = <&hdmi_gpio>;
@@ -1956,6 +1956,10 @@
 						 &pcfg_pull_none>,
 						<7 20 RK_FUNC_GPIO
 						 &pcfg_pull_none>;
+			};
+
+			hdmi_cec: hdmi-cec {
+				rockchip,pins = <7 16 RK_FUNC_2 &pcfg_pull_none>;
 			};
 
 			hdmi_ddc: hdmi-ddc {
