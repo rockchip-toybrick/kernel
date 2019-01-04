@@ -707,7 +707,6 @@
 	clock-frequency = <150000000>;
 	clock-freq-min-max = <100000 150000000>;
 	supports-sd;
-	supports-emmc;
 	bus-width = <4>;
 	cap-mmc-highspeed;
 	cap-sd-highspeed;
