@@ -14,7 +14,15 @@
 };
 
 &rk_key {
-	status = "disabled";
+	status = "okay";
+
+	io-channels = <&saradc 2>;
+
+	vol-up-key {
+		linux,code = <115>;
+		label = "volume up";
+		rockchip,adc_value = <1>;
+	};
 };
 
 &route_edp {
