@@ -61,6 +61,7 @@
 
 &csi_tx {
 	status = "okay";
+	csi-tx-bypass-mode = <1>;
 
 	panel@0 {
 		compatible = "simple-panel-dsi";
@@ -171,9 +172,9 @@
 	vcamera@30 {
 		compatible = "rockchip,virtual-camera";
 		reg = <0x30>;
-		width = <1280>;
+		width = <3840>;
 		height = <720>;
-		bus-format = <MEDIA_BUS_FMT_RGB888_1X24>;
+		bus-format = <MEDIA_BUS_FMT_SBGGR8_1X8>;
 
 		port {
 			vcamera_out: endpoint {

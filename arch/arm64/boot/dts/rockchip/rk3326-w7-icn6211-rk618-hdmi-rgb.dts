@@ -4,42 +4,42 @@
  */
 
 /dts-v1/;
-#include <dt-bindings/display/media-bus-format.h>
 #include <dt-bindings/clock/rk618-cru.h>
-#include "px30-ad-r35-mb.dtsi"
+#include "rk3326-w7.dtsi"
 
 / {
+	osc26m: osc26m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <26000000>;
+	};
+
 	panel {
 		compatible = "simple-panel";
 		backlight = <&backlight>;
-		power-supply = <&vcc3v3_lcd>;
-		enable-gpios = <&gpio0 RK_PB5 GPIO_ACTIVE_LOW>;
-		prepare-delay-ms = <120>;
-		enable-delay-ms = <120>;
-		disable-delay-ms = <120>;
-		unprepare-delay-ms = <120>;
-		/*
-		 * MEDIA_BUS_FMT_RGB888_1X7X4_SPWG  - "vesa-24"
-		 * MEDIA_BUS_FMT_RGB888_1X7X4_JEIDA - "jedia-24"
-		 * MEDIA_BUS_FMT_RGB666_1X7X3_SPWG  - "jedia-18"
-		 */
-		bus-format = <MEDIA_BUS_FMT_RGB888_1X7X4_SPWG>;
-		width-mm = <231>;
-		height-mm = <154>;
+		enable-gpios = <&gpio0 RK_PB5 GPIO_ACTIVE_HIGH>;
+		enable-delay-ms = <20>;
+		prepare-delay-ms = <20>;
+		unprepare-delay-ms = <20>;
+		disable-delay-ms = <20>;
+		bus-format = <MEDIA_BUS_FMT_RGB666_1X24_CPADHI>;
+
+		width-mm = <154>;
+		height-mm = <86>;
 
 		display-timings {
-			native-mode = <&timing1>;
+			native-mode = <&timing0>;
 
-			timing1: timing1 {
-				clock-frequency = <72000000>;
-				hactive = <1280>;
-				vactive = <800>;
-				hback-porch = <60>;
-				hfront-porch = <60>;
-				vback-porch = <16>;
-				vfront-porch = <16>;
-				hsync-len = <40>;
-				vsync-len = <6>;
+			timing0: timing0 {
+				clock-frequency = <48000000>;
+				hactive = <1024>;
+				vactive = <600>;
+				hback-porch = <90>;
+				hfront-porch = <90>;
+				vback-porch = <10>;
+				vfront-porch = <10>;
+				hsync-len = <90>;
+				vsync-len = <10>;
 				hsync-active = <0>;
 				vsync-active = <0>;
 				de-active = <0>;
@@ -48,8 +48,8 @@
 		};
 
 		port {
-			panel_in_lvds: endpoint {
-				remote-endpoint = <&lvds_out_panel>;
+			panel_in_rgb: endpoint {
+				remote-endpoint = <&rgb_out_panel>;
 			};
 		};
 	};
@@ -62,6 +62,34 @@
 &i2c0 {
 	status = "okay";
 
+	icn6211@2c {
+		compatible = "chipone,icn6211";
+		reg = <0x2c>;
+		clocks = <&osc26m>;
+		clock-names = "refclk";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				icn6211_in_dsi: endpoint {
+					remote-endpoint = <&dsi_out_icn6211>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				icn6211_out_vif: endpoint {
+					remote-endpoint = <&vif_in_icn6211>;
+				};
+			};
+		};
+	};
+
 	rk618@50 {
 		compatible = "rockchip,rk618";
 		reg = <0x50>;
@@ -71,12 +99,12 @@
 		clock-names = "clkin";
 		assigned-clocks = <&cru SCLK_I2S1_OUT>;
 		assigned-clock-rates = <12000000>;
-		reset-gpios = <&gpio0 RK_PA0 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&gpio3 RK_PB1 GPIO_ACTIVE_LOW>;
 		status = "okay";
 
 		clock: cru {
 			compatible = "rockchip,rk618-cru";
-			clocks = <&cru SCLK_I2S1_OUT>, <&cru DCLK_VOPL>;
+			clocks = <&cru SCLK_I2S1_OUT>, <&cru DCLK_VOPB>;
 			clock-names = "clkin", "lcdc0_dclkp";
 			assigned-clocks = <&clock SCALER_PLLIN_CLK>,
 					  <&clock VIF_PLLIN_CLK>,
@@ -85,7 +113,7 @@
 					  <&clock CODEC_CLK>,
 					  <&clock DITHER_CLK>;
 			assigned-clock-parents = <&cru SCLK_I2S1_OUT>,
-						 <&clock LCDC0_CLK>,
+						 <&cru SCLK_I2S1_OUT>,
 						 <&clock SCALER_PLL_CLK>,
 						 <&clock VIF_PLL_CLK>,
 						 <&cru SCLK_I2S1_OUT>,
@@ -101,7 +129,7 @@
 			assigned-clocks = <&clock HDMI_CLK>;
 			assigned-clock-parents = <&clock VIF0_CLK>;
 			interrupt-parent = <&gpio2>;
-			interrupts = <12 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <13 IRQ_TYPE_LEVEL_HIGH>;
 			status = "okay";
 
 			ports {
@@ -126,10 +154,10 @@
 			};
 		};
 
-		lvds {
-			compatible = "rockchip,rk618-lvds";
-			clocks = <&clock LVDS_CLK>;
-			clock-names = "lvds";
+		rgb {
+			compatible = "rockchip,rk618-rgb";
+			clocks = <&clock RGB_CLK>;
+			clock-names = "rgb";
 			status = "okay";
 
 			ports {
@@ -139,16 +167,16 @@
 				port@0 {
 					reg = <0>;
 
-					lvds_in_scaler: endpoint {
-						remote-endpoint = <&scaler_out_lvds>;
+					rgb_in_scaler: endpoint {
+						remote-endpoint = <&scaler_out_rgb>;
 					};
 				};
 
 				port@1 {
 					reg = <1>;
 
-					lvds_out_panel: endpoint {
-						remote-endpoint = <&panel_in_lvds>;
+					rgb_out_panel: endpoint {
+						remote-endpoint = <&panel_in_rgb>;
 					};
 				};
 			};
@@ -176,8 +204,8 @@
 				port@1 {
 					reg = <1>;
 
-					scaler_out_lvds: endpoint {
-						remote-endpoint = <&lvds_in_scaler>;
+					scaler_out_rgb: endpoint {
+						remote-endpoint = <&rgb_in_scaler>;
 					};
 				};
 			};
@@ -196,8 +224,8 @@
 				port@0 {
 					reg = <0>;
 
-					vif_in_rgb: endpoint {
-						remote-endpoint = <&rgb_out_vif>;
+					vif_in_icn6211: endpoint {
+						remote-endpoint = <&icn6211_out_vif>;
 					};
 				};
 
@@ -213,34 +241,29 @@
 	};
 };
 
-&vopl {
-	assigned-clocks = <&cru PLL_NPLL>;
-	assigned-clock-rates = <1188000000>;
-};
-
-&rgb {
+&dsi {
 	status = "okay";
 
 	ports {
 		port@1 {
 			reg = <1>;
 
-			rgb_out_vif: endpoint {
-				remote-endpoint = <&vif_in_rgb>;
+			dsi_out_icn6211: endpoint {
+				remote-endpoint = <&icn6211_in_dsi>;
 			};
 		};
 	};
 };
 
-&rgb_in_vopb {
-	status = "disabled";
-};
-
-&rgb_in_vopl {
+&dsi_in_vopb {
 	status = "okay";
 };
 
-&route_rgb {
-	connect = <&vopl_out_rgb>;
+&dsi_in_vopl {
+	status = "disabled";
+};
+
+&route_dsi {
+	connect = <&vopb_out_dsi>;
 	status = "okay";
 };

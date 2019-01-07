@@ -21,6 +21,8 @@
 #include "cif_isp10.h"
 #include <linux/pm_runtime.h>
 #include <linux/vmalloc.h>
+#include <dt-bindings/soc/rockchip-system-status.h>
+#include <soc/rockchip/rockchip-system-status.h>
 
 static int cif_isp10_mipi_isr(
 	unsigned int mis,
@@ -4418,6 +4420,7 @@ static int cif_isp10_mi_frame_end(
 			bool wake_now;
 
 			vb2_buf = &stream->curr_buf->vb.vb2_buf;
+			v4l2_get_timestamp(&stream->curr_buf->vb.timestamp);
 			vb2_buffer_done(vb2_buf, VB2_BUF_STATE_DONE);
 			wake_now = false;
 
@@ -5712,9 +5715,13 @@ int cif_isp10_streamon(
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
+	rockchip_set_system_status(SYS_STATUS_ISP);
+
 	ret = cif_isp10_start(dev, streamon_sp, streamon_mp);
-	if (IS_ERR_VALUE(ret))
+	if (IS_ERR_VALUE(ret)) {
+		rockchip_clear_system_status(SYS_STATUS_ISP);
 		goto err;
+	}
 
 	cif_isp10_pltfrm_pr_dbg(dev->dev,
 		"SP state = %s, MP state = %s, DMA state = %s\n",
@@ -5798,6 +5805,8 @@ int cif_isp10_streamoff(
 	if (streamoff_dma)
 		cif_isp10_stop_dma(dev);
 
+	rockchip_clear_system_status(SYS_STATUS_ISP);
+
 	cif_isp10_pltfrm_pr_dbg(dev->dev,
 		"SP state = %s, MP state = %s, DMA state = %s, # frames received = %d\n",
 		cif_isp10_state_string(dev->sp_stream.state),
@@ -5807,6 +5816,7 @@ int cif_isp10_streamoff(
 
 	return 0;
 err:
+	rockchip_clear_system_status(SYS_STATUS_ISP);
 	cif_isp10_pltfrm_pr_dbg(dev->dev,
 		"SP state = %s, MP state = %s, DMA state = %s\n",
 		cif_isp10_state_string(dev->sp_stream.state),

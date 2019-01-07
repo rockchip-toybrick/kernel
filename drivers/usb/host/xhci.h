@@ -1494,7 +1494,11 @@ static inline const char *xhci_trb_type_string(u8 type)
 #define TRB_SEGMENT_SIZE	(TRBS_PER_SEGMENT*16)
 #define TRB_SEGMENT_SHIFT	(ilog2(TRB_SEGMENT_SIZE))
 /* TRB buffer pointers can't cross 64KB boundaries */
+#ifdef CONFIG_ARCH_ROCKCHIP
+#define TRB_MAX_BUFF_SHIFT		12
+#else
 #define TRB_MAX_BUFF_SHIFT		16
+#endif
 #define TRB_MAX_BUFF_SIZE	(1 << TRB_MAX_BUFF_SHIFT)
 
 struct xhci_segment {
@@ -1824,6 +1828,7 @@ struct xhci_hcd {
 #define XHCI_DIS_AUTOSUSPEND	(1 << 21)
 #define XHCI_MISSING_CAS	(1 << 24)
 #define XHCI_WARM_RESET_ON_RESUME	(1 << 25)
+#define XHCI_TRB_ENT_QUIRK	(1 << 26)
 	unsigned int		num_active_eps;
 	unsigned int		limit_active_eps;
 	/* There are two roothubs to keep track of bus suspend info for */

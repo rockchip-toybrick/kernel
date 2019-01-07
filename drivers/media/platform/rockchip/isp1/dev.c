@@ -52,6 +52,8 @@
 #include "common.h"
 #include "version.h"
 
+#define RKISP_VERNO_LEN		10
+
 struct isp_irqs_data {
 	const char *name;
 	irqreturn_t (*irq_hdl)(int irq, void *ctx);
@@ -70,6 +72,10 @@ struct isp_match_data {
 int rkisp1_debug;
 module_param_named(debug, rkisp1_debug, int, 0644);
 MODULE_PARM_DESC(debug, "Debug level (0-1)");
+
+static char rkisp1_version[RKISP_VERNO_LEN];
+module_param_string(version, rkisp1_version, RKISP_VERNO_LEN, 0444);
+MODULE_PARM_DESC(version, "version number");
 
 /**************************** pipeline operations *****************************/
 
@@ -348,6 +354,17 @@ static int rkisp1_create_links(struct rkisp1_device *dev)
 				       sink, 0, flags);
 	if (ret < 0)
 		return ret;
+
+	if (dev->isp_ver == ISP_V12 ||
+		dev->isp_ver == ISP_V13) {
+		/* MIPI RAW links */
+		source = &dev->isp_sdev.sd.entity;
+		sink = &dev->stream[RKISP1_STREAM_RAW].vnode.vdev.entity;
+		ret = media_entity_create_link(source,
+			RKISP1_ISP_PAD_SOURCE_PATH, sink, 0, flags);
+		if (ret < 0)
+			return ret;
+	}
 
 	/* 3A stats links */
 	source = &dev->isp_sdev.sd.entity;
@@ -647,6 +664,8 @@ static irqreturn_t rkisp1_mipi_irq_hdl(int irq, void *ctx)
 		err2 = readl(rkisp1_dev->base_addr + CIF_ISP_CSI0_ERR2);
 		err3 = readl(rkisp1_dev->base_addr + CIF_ISP_CSI0_ERR3);
 
+		if (err3 & 0x1)
+			rkisp1_mipi_dmatx0_end(err3, rkisp1_dev);
 		if (err1 || err2 || err3)
 			rkisp1_mipi_v13_isr(err1, err2, err3, rkisp1_dev);
 	} else {
@@ -691,7 +710,7 @@ static const char * const rk3399_isp_clks[] = {
 
 /* isp clock adjustment table (MHz) */
 static const unsigned int rk1808_isp_clk_rate[] = {
-	400, 500, 600
+	300, 400, 500, 600
 };
 
 /* isp clock adjustment table (MHz) */
@@ -907,10 +926,12 @@ static int rkisp1_plat_probe(struct platform_device *pdev)
 	struct resource *res;
 	int i, ret, irq;
 
-	dev_info(dev, "rkisp1 driver version: v%x.%x.%x\n",
-		 RKISP1_DRIVER_VERSION >> 16,
-		 (RKISP1_DRIVER_VERSION & 0xff00) >> 8,
-		 RKISP1_DRIVER_VERSION & 0x00ff);
+	sprintf(rkisp1_version, "v%02x.%02x.%02x",
+		RKISP1_DRIVER_VERSION >> 16,
+		(RKISP1_DRIVER_VERSION & 0xff00) >> 8,
+		RKISP1_DRIVER_VERSION & 0x00ff);
+
+	dev_info(dev, "rkisp1 driver version: %s\n", rkisp1_version);
 
 	match = of_match_node(rkisp1_plat_of_match, node);
 	isp_dev = devm_kzalloc(dev, sizeof(*isp_dev), GFP_KERNEL);
@@ -996,6 +1017,7 @@ static int rkisp1_plat_probe(struct platform_device *pdev)
 
 	rkisp1_stream_init(isp_dev, RKISP1_STREAM_SP);
 	rkisp1_stream_init(isp_dev, RKISP1_STREAM_MP);
+	rkisp1_stream_init(isp_dev, RKISP1_STREAM_RAW);
 
 	strlcpy(isp_dev->media_dev.model, "rkisp1",
 		sizeof(isp_dev->media_dev.model));
