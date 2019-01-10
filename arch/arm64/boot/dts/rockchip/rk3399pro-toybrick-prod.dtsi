@@ -3,7 +3,7 @@
 //#include "lcd-mipi-for-toybrick.dtsi"
 
 / {
-        compatible = "rockchip,rk3399pro-toybrick-evb","rockchip,rk3399pro";
+        compatible = "rockchip,rk3399pro-toybrick-prod","rockchip,rk3399pro";
 
 	backlight: backlight {
 		compatible = "pwm-backlight";

@@ -1,9 +1,9 @@
 /dts-v1/;
-#include "rk3399pro-toybrick-evb.dtsi"
+#include "rk3399pro-toybrick-prod.dtsi"
 #include "rk3399-android.dtsi"
 
 / {
-        compatible = "rockchip,rk3399pro-toybrick-evb-android","rockchip,rk3399pro";
+        compatible = "rockchip,rk3399pro-toybrick-prod-android","rockchip,rk3399pro";
 
 	wireless-wlan {
 		compatible = "wlan-platdata";
