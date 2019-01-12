@@ -63,6 +63,20 @@
 	};
 };
 
+&spi5 {
+	status = "okay";
+
+	flash@0 {
+		compatible = "gigadevice,w25q64", "jedec,spi-nor";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0>;
+		m25p,fast-read;
+		// The max SCLK of the flash 104/80 MHZ
+		spi-max-frequency = <50000000>;
+	};
+};
+
 &pinctrl {
 	extbrd {
 		extkey_gpio: extkey-gpio {
