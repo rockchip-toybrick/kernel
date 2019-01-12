@@ -51,6 +51,18 @@
 	status = "okay";
 };
 
+&i2c6 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+	clock-frequency=<400000>;
+
+	ina219x47c6: ina219@47 {
+		compatible = "ina219";
+		reg = <0x47>;
+	};
+};
+
 &pinctrl {
 	extbrd {
 		extkey_gpio: extkey-gpio {
