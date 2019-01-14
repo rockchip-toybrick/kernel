@@ -10,6 +10,9 @@
 		wifi_chip_type = "rtl8188eu";
 		status = "okay";
 	};
+	chosen {
+		bootargs = "console=ttyFIQ0 androidboot.baseband=N/A androidboot.selinux=permissive androidboot.veritymode=enforcing androidboot.hardware=rk30board androidboot.console=ttyFIQ0 init=/init initrd=0x62000000,0x00800000 earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1";
+	};
 };
 
 &pcie_phy {
