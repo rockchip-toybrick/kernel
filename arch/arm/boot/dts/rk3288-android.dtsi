@@ -108,7 +108,7 @@
 			SYS_STATUS_REBOOT	396000
 			SYS_STATUS_SUSPEND	192000
 			SYS_STATUS_VIDEO_1080P	300000
-			SYS_STATUS_VIDEO_4K	396000
+			SYS_STATUS_VIDEO_4K	528000
 			SYS_STATUS_VIDEO_4K_10B	528000
 			SYS_STATUS_PERFORMANCE	528000
 			SYS_STATUS_BOOST	396000
@@ -262,6 +262,15 @@
 				logo,mode = "center";
 				charge_logo,mode = "center";
 				connect = <&vopb_out_hdmi>;
+			};
+
+			route_rgb: route-rgb {
+				status = "disabled";
+				logo,uboot = "logo.bmp";
+				logo,kernel = "logo_kernel.bmp";
+				logo,mode = "center";
+				charge_logo,mode = "center";
+				connect = <&vopl_out_rgb>;
 			};
 		};
 	};
@@ -451,6 +460,10 @@
 	reset-names = "otg_ahb", "otg_phy", "otg_controller";
 	/*0 - Normal, 1 - Force Host, 2 - Force Device*/
 	rockchip,usb-mode = <0>;
+};
+
+&video_phy {
+	status = "okay";
 };
 
 &pinctrl {
