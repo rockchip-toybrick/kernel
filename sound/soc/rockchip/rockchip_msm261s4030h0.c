@@ -107,7 +107,7 @@ static int rockchip_msm261s4030h0_audio_probe(struct platform_device *pdev)
 	struct device_node *cpu_node;
 	
 	struct snd_soc_card *card = &rockchip_msm261s4030h0_snd_card;
-    printk("csq00 %s---------------%d\n", __func__,__LINE__);
+    printk("%s---------------%d\n", __func__,__LINE__);
 	card->dev = &pdev->dev;
 
 	cpu_node = of_parse_phandle(pdev->dev.of_node, "rockchip,cpu", 0);
