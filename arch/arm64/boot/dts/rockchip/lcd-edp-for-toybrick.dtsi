@@ -7,11 +7,13 @@
 	panel: panel {
 		compatible = "simple-panel";
 		backlight = <&backlight>;
-		//enable-gpios = <&gpio4 RK_PD6 GPIO_ACTIVE_HIGH>;
+		enable-gpios = <&gpio4 RK_PD6 GPIO_ACTIVE_HIGH>;
 		prepare-delay-ms = <20>;
 		enable-delay-ms = <20>;
 		reset-delay-ms = <20>;
 
+		pinctrl-names = "default";
+		pinctrl-0 = <&lcd_bl_en_h>;
 		display-timings {
 			native-mode = <&timing0>;
 
@@ -56,11 +58,11 @@
 };
 
 &edp_in_vopl {
-	status = "disabled";
+	status = "okay";
 };
 
 &edp_in_vopb {
-	status = "okay";
+	status = "disabled";
 };
 
 &i2c4 {
@@ -73,8 +75,25 @@
 		reg = <0x40>;
 		screen_max_x = <1536>;
 		screen_max_y = <2048>;
-		irq_gpio_number = <&gpio4 RK_PC5 IRQ_TYPE_LEVEL_LOW>;
-		rst_gpio_number = <&gpio4 RK_PC6 GPIO_ACTIVE_HIGH>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&touch_int_d>;
+		irq_gpio_number = <&gpio2 RK_PD0 IRQ_TYPE_LEVEL_LOW>;
+		rst_gpio_number = <&gpio1 RK_PB5 GPIO_ACTIVE_HIGH>;
 	};
 };
 
+&pinctrl {
+	edp {
+		lcd_bl_en_h: lcd-bl-en-h {
+			rockchip,pins =
+				<4 RK_PD4 RK_FUNC_GPIO &pcfg_output_high>;
+		};
+	};
+	touch {
+		touch_int_d: touch-int-d {
+			rockchip,pins =
+				<2 RK_PD0 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+};

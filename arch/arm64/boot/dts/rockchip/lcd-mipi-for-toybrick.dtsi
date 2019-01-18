@@ -18,7 +18,7 @@
 		enable-delay-ms = <120>;
 		disable-delay-ms = <50>;
 		unprepare-delay-ms = <20>;
-		enable-gpios = <&gpio4 30 GPIO_ACTIVE_HIGH>;
+		enable-gpios = <&gpio4 RK_PD5 GPIO_ACTIVE_HIGH>;
 		width-mm = <68>;
 		height-mm = <121>;
 
@@ -111,8 +111,19 @@
 		status = "okay";
 		compatible = "goodix,gt1x";
 		reg = <0x14>;
-		goodix,rst-gpio = <&gpio4 RK_PC6 GPIO_ACTIVE_LOW>;
-		goodix,irq-gpio = <&gpio4 RK_PC5 IRQ_TYPE_LEVEL_LOW>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&touch_int_d>;
+		goodix,rst-gpio = <&gpio4 RK_PC6 GPIO_ACTIVE_HIGH>;
+		goodix,irq-gpio = <&gpio4 RK_PD0 IRQ_TYPE_LEVEL_LOW>;
 		goodix,enable-gpio = <&gpio4 RK_PD5 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&pinctrl {
+	touch {
+		touch_int_d: touch-int-d {
+			rockchip,pins =
+				<4 RK_PD0 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
 	};
 };
