@@ -24,6 +24,7 @@
 
 	io-channels = <&saradc 2>;
 
+	/delete-node/ power-key;
 	vol-up-key {
 		linux,code = <115>;
 		label = "volume up";
