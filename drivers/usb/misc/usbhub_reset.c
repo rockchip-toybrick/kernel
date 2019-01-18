@@ -132,12 +132,11 @@ static __init int uhrst_modinit(void)
 }
 late_initcall(uhrst_modinit);
 
-/*
+
 static __exit void uhrst_exit(void)
 {
 	platform_driver_unregister(&uhrst_driver);
 }
-*/
 #endif
 
 MODULE_DESCRIPTION("USB Hub Reset Driver");
