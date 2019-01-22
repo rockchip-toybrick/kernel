@@ -652,7 +652,7 @@ int download_patch(struct usb_interface *intf)
 	}
 
 	ret_val = check_fw_version(xdata);
-	if (ret_val < 0) {
+	if (ret_val <= 0) {
 		RTKBT_ERR("%s: Read Local Version Info failure after download",
 			  __func__);
 		ret_val = -1;
@@ -1504,9 +1504,9 @@ get_ver:
 	RTKBT_DBG("read_ver_rsp->lmp_subver = 0x%x", read_ver_rsp->lmp_subver);
 	RTKBT_DBG("read_ver_rsp->hci_rev = 0x%x", read_ver_rsp->hci_rev);
 	RTKBT_DBG("patch_entry->lmp_sub = 0x%x", patch_entry->lmp_sub);
-//	if (patch_entry->lmp_sub != read_ver_rsp->lmp_subver) {
-//		return 1;
-//	}
+	if (patch_entry->lmp_sub != read_ver_rsp->lmp_subver) {
+		return 1;
+	}
 
 	ret_val = 0;
 version_end:
