@@ -66,6 +66,7 @@ static const s64 link_freq_menu_items[] = {
 	500000000,
 	600000000,
 	700000000,
+	752000000,
 	800000000,
 	900000000,
 	1000000000,
@@ -118,10 +119,20 @@ static const struct output_mode supported_modes[] = {
 		.hts_def = 4300,
 		.vts_def = 2400,
 	}, {
+		.width = 4096,
+		.height = 2048,
+		.hts_def = 4300,
+		.vts_def = 2400,
+	}, {
 		.width = 5120,
 		.height = 2880,
 		.hts_def = 5800,
 		.vts_def = 3100,
+	}, {
+		.width = 5760,
+		.height = 1080,
+		.hts_def = 6400,
+		.vts_def = 1300,
 	},
 };
 

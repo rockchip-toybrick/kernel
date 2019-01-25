@@ -135,6 +135,7 @@
 			| RKPM_SLP_ARMOFF
 			| RKPM_SLP_PMU_PMUALIVE_32K
 			| RKPM_SLP_PMU_DIS_OSC
+			| RKPM_SLP_PMIC_LP
 			| RKPM_SLP_32K_EXT
 			)
 		>;
@@ -1289,7 +1290,10 @@
 		compatible = "rockchip,rk1808-cif";
 		reg = <0x0 0xffae0000 0x0 0x200>, <0x0 0xffb10000 0x0 0x100>;
 		reg-names = "cif_regs", "csihost_regs";
-		interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "cif-intr", "csi-intr1", "csi-intr2";
 		clocks = <&cru ACLK_CIF>, <&cru DCLK_CIF>,
 			 <&cru HCLK_CIF>, <&cru SCLK_CIF_OUT>,
 			 <&cru PCLK_CSI2HOST>;
@@ -1366,8 +1370,12 @@
 		interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru PCLK_CSI_TX>, <&mipi_dphy>;
 		clock-names = "pclk", "hs_clk";
-		resets = <&cru SRST_CSITX_P>;
-		reset-names = "apb";
+		resets = <&cru SRST_CSITX_P>,
+			 <&cru SRST_CSITX_TXBYTEHS>,
+			 <&cru SRST_CSITX_TXESC>,
+			 <&cru SRST_CSITX_CAM>,
+			 <&cru SRST_CSITX_I>;
+		reset-names = "tx_apb", "tx_bytehs", "tx_esc", "tx_cam", "tx_i";
 		phys = <&mipi_dphy>;
 		phy-names = "mipi_dphy";
 		power-domains = <&power RK1808_PD_VIO>;

@@ -1154,12 +1154,14 @@
 		#clock-cells = <1>;
 		#reset-cells = <1>;
 		assigned-clocks =
+			<&cru ARMCLKL>, <&cru ARMCLKB>,
 			<&cru PLL_GPLL>, <&cru PLL_CPLL>,
 			<&cru ACLK_BUS>, <&cru ACLK_PERI>,
 			<&cru HCLK_BUS>, <&cru HCLK_PERI>,
 			<&cru PCLK_BUS>, <&cru PCLK_PERI>,
 			<&cru ACLK_CCI_PRE>;
 		assigned-clock-rates =
+			<816000000>, <816000000>,
 			<576000000>, <400000000>,
 			<300000000>, <300000000>,
 			<150000000>, <150000000>,
@@ -1447,6 +1449,21 @@
 		status = "disabled";
 	};
 
+	rkisp1: rkisp1@ff910000 {
+		compatible = "rockchip,rk3368-rkisp1";
+		reg = <0x0 0xff910000 0x0 0x4000>;
+		interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "isp_irq";
+		clocks = <&cru ACLK_RGA>, <&cru HCLK_ISP>,
+			<&cru SCLK_ISP>, <&cru PCLK_ISP>;
+		clock-names = "aclk_isp", "hclk_isp",
+			"clk_isp", "pclk_isp";
+		devfreq = <&dmc>;
+		power-domains = <&power RK3368_PD_VIO>;
+		iommus = <&isp_mmu>;
+		status = "disabled";
+	};
+
 	isp_mmu: iommu@ff914000 {
 		compatible = "rockchip,iommu";
 		reg = <0x0 0xff914000 0x0 0x100>,
@@ -1594,6 +1611,16 @@
 		reset-names = "rst";
 		power-domains = <&power RK3368_PD_VIO>;
 		#phy-cells = <0>;
+		status = "disabled";
+	};
+
+	mipi_dphy_rx0: mipi-dphy-rx0@ff96C000 {
+		compatible = "rockchip,rk3368-mipi-dphy";
+		reg = <0x0 0xff96C000 0x0 0x4000>;
+		clocks = <&cru PCLK_DPHYRX>;
+		clock-names = "pclk_dphyrx";
+		power-domains = <&power RK3368_PD_VIO>;
+		rockchip,grf = <&grf>;
 		status = "disabled";
 	};
 
