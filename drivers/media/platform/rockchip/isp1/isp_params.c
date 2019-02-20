@@ -506,8 +506,6 @@ static void isp_goc_config_v10(struct rkisp1_isp_params_vdev *params_vdev,
 {
 	int i;
 
-	isp_param_clear_bits(params_vdev, CIF_ISP_CTRL,
-			     CIF_ISP_CTRL_ISP_GAMMA_OUT_ENA);
 	rkisp1_iowrite32(params_vdev, arg->mode, CIF_ISP_GAMMA_OUT_MODE_V10);
 
 	for (i = 0; i < params_vdev->config->gamma_out_max_samples; i++)
@@ -521,8 +519,6 @@ static void isp_goc_config_v12(struct rkisp1_isp_params_vdev *params_vdev,
 	int i;
 	u32 value;
 
-	isp_param_clear_bits(params_vdev, CIF_ISP_CTRL,
-			     CIF_ISP_CTRL_ISP_GAMMA_OUT_ENA);
 	rkisp1_iowrite32(params_vdev, arg->mode, CIF_ISP_GAMMA_OUT_MODE_V12);
 
 	for (i = 0; i < params_vdev->config->gamma_out_max_samples / 2; i++) {
@@ -1882,7 +1878,8 @@ static int rkisp1_params_querycap(struct file *file,
 	struct rkisp1_isp_params_vdev *params_vdev = video_get_drvdata(vdev);
 
 	snprintf(cap->driver, sizeof(cap->driver),
-		 "%s_v%02d", DRIVER_NAME, params_vdev->dev->isp_ver);
+		 "%s_v%d", DRIVER_NAME,
+		 params_vdev->dev->isp_ver >> 4);
 	strlcpy(cap->card, vdev->name, sizeof(cap->card));
 	strlcpy(cap->bus_info, "platform: " DRIVER_NAME, sizeof(cap->bus_info));
 
