@@ -44,14 +44,17 @@
 #endif
 #define EXTBRD_ERROR(s, ...) printk("*** jaxx " s, ##__VA_ARGS__)
 
+#define ARR_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+
 /* Board Resource definition */
 #define TB_PROD
-#define EXT_DIGIT_GPIOS
-//define EXT_GPIO_KEYS
+//#define EXT_DIGIT_GPIOS
+//#define EXT_GPIO_KEYS
 #define EXT_ADC
 
 static const struct of_device_id of_extbrd_match[] = {
-	{ .compatible = "eaidk-extboard", },
+	{ .compatible = "prod-extboard", },
+	{ .compatible = "prop-extboard", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, of_extbrd_match);
@@ -71,43 +74,47 @@ struct extgpio_desc
 };
 
 static struct extgpio_desc digit_gpios[] = {
-#ifdef TB_PROD
-	{RK_GPIO(0, 5), "TUBE_A"},
-	{RK_GPIO(0, 6), "TUBE_B"},
-	{RK_GPIO(1, 9), "TUBE_C"},
-	{RK_GPIO(1, 10), "TUBE_D"},
-#else
 	{RK_GPIO(1, 7), "TUBE_A"},
 	{RK_GPIO(1, 8), "TUBE_B"},
 	{RK_GPIO(1, 9), "TUBE_C"},
 	{RK_GPIO(1, 10), "TUBE_D"},
-#endif
 };
 
-#define ARR_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #define EXT_GPIO_NUM  	ARR_SIZE(digit_gpios)
 #endif /* End of EXT_DIGIT_GPIOS */
 
 #ifdef EXT_GPIO_KEYS
-static int gpio_keys[] = {
-#ifdef TB_PROD
-	RK_GPIO(0, 5),  //GPIO_B1
-	RK_GPIO(0, 6), //GPIO1_B2
-	RK_GPIO(1, 9),  //GPIO1_B1
+static int *gpio_keys;
+
+static int prod_gpio_keys[] = {
 	RK_GPIO(1, 10), //GPIO1_B2
-#else
-	RK_GPIO(1, 7),  //GPIO1_A7
-	RK_GPIO(1, 8),  //GPIO1_B0
-	RK_GPIO(1, 9),  //GPIO1_B1
-	RK_GPIO(1, 10), //GPIO1_B2
-#endif
+	RK_GPIO(0, 6), //GPIO1_A6
 };
-#define EXT_KEY_NUM  	ARR_SIZE(gpio_keys)
+static int prop_gpio_keys[] = {
+	RK_GPIO(1, 10), //GPIO1_B2
+	RK_GPIO(1, 7),  //GPIO1_A7
+};
+#define EXT_KEY_NUM  	ARR_SIZE(prod_gpio_keys)
 #endif /* End of EXT_GPIO_KEYS */
 
 #ifdef EXT_ADC
 #define ADC_VALUE_LOW		0
 static struct iio_channel *adc_chan_map;
+
+static int *ext_gpio_leds;
+static int prod_ext_gpio_leds[] = {
+	RK_GPIO(0, 5), //GPIO0_A5
+	RK_GPIO(1, 9), //GPIO1_B1
+	RK_GPIO(1, 10), //GPIO1_B2
+	RK_GPIO(0, 6), //GPIO1_A6
+};
+static int prop_ext_gpio_leds[] = {
+	RK_GPIO(1, 8), //GPIO1_B0
+	RK_GPIO(1, 9), //GPIO1_B1
+	RK_GPIO(1, 10), //GPIO1_B2
+	RK_GPIO(1, 7),  //GPIO1_A7
+};
+#define GPIO_LEDS_NUM  ARR_SIZE(prod_ext_gpio_leds)
 
 static int ext_keys_adc_iio_read(struct extbrd_drvdata *data, struct iio_channel *channel)
 {
@@ -136,7 +143,11 @@ static void adc_key_poll(struct work_struct *work)
 			if (ddata->result[i] != result) {
 				//EXTBRD_DEBUG("Chan[%d] : %d\n", i, result);
 				if (result >= ADC_VALUE_LOW && result < DRIFT_DEFAULT_ADVALUE) {
-					printk("## ADC Chan[%d] val: %d, pressed.\n", i, result);
+					gpio_set_value(ext_gpio_leds[i], GPIO_LOW);
+					gpio_set_value(ext_gpio_leds[2 + i], GPIO_LOW);
+				} else {
+					gpio_set_value(ext_gpio_leds[i], GPIO_HIGH);
+					gpio_set_value(ext_gpio_leds[2 + i], GPIO_HIGH);
 				}
 			}
 			ddata->result[i] = result;  //adc key button pressed, ground connect.
@@ -212,8 +223,34 @@ static int extbrd_probe(struct platform_device *pdev)
 #endif
 	struct extbrd_drvdata *ddata = NULL;
 	//u32 val;
+	struct device_node *np;
 
 	EXTBRD_DEBUG("%s\n", __func__);
+
+	if (pdev->dev.of_node) {
+		np = pdev->dev.of_node;
+		if (of_device_is_compatible(np, "prod-extboard")) {
+			EXTBRD_DEBUG("This is Prod extboard.\n");
+#ifdef EXT_GPIO_KEYS
+			gpio_keys = prod_gpio_keys;
+#endif
+#ifdef EXT_ADC
+			ext_gpio_leds = prod_ext_gpio_leds;
+#endif
+		} else if (of_device_is_compatible(np, "prop-extboard")) {
+			EXTBRD_DEBUG("This is Prop extboard.\n");
+#ifdef EXT_GPIO_KEYS
+			gpio_keys = prop_gpio_keys;
+#endif
+#ifdef EXT_ADC
+			ext_gpio_leds = prop_ext_gpio_leds;
+#endif
+		} else {
+			EXTBRD_ERROR("Unsupport extbord!\n");
+			ret = -EINVAL;
+			goto fail;
+		}
+	}
 
 	ddata = devm_kzalloc(dev, sizeof(struct extbrd_drvdata), GFP_KERNEL);
 	if (!ddata) {
@@ -280,7 +317,6 @@ static int extbrd_probe(struct platform_device *pdev)
 					gpio_keys[i], ret);
 			return ret;
 		}
-
 		EXTBRD_DEBUG("Request GPIO(%d) IRQ(%d) OK.\n", gpio_keys[i], irq);
 		gpio_export(gpio_keys[i], true);
 	}
@@ -309,6 +345,24 @@ static int extbrd_probe(struct platform_device *pdev)
 		goto fail0;
 	}
 
+	for (i = 0; i < GPIO_LEDS_NUM; i++) {
+		if (!gpio_is_valid(ext_gpio_leds[i])) {
+			 EXTBRD_ERROR("Invalid Ext gpio leds Gpio : %d\n", ext_gpio_leds[i]);
+			 ret = -EINVAL;
+			 goto fail0;
+		}
+
+		ret = devm_gpio_request(dev, ext_gpio_leds[i], NULL);
+		if (ret != 0) {
+			EXTBRD_ERROR("gpio-keys: failed to request Ext Leds GPIO %d, error %d\n",
+				                          ext_gpio_leds[i], ret);
+			ret = -EIO;
+			goto fail0;
+		}
+		gpio_direction_output(ext_gpio_leds[i], GPIO_HIGH);
+		gpio_export(ext_gpio_leds[i], true);
+	}
+
 	/* adc polling work */
 	if (ddata->chan[0] && ddata->chan[1]) {
 		INIT_DELAYED_WORK(&ddata->adc_poll_work, adc_key_poll);
@@ -327,6 +381,7 @@ fail0:
 
 	iio_channel_release_all(adc_chan_map);
 #endif
+fail:
 
 	return ret;
 }
@@ -335,6 +390,8 @@ static int extbrd_remove(struct platform_device *pdev)
 {
 #ifdef EXT_ADC
 	struct extbrd_drvdata *ddata = platform_get_drvdata(pdev);
+	struct device *dev = &pdev->dev;
+	int i;
 #endif
 
 	EXTBRD_DEBUG(" %s\n", __func__);
@@ -342,6 +399,10 @@ static int extbrd_remove(struct platform_device *pdev)
 #ifdef EXT_ADC
 	if (ddata->chan[0] && ddata->chan[1])
 		cancel_delayed_work_sync(&ddata->adc_poll_work);
+
+	for (i = 0; i < GPIO_LEDS_NUM; i++) {
+		devm_gpio_free(dev, ext_gpio_leds[i]);
+	}
 
 	device_remove_file(&pdev->dev, &measure0_attr);
 	device_remove_file(&pdev->dev, &measure1_attr);
@@ -363,7 +424,7 @@ static struct platform_driver extbrd_driver = {
 	.remove		= extbrd_remove,
 	.shutdown	= extbrd_shutdown,
 	.driver		= {
-		.name	= "eaidk-extboard",
+		.name	= "extboard",
 		.of_match_table = of_extbrd_match,
 	},
 };
@@ -384,6 +445,6 @@ static __exit void extbrd_exit(void)
 #endif
 
 MODULE_AUTHOR(" <jax.fang@rock-chips.com>");
-MODULE_DESCRIPTION("EAIDK ExtBoard Driver");
+MODULE_DESCRIPTION("ExtBoard Driver");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("platform:eaidk-extboard");
+MODULE_ALIAS("platform:extboard");
