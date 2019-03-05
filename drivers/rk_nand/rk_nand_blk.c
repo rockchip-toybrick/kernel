@@ -234,7 +234,7 @@ static int nand_blktrans_thread(void *arg)
 	int req_empty_times = 0;
 
 	spin_lock_irq(rq->queue_lock);
-	rk_ftl_gc_jiffies = HZ * 5;
+	rk_ftl_gc_jiffies = HZ / 10; /* do garbage collect after 100ms */
 	rk_ftl_gc_do = 0;
 	rk_ftl_gc_timeout.expires = jiffies + rk_ftl_gc_jiffies;
 	add_timer(&rk_ftl_gc_timeout);
@@ -477,8 +477,9 @@ static int nand_prase_cmdline_part(struct nand_part *pdisk_part)
 				> cap_size) {
 				pdisk_part[i].size = cap_size -
 					pdisk_part[i].offset;
-				pr_err("partition config error....\n");
-				if (pdisk_part[i].size)
+				pr_err("partition error....max cap:%x\n",
+					cap_size);
+				if (!pdisk_part[i].size)
 					return i;
 				else
 					return (i + 1);
@@ -585,6 +586,7 @@ static int nand_add_dev(struct nand_blk_ops *nandr, struct nand_part *part)
 			 part->name);
 	} else {
 		gd->flags = GENHD_FL_EXT_DEVT;
+		gd->driverfs_dev = g_nand_device;
 		gd->minors = 255;
 		snprintf(gd->disk_name,
 			 sizeof(gd->disk_name),
@@ -636,7 +638,7 @@ int nand_blk_add_whole_disk(void)
 	part.offset = 0;
 	part.size = rk_ftl_get_capacity();
 	part.type = 0;
-	memcpy(part.name, "rknand", sizeof("rknand"));
+	strncpy(part.name, "rknand", sizeof(part.name));
 	nand_add_dev(&mytr, &part);
 	return 0;
 }
@@ -645,6 +647,7 @@ static int nand_blk_register(struct nand_blk_ops *nandr)
 {
 	int i, ret;
 	u32 part_size;
+	struct nand_part part;
 
 	rk_nand_schedule_enable_config(1);
 	nandr->quit = 0;
@@ -673,14 +676,23 @@ static int nand_blk_register(struct nand_blk_ops *nandr)
 
 	queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, nandr->rq);
 	blk_queue_max_discard_sectors(nandr->rq, UINT_MAX >> 9);
+	/* discard_granularity config to one nand page size 32KB*/
+	nandr->rq->limits.discard_granularity = 64 << 9;
 
 	nandr->rq->queuedata = nandr;
 	INIT_LIST_HEAD(&nandr->devs);
 	kthread_run(nand_blktrans_thread, (void *)nandr, "rknand");
 
 	g_max_part_num = nand_prase_cmdline_part(disk_array);
+
+	nandr->last_dev_index = 0;
+	part.offset = 0;
+	part.size = rk_ftl_get_capacity();
+	part.type = 0;
+	part.name[0] = 0;
+	nand_add_dev(&mytr, &part);
+
 	if (g_max_part_num) {
-		nandr->last_dev_index = 0;
 		for (i = 0; i < g_max_part_num; i++) {
 			part_size = (disk_array[i].offset + disk_array[i].size);
 			pr_info("%10s: 0x%09llx -- 0x%09llx (%llu MB)\n",
@@ -690,14 +702,6 @@ static int nand_blk_register(struct nand_blk_ops *nandr)
 				(u64)disk_array[i].size / 2048);
 			nand_add_dev(nandr, &disk_array[i]);
 		}
-	} else {
-		struct nand_part part;
-
-		part.offset = 0;
-		part.size = rk_ftl_get_capacity();
-		part.type = 0;
-		part.name[0] = 0;
-		nand_add_dev(&mytr, &part);
 	}
 
 	rknand_create_procfs();

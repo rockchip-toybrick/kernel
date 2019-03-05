@@ -3170,6 +3170,8 @@ static ssize_t kbase_show_gpuinfo(struct device *dev,
 		  .name = "Mali-G72" },
 		{ .id = GPU_ID2_PRODUCT_TSIX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G51" },
+		{ .id = GPU_ID2_PRODUCT_TDVX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
+		  .name = "Mali-G31" },
 	};
 	const char *product_name = "(Unknown Mali GPU)";
 	struct kbase_device *kbdev;
@@ -3202,7 +3204,7 @@ static ssize_t kbase_show_gpuinfo(struct device *dev,
 		}
 	}
 
-	return scnprintf(buf, PAGE_SIZE, "%s %d cores r%dp%d 0x%04X\n",
+	return scnprintf(buf, PAGE_SIZE, "%s %d cores 2EE r%dp%d 0x%04X\n",
 		product_name, kbdev->gpu_props.num_cores,
 		(gpu_id & GPU_ID_VERSION_MAJOR) >> GPU_ID_VERSION_MAJOR_SHIFT,
 		(gpu_id & GPU_ID_VERSION_MINOR) >> GPU_ID_VERSION_MINOR_SHIFT,
@@ -3926,19 +3928,9 @@ static int power_control_init(struct platform_device *pdev)
 		}
 	}
 
-#if defined(CONFIG_OF) && defined(CONFIG_PM_OPP)
-	/* Register the OPPs if they are available in device tree */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)) \
-	|| defined(LSK_OPPV2_BACKPORT)
-	err = dev_pm_opp_of_add_table(kbdev->dev);
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0))
-	err = of_init_opp_table(kbdev->dev);
-#else
-	err = 0;
-#endif /* LINUX_VERSION_CODE */
+	err = kbase_platform_rk_init_opp_table(kbdev);
 	if (err)
-		dev_dbg(kbdev->dev, "OPP table not found\n");
-#endif /* CONFIG_OF && CONFIG_PM_OPP */
+		dev_err(kbdev->dev, "Failed to init_opp_table (%d)\n", err);
 
 	return 0;
 

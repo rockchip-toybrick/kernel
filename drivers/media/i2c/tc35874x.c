@@ -66,8 +66,10 @@ MODULE_LICENSE("GPL");
 
 #define POLL_INTERVAL_MS	1000
 
+#define TC35874X_LINK_FREQ_300MHZ	300000000
+#define TC35874X_PIXEL_RATE		(TC35874X_LINK_FREQ_300MHZ * 2 * 2 / 8)
 static const s64 link_freq_menu_items[] = {
-	300000000,
+	TC35874X_LINK_FREQ_300MHZ,
 };
 
 static const struct v4l2_dv_timings_cap tc35874x_timings_cap = {
@@ -78,14 +80,14 @@ static const struct v4l2_dv_timings_cap tc35874x_timings_cap = {
 	V4L2_INIT_BT_TIMINGS(1, 10000, 1, 10000, 0, 165000000,
 			V4L2_DV_BT_STD_CEA861 | V4L2_DV_BT_STD_DMT |
 			V4L2_DV_BT_STD_GTF | V4L2_DV_BT_STD_CVT,
-			V4L2_DV_BT_CAP_PROGRESSIVE |
+			V4L2_DV_BT_CAP_PROGRESSIVE | V4L2_DV_BT_CAP_INTERLACED |
 			V4L2_DV_BT_CAP_REDUCED_BLANKING |
 			V4L2_DV_BT_CAP_CUSTOM)
 };
 
 static u8 EDID_1920x1080_60[] = {
 	0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
-	0x52, 0x62, 0x88, 0x88, 0x00, 0x88, 0x88, 0x88,
+	0x52, 0x62, 0x01, 0x88, 0x00, 0x88, 0x88, 0x88,
 	0x1C, 0x15, 0x01, 0x03, 0x80, 0x00, 0x00, 0x78,
 	0x0A, 0x0D, 0xC9, 0xA0, 0x57, 0x47, 0x98, 0x27,
 	0x12, 0x48, 0x4C, 0x00, 0x00, 0x00, 0x01, 0x01,
@@ -96,10 +98,29 @@ static u8 EDID_1920x1080_60[] = {
 	0x01, 0x1D, 0x00, 0x72, 0x51, 0xD0, 0x1E, 0x20,
 	0x6E, 0x28, 0x55, 0x00, 0xC4, 0x8E, 0x21, 0x00,
 	0x00, 0x1E, 0x00, 0x00, 0x00, 0xFC, 0x00, 0x54,
-	0x6F, 0x73, 0x68, 0x69, 0x62, 0x61, 0x2D, 0x48,
-	0x32, 0x44, 0x0A, 0x20, 0x00, 0x00, 0x00, 0xFD,
-	0x00, 0x17, 0x3D, 0x0F, 0x8C, 0x17, 0x00, 0x0A,
-	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x01, 0x92,
+	0x37, 0x34, 0x39, 0x2D, 0x66, 0x48, 0x44, 0x37,
+	0x32, 0x30, 0x0A, 0x20, 0x00, 0x00, 0x00, 0xFD,
+	0x00, 0x14, 0x78, 0x01, 0xFF, 0x1D, 0x00, 0x0A,
+	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x01, 0x7B,
+};
+
+static u8 EDID_extend[] = {
+	0x02, 0x03, 0x1A, 0x71, 0x47, 0x90, 0x04, 0x02,
+	0x01, 0x11, 0x22, 0x05, 0x23, 0x09, 0x07, 0x01,
+	0x83, 0x01, 0x00, 0x00, 0x65, 0x03, 0x0C, 0x00,
+	0x10, 0x00, 0x8C, 0x0A, 0xD0, 0x8A, 0x20, 0xE0,
+	0x2D, 0x10, 0x10, 0x3E, 0x96, 0x00, 0x13, 0x8E,
+	0x21, 0x00, 0x00, 0x1E, 0xD8, 0x09, 0x80, 0xA0,
+	0x20, 0xE0, 0x2D, 0x10, 0x10, 0x60, 0xA2, 0x00,
+	0xC4, 0x8E, 0x21, 0x00, 0x00, 0x18, 0x8C, 0x0A,
+	0xD0, 0x90, 0x20, 0x40, 0x31, 0x20, 0x0C, 0x40,
+	0x55, 0x00, 0x48, 0x39, 0x00, 0x00, 0x00, 0x18,
+	0x01, 0x1D, 0x80, 0x18, 0x71, 0x38, 0x2D, 0x40,
+	0x58, 0x2C, 0x45, 0x00, 0xC0, 0x6C, 0x00, 0x00,
+	0x00, 0x18, 0x01, 0x1D, 0x80, 0x18, 0x71, 0x1C,
+	0x16, 0x20, 0x58, 0x2C, 0x25, 0x00, 0xC0, 0x6C,
+	0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x32,
 };
 
 struct tc35874x_state {
@@ -381,6 +402,13 @@ static int tc35874x_get_detected_timings(struct v4l2_subdev *sd,
 		bt->height *= 2;
 		bt->il_vsync = bt->vsync + 1;
 		bt->pixelclock /= 2;
+
+		/* frame count number: FS = FE 1,2,1,2... */
+		i2c_wr16(sd, FCCTL, 0x0002);
+		/* packet id for interlace mode only */
+		i2c_wr16(sd, PACKETID1, 0x1e1e);
+	} else {
+		i2c_wr16(sd, FCCTL, 0);
 	}
 
 	return 0;
@@ -587,22 +615,24 @@ static void tc35874x_set_pll(struct v4l2_subdev *sd)
 	u16 pllctl0_new = SET_PLL_PRD(pdata->pll_prd) |
 		SET_PLL_FBD(pdata->pll_fbd);
 	u32 hsck = (pdata->refclk_hz / pdata->pll_prd) * pdata->pll_fbd;
+	u16 pll_frs;
 
 	v4l2_dbg(2, debug, sd, "%s:\n", __func__);
 
+	if (state->timings.bt.interlaced)
+		hsck /= 2;
+	if (hsck > 500000000)
+		pll_frs = 0x0;
+	else if (hsck > 250000000)
+		pll_frs = 0x1;
+	else if (hsck > 125000000)
+		pll_frs = 0x2;
+	else
+		pll_frs = 0x3;
 	/* Only rewrite when needed (new value or disabled), since rewriting
 	 * triggers another format change event. */
-	if ((pllctl0 != pllctl0_new) || ((pllctl1 & MASK_PLL_EN) == 0)) {
-		u16 pll_frs;
-
-		if (hsck > 500000000)
-			pll_frs = 0x0;
-		else if (hsck > 250000000)
-			pll_frs = 0x1;
-		else if (hsck > 125000000)
-			pll_frs = 0x2;
-		else
-			pll_frs = 0x3;
+	if (pllctl0 != pllctl0_new || (pllctl1 & MASK_PLL_EN) == 0 ||
+		SET_PLL_FRS(pll_frs) != (pllctl1 & MASK_PLL_FRS)) {
 
 		v4l2_dbg(1, debug, sd, "%s: updating PLL clock\n", __func__);
 		tc35874x_sleep_mode(sd, true);
@@ -661,7 +691,7 @@ static void tc35874x_set_csi_color_space(struct v4l2_subdev *sd)
 	struct tc35874x_state *state = to_state(sd);
 
 	switch (state->mbus_fmt_code) {
-	case MEDIA_BUS_FMT_UYVY8_1X16:
+	case MEDIA_BUS_FMT_UYVY8_2X8:
 		v4l2_dbg(2, debug, sd, "%s: YCbCr 422 16-bit\n", __func__);
 		i2c_wr8_and_or(sd, VOUT_SET2,
 				~(MASK_SEL422 | MASK_VOUT_422FIL_100) & 0xff,
@@ -1184,7 +1214,7 @@ static int tc35874x_log_status(struct v4l2_subdev *sd)
 			(i2c_rd16(sd, CSI_STATUS) & MASK_S_HLT) ?
 			"yes" : "no");
 	v4l2_info(sd, "Color space: %s\n",
-			state->mbus_fmt_code == MEDIA_BUS_FMT_UYVY8_1X16 ?
+			state->mbus_fmt_code == MEDIA_BUS_FMT_UYVY8_2X8 ?
 			"YCbCr 422 16-bit" :
 			state->mbus_fmt_code == MEDIA_BUS_FMT_RGB888_1X24 ?
 			"RGB 888 24-bit" : "Unsupported");
@@ -1501,6 +1531,9 @@ static int tc35874x_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	enable_stream(sd, enable);
 
+	/* stop stream to reset csi*/
+	if (!enable)
+		tc35874x_set_csi(sd);
 	return 0;
 }
 
@@ -1515,7 +1548,7 @@ static int tc35874x_enum_mbus_code(struct v4l2_subdev *sd,
 		code->code = MEDIA_BUS_FMT_RGB888_1X24;
 		break;
 	case 1:
-		code->code = MEDIA_BUS_FMT_UYVY8_1X16;
+		code->code = MEDIA_BUS_FMT_UYVY8_2X8;
 		break;
 	default:
 		return -EINVAL;
@@ -1533,7 +1566,9 @@ static int tc35874x_get_fmt(struct v4l2_subdev *sd,
 	format->format.code = state->mbus_fmt_code;
 	format->format.width = state->timings.bt.width;
 	format->format.height = state->timings.bt.height;
-	format->format.field = V4L2_FIELD_NONE;
+	format->format.field =
+		state->timings.bt.interlaced ?
+		V4L2_FIELD_INTERLACED : V4L2_FIELD_NONE;
 
 	switch (vi_rep & MASK_VOUT_COLOR_SEL) {
 	case MASK_VOUT_COLOR_RGB_FULL:
@@ -1572,7 +1607,7 @@ static int tc35874x_set_fmt(struct v4l2_subdev *sd,
 
 	switch (code) {
 	case MEDIA_BUS_FMT_RGB888_1X24:
-	case MEDIA_BUS_FMT_UYVY8_1X16:
+	case MEDIA_BUS_FMT_UYVY8_2X8:
 		break;
 	default:
 		return -EINVAL;
@@ -1655,8 +1690,10 @@ static int tc35874x_s_edid(struct v4l2_subdev *sd,
 		return 0;
 	}
 
-	for (i = 0; i < edid_len; i += EDID_BLOCK_SIZE)
+	for (i = 0; i < edid_len; i += EDID_BLOCK_SIZE) {
 		i2c_wr(sd, EDID_RAM + i, edid->edid + i, EDID_BLOCK_SIZE);
+		i2c_wr(sd, EDID_EXT_RAM + i, EDID_extend + i, EDID_BLOCK_SIZE);
+	}
 
 	state->edid_blocks_written = edid->blocks;
 
@@ -1918,7 +1955,13 @@ static int tc35874x_probe(struct i2c_client *client,
 	}
 
 	/* control handlers */
-	v4l2_ctrl_handler_init(&state->hdl, 3);
+	v4l2_ctrl_handler_init(&state->hdl, 4);
+
+	v4l2_ctrl_new_int_menu(&state->hdl, NULL, V4L2_CID_LINK_FREQ,
+			       0, 0, link_freq_menu_items);
+
+	v4l2_ctrl_new_std(&state->hdl, NULL, V4L2_CID_PIXEL_RATE,
+			  0, TC35874X_PIXEL_RATE, 1, TC35874X_PIXEL_RATE);
 
 	state->detect_tx_5v_ctrl = v4l2_ctrl_new_std(&state->hdl, NULL,
 			V4L2_CID_DV_RX_POWER_PRESENT, 0, 1, 0, 0);
@@ -1929,9 +1972,6 @@ static int tc35874x_probe(struct i2c_client *client,
 
 	state->audio_present_ctrl = v4l2_ctrl_new_custom(&state->hdl,
 			&tc35874x_ctrl_audio_present, NULL);
-
-	v4l2_ctrl_new_int_menu(&state->hdl, NULL, V4L2_CID_LINK_FREQ,
-			       0, 0, link_freq_menu_items);
 
 	sd->ctrl_handler = &state->hdl;
 	if (state->hdl.error) {
@@ -1945,11 +1985,12 @@ static int tc35874x_probe(struct i2c_client *client,
 	}
 
 	state->pad.flags = MEDIA_PAD_FL_SOURCE;
+	sd->entity.type = MEDIA_ENT_T_V4L2_SUBDEV_SENSOR;
 	err = media_entity_init(&sd->entity, 1, &state->pad, 0);
 	if (err < 0)
 		goto err_hdl;
 
-	state->mbus_fmt_code = MEDIA_BUS_FMT_UYVY8_1X16;
+	state->mbus_fmt_code = MEDIA_BUS_FMT_UYVY8_2X8;
 
 	sd->dev = &client->dev;
 	err = v4l2_async_register_subdev(sd);

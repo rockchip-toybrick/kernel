@@ -33,9 +33,12 @@
 
 #define DRV_NAME "rk-multicodecs"
 #define MAX_CODECS	2
+#define WAIT_CARDS	(SNDRV_CARDS - 1)
 #define DEFAULT_MCLK_FS	256
 
 struct multicodecs_data {
+	struct snd_soc_card snd_card;
+	struct snd_soc_dai_link dai_link;
 	unsigned int mclk_fs;
 	bool codec_hp_det;
 };
@@ -91,31 +94,118 @@ static int rk_dailink_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
+static int rk_multicodecs_parse_daifmt(struct device_node *node,
+				       struct device_node *codec,
+				       struct multicodecs_data *mc_data,
+				       const char *prefix)
+{
+	struct snd_soc_dai_link *dai_link = &mc_data->dai_link;
+	struct device_node *bitclkmaster = NULL;
+	struct device_node *framemaster = NULL;
+	unsigned int daifmt;
+
+	daifmt = snd_soc_of_parse_daifmt(node, prefix,
+					 &bitclkmaster, &framemaster);
+
+	daifmt &= ~SND_SOC_DAIFMT_MASTER_MASK;
+
+	if (strlen(prefix) && !bitclkmaster && !framemaster) {
+		/*
+		 * No dai-link level and master setting was not found from
+		 * sound node level, revert back to legacy DT parsing and
+		 * take the settings from codec node.
+		 */
+		pr_debug("%s: Revert to legacy daifmt parsing\n", __func__);
+
+		daifmt = snd_soc_of_parse_daifmt(codec, NULL, NULL, NULL) |
+			(daifmt & ~SND_SOC_DAIFMT_CLOCK_MASK);
+	} else {
+		if (codec == bitclkmaster)
+			daifmt |= (codec == framemaster) ?
+				SND_SOC_DAIFMT_CBM_CFM : SND_SOC_DAIFMT_CBM_CFS;
+		else
+			daifmt |= (codec == framemaster) ?
+				SND_SOC_DAIFMT_CBS_CFM : SND_SOC_DAIFMT_CBS_CFS;
+	}
+
+	/*
+	 * If there is NULL format means that the format isn't specified, we
+	 * need to set i2s format by default.
+	 */
+	if (!(daifmt & SND_SOC_DAIFMT_FORMAT_MASK))
+		daifmt |= SND_SOC_DAIFMT_I2S;
+
+	dai_link->dai_fmt = daifmt;
+
+	of_node_put(bitclkmaster);
+	of_node_put(framemaster);
+
+	return 0;
+}
+
+static int wait_locked_card(struct device_node *np, struct device *dev)
+{
+	char *propname = "rockchip,wait-card-locked";
+	u32 cards[WAIT_CARDS];
+	int num, i;
+	int ret;
+
+	ret = of_property_count_u32_elems(np, propname);
+	if (ret < 0) {
+		if (ret == -EINVAL) {
+			/*
+			 * -EINVAL means the property does not exist, this is
+			 * fine.
+			 */
+			return 0;
+		}
+
+		dev_err(dev, "Property '%s' elems could not be read: %d\n",
+			propname, ret);
+		return ret;
+	}
+
+	num = ret;
+	if (num > WAIT_CARDS)
+		num = WAIT_CARDS;
+
+	ret = of_property_read_u32_array(np, propname, cards, num);
+	if (ret < 0) {
+		if (ret == -EINVAL) {
+			/*
+			 * -EINVAL means the property does not exist, this is
+			 * fine.
+			 */
+			return 0;
+		}
+
+		dev_err(dev, "Property '%s' could not be read: %d\n",
+			propname, ret);
+		return ret;
+	}
+
+	ret = 0;
+	for (i = 0; i < num; i++) {
+		if (!snd_card_locked(cards[i])) {
+			dev_warn(dev, "card: %d has not been locked, re-probe again\n",
+				 cards[i]);
+			ret = -EPROBE_DEFER;
+			break;
+		}
+	}
+
+	return ret;
+}
+
 static struct snd_soc_ops rk_ops = {
 	.hw_params = rk_multicodecs_hw_params,
 };
 
-static struct snd_soc_dai_link rk_dailink = {
-	.name = "MULTICODECS",
-	.stream_name = "MULTICODECS",
-	.init = rk_dailink_init,
-	.ops = &rk_ops,
-	.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
-		SND_SOC_DAIFMT_CBS_CFS,
-};
-
-static struct snd_soc_card snd_soc_card_rk = {
-	.name = "rk-multicodecs-sound",
-	.dai_link = &rk_dailink,
-	.num_links = 1,
-	.num_aux_devs = 0,
-};
-
 static int rk_multicodecs_probe(struct platform_device *pdev)
 {
-	struct snd_soc_card *card = &snd_soc_card_rk;
+	struct snd_soc_card *card;
 	struct device_node *np = pdev->dev.of_node;
-	struct snd_soc_dai_link *link = card->dai_link;
+	struct snd_soc_dai_link *link;
 	struct snd_soc_dai_link_component *codecs;
 	struct multicodecs_data *mc_data;
 	struct of_phandle_args args;
@@ -123,7 +213,19 @@ static int rk_multicodecs_probe(struct platform_device *pdev)
 	u32 val;
 	int count;
 	int ret = 0, i = 0, idx = 0;
+	const char *prefix = "rockchip,";
 
+	ret = wait_locked_card(np, &pdev->dev);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "check_lock_card failed: %d\n", ret);
+		return ret;
+	}
+
+	mc_data = devm_kzalloc(&pdev->dev, sizeof(*mc_data), GFP_KERNEL);
+	if (!mc_data)
+		return -ENOMEM;
+
+	card = &mc_data->snd_card;
 	card->dev = &pdev->dev;
 
 	/* Parse the card name from DT */
@@ -131,9 +233,15 @@ static int rk_multicodecs_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
-	mc_data = devm_kzalloc(&pdev->dev, sizeof(*mc_data), GFP_KERNEL);
-	if (!mc_data)
-		return -ENOMEM;
+	link = &mc_data->dai_link;
+	link->name = "dailink-multicodecs";
+	link->stream_name = link->name;
+	link->init = rk_dailink_init;
+	link->ops = &rk_ops;
+
+	card->dai_link = link;
+	card->num_links = 1;
+	card->num_aux_devs = 0;
 
 	count = of_count_phandle_with_args(np, "rockchip,codec", NULL);
 	if (count < 0 || count > MAX_CODECS)
@@ -174,6 +282,9 @@ static int rk_multicodecs_probe(struct platform_device *pdev)
 			return ret;
 		idx++;
 	}
+
+	/* Only reference the codecs[0].of_node which maybe as master. */
+	rk_multicodecs_parse_daifmt(np, codecs[0].of_node, mc_data, prefix);
 
 	link->cpu_of_node = of_parse_phandle(np, "rockchip,cpu", 0);
 	if (!link->cpu_of_node)

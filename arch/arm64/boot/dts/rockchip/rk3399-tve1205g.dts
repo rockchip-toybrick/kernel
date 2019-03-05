@@ -107,12 +107,19 @@
 		compatible = "pwm-regulator";
 		pwms = <&pwm2 0 25000 1>;
 		rockchip,pwm_id= <2>;
-		rockchip,pwm_voltage = <1000000>;
+		rockchip,pwm_voltage = <900000>;
 		regulator-name = "vdd_log";
 		regulator-min-microvolt = <750000>;
 		regulator-max-microvolt = <1350000>;
 		regulator-always-on;
 		regulator-boot-on;
+	};
+
+	xin32k: xin32k {
+		compatible = "fixed-clock";
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+		#clock-cells = <0>;
 	};
 
 	backlight: backlight {
@@ -406,6 +413,8 @@
 
 &edp {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&edp_hpd>;
 
 	ports {
 		edp_out: port@1 {
@@ -426,6 +435,27 @@
 
 &emmc_phy {
 	status = "okay";
+};
+
+&firmware_android {
+	compatible = "android,firmware";
+	fstab {
+		compatible = "android,fstab";
+		system {
+			compatible = "android,system";
+			dev = "/dev/block/by-name/system";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait,verify";
+		};
+		vendor {
+			compatible = "android,vendor";
+			dev = "/dev/block/by-name/vendor";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait,verify";
+		};
+	};
 };
 
 &gpu {
@@ -522,7 +552,7 @@
 		rockchip,system-power-controller;
 		wakeup-source;
 		#clock-cells = <1>;
-		clock-output-names = "xin32k", "rk808-clkout2";
+		clock-output-names = "rk808-clkout1", "rk808-clkout2";
 
 		vcc1-supply = <&vcc3v3_sys>;
 		vcc2-supply = <&vcc3v3_sys>;

@@ -42,7 +42,6 @@ config X86
 	select ARCH_USE_BUILTIN_BSWAP
 	select ARCH_USE_CMPXCHG_LOCKREF		if X86_64
 	select ARCH_USE_QUEUED_RWLOCKS
-	select ARCH_USE_QUEUED_SPINLOCKS
 	select ARCH_WANT_BATCHED_UNMAP_TLB_FLUSH
 	select ARCH_WANTS_DYNAMIC_TASK_STRUCT
 	select ARCH_WANT_FRAME_POINTERS
@@ -368,6 +367,17 @@ config X86_FEATURE_NAMES
 	  making those few kernel messages show numeric feature bits instead.
 
 	  If in doubt, say Y.
+
+config X86_FAST_FEATURE_TESTS
+	bool "Fast CPU feature tests" if EMBEDDED
+	default y
+	---help---
+	  Some fast-paths in the kernel depend on the capabilities of the CPU.
+	  Say Y here for the kernel to patch in the appropriate code at runtime
+	  based on the capabilities of the CPU. The infrastructure for patching
+	  code at runtime takes up some additional space; space-constrained
+	  embedded systems may wish to say N here to produce smaller, slightly
+	  slower code.
 
 config X86_X2APIC
 	bool "Support x2apic"

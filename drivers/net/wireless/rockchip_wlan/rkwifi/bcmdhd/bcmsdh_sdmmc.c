@@ -995,7 +995,6 @@ sdioh_set_mode(sdioh_info_t *sd, uint mode)
 		sd->txglom_mode = mode;
 	else if (mode == SDPCM_TXGLOM_MDESC)
 		sd->txglom_mode = mode;
-	printf("%s: set txglom_mode to %s\n", __FUNCTION__, mode==SDPCM_TXGLOM_MDESC?"multi-desc":"copy");
 
 	return (sd->txglom_mode);
 }
@@ -1288,8 +1287,8 @@ txglomfail:
 
 	if (sd_msglevel & SDH_COST_VAL) {
 		getnstimeofday(&now);
-		sd_cost(("%s: rw=%d, cost=%lds %luus\n", __FUNCTION__,
-			write, now.tv_sec-before.tv_sec, now.tv_nsec/1000-before.tv_nsec/1000));
+		sd_cost(("%s: rw=%d, ttl_len=%d, cost=%lds %luus\n", __FUNCTION__,
+			write, ttl_len, now.tv_sec-before.tv_sec, now.tv_nsec/1000-before.tv_nsec/1000));
 	}
 
 	sd_trace(("%s: Exit\n", __FUNCTION__));
@@ -1712,7 +1711,7 @@ sdioh_gpio_init(sdioh_info_t *sd)
 uint
 sdmmc_get_clock_rate(sdioh_info_t *sd)
 {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)) || (LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0))
 	return 0;
 #else
 	struct sdio_func *sdio_func = sd->func[0];
@@ -1725,7 +1724,7 @@ sdmmc_get_clock_rate(sdioh_info_t *sd)
 void
 sdmmc_set_clock_rate(sdioh_info_t *sd, uint hz)
 {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)) || (LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0))
 	return;
 #else
 	struct sdio_func *sdio_func = sd->func[0];

@@ -50,7 +50,6 @@
 		compatible = "rockchip,fiq-debugger";
 		interrupts = <GIC_SPI 127 IRQ_TYPE_LEVEL_LOW>;
 		rockchip,serial-id = <2>;
-		rockchip,signal-irq = <106>;
 		rockchip,wake-irq = <0>;
 		/* If enable uart uses irq instead of fiq */
 		rockchip,irq-mode-enable = <0>;
@@ -131,6 +130,13 @@
 			wakeup-source;
 		};
 	};
+
+	xin32k: xin32k {
+		compatible = "fixed-clock";
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+		#clock-cells = <0>;
+	};
 };
 
 &acodec {
@@ -181,7 +187,7 @@
 		gpio-controller;
 		#gpio-cells = <2>;
 		#clock-cells = <1>;
-		clock-output-names = "xin32k", "rk805-clkout2";
+		clock-output-names = "rk805-clkout1", "rk805-clkout2";
 
 		rtc {
 			status = "okay";

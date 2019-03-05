@@ -158,6 +158,8 @@ int get_wifi_chip_type(void)
         type = WIFI_ESP8089;
     } else if (strcmp(wifi_chip_type_string, "mvl88w8977") == 0) {
         type = WIFI_MVL88W8977;
+    } else if (strcmp(wifi_chip_type_string, "ssv6051") == 0) {
+        type = WIFI_SSV6051;
     } else {
         type = WIFI_AP6210;
     }
@@ -492,7 +494,7 @@ static int get_wifi_addr_vendor(unsigned char *addr)
 	if (ret != 6 || is_zero_ether_addr(addr)) {
 		LOG("%s: rk_vendor_read wifi mac address failed (%d)\n",
 		    __func__, ret);
-#ifdef RANDOM_ADDRESS_SAVE
+#ifdef CONFIG_WIFI_GENERATE_RANDOM_MAC_ADDR
 		random_ether_addr(addr);
 		LOG("%s: generate random wifi mac address: "
 		    "%02x:%02x:%02x:%02x:%02x:%02x\n",
@@ -601,6 +603,7 @@ static int wlan_platdata_parse_dt(struct device *dev,
     u32 value;
     int gpio,ret;
     enum of_gpio_flags flags;
+	u32 ext_clk_value = 0;
 
     if (!node)
         return -ENODEV;
@@ -686,6 +689,28 @@ static int wlan_platdata_parse_dt(struct device *dev,
 			LOG("%s: get property: WIFI,work_led_gpio = %d, flags = %d.\n", __func__, gpio, flags);
 		} else
 			data->work_led_gpio.io = -1;
+	}
+
+	data->ext_clk = devm_clk_get(dev, "clk_wifi");
+	if (IS_ERR(data->ext_clk)) {
+		LOG("%s: The ref_wifi_clk not found !\n", __func__);
+	} else {
+		of_property_read_u32(node, "ref-clock-frequency",
+				     &ext_clk_value);
+		if (ext_clk_value > 0) {
+			ret = clk_set_rate(data->ext_clk, ext_clk_value);
+			if (ret)
+				LOG("%s: set ref clk error!\n", __func__);
+			ret = clk_prepare_enable(data->ext_clk);
+			if (ret)
+				LOG("%s: enable ref clk error!\n", __func__);
+			/* WIFI clock (REF_CLKOUT) output enable.
+			 * 1'b0: drive disable
+			 * 1'b1: output enable
+			 */
+			if (of_machine_is_compatible("rockchip,rk3308"))
+				regmap_write(data->grf, 0x0314, 0x00020002);
+		}
 	}
 
     return 0;

@@ -31,7 +31,6 @@
 #include <linux/power_supply.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
-#include <linux/rk_keys.h>
 
 static int dbg_enable;
 module_param_named(dbg_level, dbg_enable, int, 0644);
@@ -1261,7 +1260,6 @@ static irqreturn_t bq25700_irq_handler_thread(int irq, void *private)
 		charger->typec1_status = USB_STATUS_NONE;
 	}
 	irq_set_irq_type(irq, irq_flag | IRQF_ONESHOT);
-	rk_send_wakeup_key();
 
 	return IRQ_HANDLED;
 }
@@ -1533,7 +1531,7 @@ static void bq25700_host_evt_worker(struct work_struct *work)
 	/* Determine cable/charger type */
 	if (extcon_get_cable_state_(edev, EXTCON_USB_VBUS_EN) > 0) {
 		if (!IS_ERR_OR_NULL(charger->otg_mode_en_io))
-			gpiod_direction_output(charger->otg_mode_en_io, 0);
+			gpiod_direction_output(charger->otg_mode_en_io, 1);
 		bq25700_field_write(charger, EN_OTG, 1);
 		DBG("OTG enable\n");
 	} else if (extcon_get_cable_state_(edev, EXTCON_USB_VBUS_EN) == 0) {

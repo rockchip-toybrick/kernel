@@ -472,6 +472,9 @@ static int dwc2_driver_remove(struct platform_device *dev)
 	if (hsotg->gadget_enabled)
 		dwc2_hsotg_remove(hsotg);
 
+	pm_runtime_put_sync(hsotg->dev);
+	pm_runtime_disable(hsotg->dev);
+
 	if (hsotg->ll_hw_enabled)
 		dwc2_lowlevel_hw_disable(hsotg);
 
@@ -604,6 +607,11 @@ static int dwc2_driver_probe(struct platform_device *dev)
 	if (retval)
 		return retval;
 
+	pm_runtime_enable(hsotg->dev);
+	retval = pm_runtime_get_sync(hsotg->dev);
+	if (retval < 0)
+		goto error;
+
 	retval = dwc2_get_dr_mode(hsotg);
 	if (retval)
 		goto error;
@@ -654,7 +662,7 @@ static int dwc2_driver_probe(struct platform_device *dev)
 	if (hsotg->dr_mode == USB_DR_MODE_PERIPHERAL)
 		dwc2_lowlevel_hw_disable(hsotg);
 
-	if (hsotg->dr_mode == USB_DR_MODE_OTG) {
+	if (hsotg->dr_mode == USB_DR_MODE_OTG && dwc2_is_device_mode(hsotg)) {
 		struct platform_device *pdev = to_platform_device(hsotg->dev);
 
 		if (hsotg->uphy) {
@@ -670,6 +678,8 @@ static int dwc2_driver_probe(struct platform_device *dev)
 	return 0;
 
 error:
+	pm_runtime_put_sync(hsotg->dev);
+	pm_runtime_disable(hsotg->dev);
 	dwc2_lowlevel_hw_disable(hsotg);
 	return retval;
 }

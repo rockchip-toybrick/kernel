@@ -76,7 +76,7 @@
 #define OV9750_V_WIN_OFF_LOW_REG 0x3813
 
 static int cam_num;
-static struct ov_camera_module ov9750[2];
+static struct ov_camera_module ov9750[4];
 
 /* ======================================================================== */
 /* Base sensor configs */
@@ -358,7 +358,7 @@ static int ov9750_dual_mode(struct ov_camera_module *cam_mod)
 		ov_camera_module_write_reg(cam_mod, 0x3823, 0x48);
 		ov_camera_module_write_reg(cam_mod, 0x3824, 0x11);
 	} else {
-		;//do nothing
+		;/* do nothing */
 	}
 	return 0;
 }
@@ -445,10 +445,9 @@ static int OV9750_auto_adjust_fps(struct ov_camera_module *cam_mod,
 	int ret;
 	u32 vts;
 
-	if ((cam_mod->exp_config.exp_time + OV9750_COARSE_INTG_TIME_MAX_MARGIN)
+	if ((exp_time + OV9750_COARSE_INTG_TIME_MAX_MARGIN)
 		> cam_mod->vts_min)
-		vts = cam_mod->exp_config.exp_time +
-			OV9750_COARSE_INTG_TIME_MAX_MARGIN;
+		vts = exp_time + OV9750_COARSE_INTG_TIME_MAX_MARGIN;
 	else
 		vts = cam_mod->vts_min;
 
@@ -519,6 +518,7 @@ static int ov9750_write_aec(struct ov_camera_module *cam_mod)
 		u32 a_gain = cam_mod->exp_config.gain;
 		u32 exp_time = cam_mod->exp_config.exp_time;
 
+		mutex_lock(&cam_mod->lock);
 		a_gain = a_gain * cam_mod->exp_config.gain_percent / 100;
 		if (a_gain < 0x80)
 			a_gain = 0x80;
@@ -554,13 +554,14 @@ static int ov9750_write_aec(struct ov_camera_module *cam_mod)
 			ret |= ov9750_set_vts(cam_mod, cam_mod->exp_config.vts_value);
 
 		if (cam_mod->state == OV_CAMERA_MODULE_STREAMING) {
-			ret = ov_camera_module_write_reg(cam_mod,
+			ret |= ov_camera_module_write_reg(cam_mod,
 				OV9750_AEC_GROUP_UPDATE_ADDRESS,
 				OV9750_AEC_GROUP_UPDATE_END_DATA);
-			ret = ov_camera_module_write_reg(cam_mod,
+			ret |= ov_camera_module_write_reg(cam_mod,
 				OV9750_AEC_GROUP_UPDATE_ADDRESS,
 				OV9750_AEC_GROUP_UPDATE_END_LAUNCH);
 		}
+		mutex_unlock(&cam_mod->lock);
 	}
 
 	if (IS_ERR_VALUE(ret))
@@ -802,6 +803,17 @@ static int ov9750_s_ctrl(struct ov_camera_module *cam_mod, u32 ctrl_id)
 	case V4L2_CID_FLASH_LED_MODE:
 		/* nothing to be done here */
 		break;
+	case V4L2_CID_FOCUS_ABSOLUTE:
+		/* todo*/
+		break;
+	/*
+	 * case RK_V4L2_CID_FPS_CTRL:
+	 * if (cam_mod->auto_adjust_fps)
+	 * ret = OV9750_auto_adjust_fps(
+	 * cam_mod,
+	 * cam_mod->exp_config.exp_time);
+	 * break;
+	 */
 	default:
 		ret = -EINVAL;
 		break;
@@ -849,7 +861,9 @@ static int ov9750_start_streaming(struct ov_camera_module *cam_mod)
 	ret = OV9750_g_VTS(cam_mod, &cam_mod->vts_min);
 	if (IS_ERR_VALUE(ret))
 		goto err;
+	mutex_lock(&cam_mod->lock);
 	ret = ov_camera_module_write_reg(cam_mod, 0x0100, 0x01);
+	mutex_unlock(&cam_mod->lock);
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
@@ -868,7 +882,9 @@ static int ov9750_stop_streaming(struct ov_camera_module *cam_mod)
 	int ret = 0;
 
 	ov_camera_module_pr_info(cam_mod, "\n");
+	mutex_lock(&cam_mod->lock);
 	ret = ov_camera_module_write_reg(cam_mod, 0x0100, 0x00);
+	mutex_unlock(&cam_mod->lock);
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
@@ -976,7 +992,10 @@ static int ov9750_probe(struct i2c_client *client,
 	v4l2_i2c_subdev_init(&ov9750[cam_num].sd, client,
 		&ov9750_camera_module_ops);
 
+	ov9750[cam_num].sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	ov9750[cam_num].custom = ov9750_custom_config;
+
+	mutex_init(&ov9750[cam_num].lock);
 
 	ret = of_property_read_u32(np, "as-master", &as_master);
 	ov9750[cam_num].as_master = (ret == 0) ? as_master : -1;
@@ -997,6 +1016,7 @@ static int ov9750_remove(struct i2c_client *client)
 	if (!client->adapter)
 		return -ENODEV;
 
+	mutex_destroy(&cam_mod->lock);
 	ov_camera_module_release(cam_mod);
 
 	dev_info(&client->dev, "removed\n");

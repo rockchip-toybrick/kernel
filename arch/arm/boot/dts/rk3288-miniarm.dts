@@ -191,6 +191,13 @@
 		clock-output-names = "CLK_CAMERA_25MHZ";
 		#clock-cells = <0>;
 	};
+
+	xin32k: xin32k {
+		compatible = "fixed-clock";
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+		#clock-cells = <0>;
+	};
 };
 
 &cpu0 {
@@ -211,15 +218,6 @@
 	tx_delay = <0x30>;
 	rx_delay = <0x10>;
 	status = "ok";
-};
-
-&dsi0 {
-	status = "disabled";
-	mipi_panel: mipi-panel {
-		compatible ="asus,tc358762";
-		reg = <0>;
-		status = "okay";
-	};
 };
 
 &gpu {
@@ -261,7 +259,7 @@
 		rockchip,system-power-controller;
 		wakeup-source;
 		#clock-cells = <1>;
-		clock-output-names = "xin32k", "rk808-clkout2";
+		clock-output-names = "rk808-clkout1", "rk808-clkout2";
 
 		vcc1-supply = <&vcc_sys>;
 		vcc2-supply = <&vcc_sys>;

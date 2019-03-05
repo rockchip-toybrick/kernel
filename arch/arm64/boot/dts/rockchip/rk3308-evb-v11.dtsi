@@ -11,7 +11,7 @@
 	compatible = "rockchip,rk3308-evb-v11", "rockchip,rk3308";
 
 	chosen {
-		bootargs = "earlycon=uart8250,mmio32,0xff0c0000 swiotlb=1 console=ttyFIQ0 root=PARTUUID=614e0000-0000 rootfstype=squashfs rootwait";
+		bootargs = "earlycon=uart8250,mmio32,0xff0c0000 swiotlb=1 console=ttyFIQ0 root=PARTUUID=614e0000-0000 rootfstype=squashfs rootwait snd_aloop.index=7 snd_aloop.use_raw_jiffies=1";
 	};
 
 	adc-keys {
@@ -96,6 +96,30 @@
 		rockchip,codec = <&acodec>;
 	};
 
+	bluetooth_sound: bluetooth-sound {
+		status = "disabled";
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "rockchip,rk3308-pcm";
+		rockchip,mclk-fs = <128>;
+		rockchip,cpu = <&i2s_2ch_0>;
+		rockchip,codec = <&dummy_codec>;
+		rockchip,format = "dsp_b";
+		rockchip,bitclock-inversion = <0>;
+		rockchip,wait-card-locked = <0>;
+	};
+
+	spdif_rx_sound: spdif-rx-sound {
+		status = "disabled";
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "rockchip,spdif-rx-sound";
+		simple-audio-card,cpu {
+			sound-dai = <&spdif_rx>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&dummy_codec>;
+		};
+	};
+
 	spdif_tx_sound: spdif-tx-sound {
 		status = "disabled";
 		compatible = "simple-audio-card";
@@ -105,6 +129,20 @@
 		};
 		simple-audio-card,codec {
 			sound-dai = <&dummy_codec>;
+		};
+	};
+
+	tas5731_sound: tas5731-sound {
+		status = "disabled";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "rockchip,tas5731";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,cpu {
+			sound-dai = <&i2s_8ch_1>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&tas5731>;
 		};
 	};
 
@@ -245,14 +283,23 @@
 &acodec {
 	status = "okay";
 
-	#sound-dai-cells = <0>;
-
+	rockchip,no-deep-low-power;
+	rockchip,loopback-grp = <0>;
 	hp-ctl-gpios = <&gpio0 RK_PA1 GPIO_ACTIVE_HIGH>;
 	spk-ctl-gpios = <&gpio0 RK_PA5 GPIO_ACTIVE_HIGH>;
 };
 
 &cpu0 {
 	cpu-supply = <&vdd_core>;
+};
+
+&cpu0_opp_table {
+	opp-1200000000 {
+		status = "okay";
+	};
+	opp-1296000000 {
+		status = "okay";
+	};
 };
 
 &dmc {
@@ -302,6 +349,18 @@
 &i2c1 {
 	clock-frequency = <400000>;
 	status = "okay";
+
+	tas5731: tas5731@1a {
+		#sound-dai-cells = <0>;
+		compatible = "ti,tas5731";
+		reg = <0x1a>;
+		clocks = <&cru SCLK_I2S1_8CH_TX_OUT>;
+		clock-names = "mclk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2s_8ch_1_m0_mclk>;
+		pdn-gpios = <&gpio0 RK_PA5 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&gpio1 RK_PA1 GPIO_ACTIVE_LOW>;
+	};
 
 	is31fl3236: led-controller@3c {
 		compatible = "issi,is31fl3236";
@@ -637,10 +696,18 @@
 	};
 };
 
+&i2s_8ch_1 {
+	status = "disabled";
+	#sound-dai-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s_8ch_1_m0_sclktx
+		     &i2s_8ch_1_m0_lrcktx
+		     &i2s_8ch_1_m0_sdo0
+		     &i2s_8ch_1_m0_mclk>;
+};
+
 &i2s_8ch_2 {
 	status = "okay";
-
-	#sound-dai-cells = <0>;
 };
 
 &nandc {
@@ -654,6 +721,10 @@
 		)
 	>;
 
+	status = "okay";
+};
+
+&rng {
 	status = "okay";
 };
 

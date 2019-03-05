@@ -129,6 +129,9 @@ struct cpufreq_interactive_tunables {
 
 /* For cases where we have single governor instance for system */
 static struct cpufreq_interactive_tunables *common_tunables;
+#ifdef CONFIG_ARCH_ROCKCHIP
+static struct cpufreq_interactive_tunables backup_tunables[2];
+#endif
 
 static struct attribute_group *get_sysfs_attr(void);
 
@@ -1162,7 +1165,7 @@ static void cpufreq_interactive_input_event(struct input_handle *handle,
 	struct cpufreq_interactive_cpuinfo *pcpu;
 	struct cpufreq_interactive_tunables *tunables;
 
-	if ((type != EV_ABS) && (type != EV_KEY))
+	if ((type != EV_ABS) && (type != EV_KEY) && (type != EV_REL))
 		return;
 
 	trace_cpufreq_interactive_boost("touch");
@@ -1266,6 +1269,20 @@ static const struct input_device_id cpufreq_interactive_ids[] = {
 		.flags = INPUT_DEVICE_ID_MATCH_EVBIT,
 		.evbit = { BIT_MASK(EV_KEY) },
 	},
+	{/* A mouse like device, at least one button,two relative axes */
+		.flags = INPUT_DEVICE_ID_MATCH_EVBIT |
+				INPUT_DEVICE_ID_MATCH_KEYBIT |
+				INPUT_DEVICE_ID_MATCH_RELBIT,
+		.evbit = { BIT_MASK(EV_KEY) | BIT_MASK(EV_REL) },
+		.keybit = { [BIT_WORD(BTN_LEFT)] = BIT_MASK(BTN_LEFT) },
+		.relbit = { BIT_MASK(REL_X) | BIT_MASK(REL_Y) },
+	},
+	{/* A separate scrollwheel */
+		.flags = INPUT_DEVICE_ID_MATCH_EVBIT |
+				INPUT_DEVICE_ID_MATCH_RELBIT,
+		.evbit = { BIT_MASK(EV_KEY) | BIT_MASK(EV_REL) },
+		.relbit = { BIT_MASK(REL_WHEEL) },
+	},
 	{ },
 };
 
@@ -1280,6 +1297,7 @@ static struct input_handler cpufreq_interactive_input_handler = {
 static void rockchip_cpufreq_policy_init(struct cpufreq_policy *policy)
 {
 	struct cpufreq_interactive_tunables *tunables = policy->governor_data;
+	int index;
 
 	tunables->min_sample_time = 40 * USEC_PER_MSEC;
 	tunables->boostpulse_duration_val = 40 * USEC_PER_MSEC;
@@ -1290,6 +1308,12 @@ static void rockchip_cpufreq_policy_init(struct cpufreq_policy *policy)
 	} else {
 		tunables->hispeed_freq = 816000;
 	}
+
+	index = (policy->cpu == 0) ? 0 : 1;
+	if (!backup_tunables[index].usage_count)
+		backup_tunables[index] = *tunables;
+	else
+		*tunables = backup_tunables[index];
 }
 #endif
 
@@ -1388,6 +1412,15 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			sysfs_remove_group(get_governor_parent_kobj(policy),
 					get_sysfs_attr());
 
+#ifdef CONFIG_ARCH_ROCKCHIP
+			if (policy->cpu == 0) {
+				backup_tunables[0] = *tunables;
+				backup_tunables[0].usage_count = 1;
+			} else {
+				backup_tunables[1] = *tunables;
+				backup_tunables[1].usage_count = 1;
+			}
+#endif
 			kfree(tunables);
 			common_tunables = NULL;
 		}

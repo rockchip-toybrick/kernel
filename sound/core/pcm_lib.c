@@ -648,27 +648,33 @@ EXPORT_SYMBOL(snd_interval_refine);
 
 static int snd_interval_refine_first(struct snd_interval *i)
 {
+	const unsigned int last_max = i->max;
+
 	if (snd_BUG_ON(snd_interval_empty(i)))
 		return -EINVAL;
 	if (snd_interval_single(i))
 		return 0;
 	i->max = i->min;
-	i->openmax = i->openmin;
-	if (i->openmax)
+	if (i->openmin)
 		i->max++;
+	/* only exclude max value if also excluded before refine */
+	i->openmax = (i->openmax && i->max >= last_max);
 	return 1;
 }
 
 static int snd_interval_refine_last(struct snd_interval *i)
 {
+	const unsigned int last_min = i->min;
+
 	if (snd_BUG_ON(snd_interval_empty(i)))
 		return -EINVAL;
 	if (snd_interval_single(i))
 		return 0;
 	i->min = i->max;
-	i->openmin = i->openmax;
-	if (i->openmin)
+	if (i->openmax)
 		i->min--;
+	/* only exclude min value if also excluded before refine */
+	i->openmin = (i->openmin && i->min <= last_min);
 	return 1;
 }
 
@@ -2349,32 +2355,6 @@ snd_pcm_sframes_t snd_pcm_lib_read(struct snd_pcm_substream *substream, void __u
 	nonblock = !!(substream->f_flags & O_NONBLOCK);
 	if (runtime->access != SNDRV_PCM_ACCESS_RW_INTERLEAVED)
 		return -EINVAL;
-#ifdef CONFIG_SND_SOC_ROCKCHIP_VAD
-	if (snd_pcm_vad_attached(substream)) {
-		snd_pcm_stream_lock_irq(substream);
-		switch (runtime->status->state) {
-		case SNDRV_PCM_STATE_PREPARED:
-			if (size >= runtime->start_threshold) {
-				err = snd_pcm_start(substream);
-				if (err < 0) {
-					snd_pcm_stream_unlock_irq(substream);
-					return err;
-				}
-			}
-			break;
-		default:
-			break;
-		}
-		snd_pcm_stream_unlock_irq(substream);
-
-		if (snd_pcm_vad_avail(substream))
-			return snd_pcm_vad_read(substream, buf, size);
-		else
-			return snd_pcm_lib_read1(substream, (unsigned long)buf,
-						 size, nonblock,
-						 snd_pcm_lib_read_transfer);
-	}
-#endif
 	return snd_pcm_lib_read1(substream, (unsigned long)buf, size, nonblock, snd_pcm_lib_read_transfer);
 }
 

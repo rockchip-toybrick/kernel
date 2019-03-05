@@ -84,11 +84,11 @@ struct rk_priv_data {
 	(((tx) ? soc##_GMAC_TXCLK_DLY_ENABLE : soc##_GMAC_TXCLK_DLY_DISABLE) | \
 	 ((rx) ? soc##_GMAC_RXCLK_DLY_ENABLE : soc##_GMAC_RXCLK_DLY_DISABLE))
 
-#define PX30_GRF_GMAC_CON1		0X0904
+#define PX30_GRF_GMAC_CON1		0x0904
 
 /* PX30_GRF_GMAC_CON1 */
 #define PX30_GMAC_PHY_INTF_SEL_RMII	(GRF_CLR_BIT(4) | GRF_CLR_BIT(5) | \
-					GRF_BIT(6))
+					 GRF_BIT(6))
 #define PX30_GMAC_SPEED_10M		GRF_CLR_BIT(2)
 #define PX30_GMAC_SPEED_100M		GRF_BIT(2)
 
@@ -140,6 +140,129 @@ static void px30_set_rmii_speed(struct rk_priv_data *bsp_priv, int speed)
 static const struct rk_gmac_ops px30_ops = {
 	.set_to_rmii = px30_set_to_rmii,
 	.set_rmii_speed = px30_set_rmii_speed,
+};
+
+#define RK1808_GRF_GMAC_CON0		0X0900
+#define RK1808_GRF_GMAC_CON1		0X0904
+
+/* RK1808_GRF_GMAC_CON0 */
+#define RK1808_GMAC_CLK_RX_DL_CFG(val)	HIWORD_UPDATE(val, 0x7F, 8)
+#define RK1808_GMAC_CLK_TX_DL_CFG(val)	HIWORD_UPDATE(val, 0x7F, 0)
+
+/* RK1808_GRF_GMAC_CON1 */
+#define RK1808_GMAC_PHY_INTF_SEL_RGMII	\
+		(GRF_BIT(4) | GRF_CLR_BIT(5) | GRF_CLR_BIT(6))
+#define RK1808_GMAC_PHY_INTF_SEL_RMII	\
+		(GRF_CLR_BIT(4) | GRF_CLR_BIT(5) | GRF_BIT(6))
+#define RK1808_GMAC_FLOW_CTRL		GRF_BIT(3)
+#define RK1808_GMAC_FLOW_CTRL_CLR	GRF_CLR_BIT(3)
+#define RK1808_GMAC_SPEED_10M		GRF_CLR_BIT(2)
+#define RK1808_GMAC_SPEED_100M		GRF_BIT(2)
+#define RK1808_GMAC_RXCLK_DLY_ENABLE	GRF_BIT(1)
+#define RK1808_GMAC_RXCLK_DLY_DISABLE	GRF_CLR_BIT(1)
+#define RK1808_GMAC_TXCLK_DLY_ENABLE	GRF_BIT(0)
+#define RK1808_GMAC_TXCLK_DLY_DISABLE	GRF_CLR_BIT(0)
+
+static void rk1808_set_to_rgmii(struct rk_priv_data *bsp_priv,
+				int tx_delay, int rx_delay)
+{
+	struct device *dev = &bsp_priv->pdev->dev;
+
+	if (IS_ERR(bsp_priv->grf)) {
+		dev_err(dev, "Missing rockchip,grf property\n");
+		return;
+	}
+
+	regmap_write(bsp_priv->grf, RK1808_GRF_GMAC_CON1,
+		     RK1808_GMAC_PHY_INTF_SEL_RGMII |
+		     RK1808_GMAC_RXCLK_DLY_ENABLE |
+		     RK1808_GMAC_TXCLK_DLY_ENABLE);
+
+	regmap_write(bsp_priv->grf, RK1808_GRF_GMAC_CON0,
+		     RK1808_GMAC_CLK_RX_DL_CFG(rx_delay) |
+		     RK1808_GMAC_CLK_TX_DL_CFG(tx_delay));
+}
+
+static void rk1808_set_to_rmii(struct rk_priv_data *bsp_priv)
+{
+	struct device *dev = &bsp_priv->pdev->dev;
+
+	if (IS_ERR(bsp_priv->grf)) {
+		dev_err(dev, "%s: Missing rockchip,grf property\n", __func__);
+		return;
+	}
+
+	regmap_write(bsp_priv->grf, RK1808_GRF_GMAC_CON1,
+		     RK1808_GMAC_PHY_INTF_SEL_RMII);
+}
+
+static void rk1808_set_rgmii_speed(struct rk_priv_data *bsp_priv, int speed)
+{
+	struct device *dev = &bsp_priv->pdev->dev;
+	int ret;
+
+	if (IS_ERR(bsp_priv->grf)) {
+		dev_err(dev, "Missing rockchip,grf property\n");
+		return;
+	}
+
+	if (speed == 10) {
+		ret = clk_set_rate(bsp_priv->clk_mac_speed, 2500000);
+		if (ret)
+			dev_err(dev, "%s: set clk_mac_speed rate 2500000 failed: %d\n",
+				__func__, ret);
+	} else if (speed == 100) {
+		ret = clk_set_rate(bsp_priv->clk_mac_speed, 25000000);
+		if (ret)
+			dev_err(dev, "%s: set clk_mac_speed rate 25000000 failed: %d\n",
+				__func__, ret);
+	} else if (speed == 1000) {
+		ret = clk_set_rate(bsp_priv->clk_mac_speed, 125000000);
+		if (ret)
+			dev_err(dev, "%s: set clk_mac_speed rate 125000000 failed: %d\n",
+				__func__, ret);
+	} else {
+		dev_err(dev, "unknown speed value for RGMII! speed=%d", speed);
+	}
+}
+
+static void rk1808_set_rmii_speed(struct rk_priv_data *bsp_priv, int speed)
+{
+	struct device *dev = &bsp_priv->pdev->dev;
+	int ret;
+
+	if (IS_ERR(bsp_priv->clk_mac_speed)) {
+		dev_err(dev, "%s: Missing clk_mac_speed clock\n", __func__);
+		return;
+	}
+
+	if (speed == 10) {
+		regmap_write(bsp_priv->grf, RK1808_GRF_GMAC_CON1,
+			     RK1808_GMAC_SPEED_10M);
+
+		ret = clk_set_rate(bsp_priv->clk_mac_speed, 2500000);
+		if (ret)
+			dev_err(dev, "%s: set clk_mac_speed rate 2500000 failed: %d\n",
+				__func__, ret);
+	} else if (speed == 100) {
+		regmap_write(bsp_priv->grf, RK1808_GRF_GMAC_CON1,
+			     RK1808_GMAC_SPEED_100M);
+
+		ret = clk_set_rate(bsp_priv->clk_mac_speed, 25000000);
+		if (ret)
+			dev_err(dev, "%s: set clk_mac_speed rate 25000000 failed: %d\n",
+				__func__, ret);
+
+	} else {
+		dev_err(dev, "unknown speed value for RMII! speed=%d", speed);
+	}
+}
+
+static const struct rk_gmac_ops rk1808_ops = {
+	.set_to_rgmii = rk1808_set_to_rgmii,
+	.set_to_rmii = rk1808_set_to_rmii,
+	.set_rgmii_speed = rk1808_set_rgmii_speed,
+	.set_rmii_speed = rk1808_set_rmii_speed,
 };
 
 #define RK3128_GRF_MAC_CON0	0x0168
@@ -1215,6 +1338,9 @@ static int gmac_clk_enable(struct rk_priv_data *bsp_priv, bool enable)
 			if (!IS_ERR(bsp_priv->mac_clk_tx))
 				clk_prepare_enable(bsp_priv->mac_clk_tx);
 
+			if (!IS_ERR(bsp_priv->clk_mac_speed))
+				clk_prepare_enable(bsp_priv->clk_mac_speed);
+
 			/**
 			 * if (!IS_ERR(bsp_priv->clk_mac))
 			 *	clk_prepare_enable(bsp_priv->clk_mac);
@@ -1225,30 +1351,22 @@ static int gmac_clk_enable(struct rk_priv_data *bsp_priv, bool enable)
 	} else {
 		if (bsp_priv->clk_enabled) {
 			if (phy_iface == PHY_INTERFACE_MODE_RMII) {
-				if (!IS_ERR(bsp_priv->mac_clk_rx))
-					clk_disable_unprepare(
-						bsp_priv->mac_clk_rx);
+				clk_disable_unprepare(bsp_priv->mac_clk_rx);
 
-				if (!IS_ERR(bsp_priv->clk_mac_ref))
-					clk_disable_unprepare(
-						bsp_priv->clk_mac_ref);
+				clk_disable_unprepare(bsp_priv->clk_mac_ref);
 
-				if (!IS_ERR(bsp_priv->clk_mac_refout))
-					clk_disable_unprepare(
-						bsp_priv->clk_mac_refout);
+				clk_disable_unprepare(bsp_priv->clk_mac_refout);
 			}
 
-			if (!IS_ERR(bsp_priv->clk_phy))
-				clk_disable_unprepare(bsp_priv->clk_phy);
+			clk_disable_unprepare(bsp_priv->clk_phy);
 
-			if (!IS_ERR(bsp_priv->aclk_mac))
-				clk_disable_unprepare(bsp_priv->aclk_mac);
+			clk_disable_unprepare(bsp_priv->aclk_mac);
 
-			if (!IS_ERR(bsp_priv->pclk_mac))
-				clk_disable_unprepare(bsp_priv->pclk_mac);
+			clk_disable_unprepare(bsp_priv->pclk_mac);
 
-			if (!IS_ERR(bsp_priv->mac_clk_tx))
-				clk_disable_unprepare(bsp_priv->mac_clk_tx);
+			clk_disable_unprepare(bsp_priv->mac_clk_tx);
+
+			clk_disable_unprepare(bsp_priv->clk_mac_speed);
 			/**
 			 * if (!IS_ERR(bsp_priv->clk_mac))
 			 *	clk_disable_unprepare(bsp_priv->clk_mac);
@@ -1574,6 +1692,7 @@ static SIMPLE_DEV_PM_OPS(rk_gmac_pm_ops, rk_gmac_suspend, rk_gmac_resume);
 
 static const struct of_device_id rk_gmac_dwmac_match[] = {
 	{ .compatible = "rockchip,px30-gmac",	.data = &px30_ops   },
+	{ .compatible = "rockchip,rk1808-gmac", .data = &rk1808_ops },
 	{ .compatible = "rockchip,rk3128-gmac", .data = &rk3128_ops },
 	{ .compatible = "rockchip,rk3228-gmac", .data = &rk3228_ops },
 	{ .compatible = "rockchip,rk3288-gmac", .data = &rk3288_ops },

@@ -196,6 +196,7 @@ static bool rk818_is_volatile_reg(struct device *dev, unsigned int reg)
 	case RK808_VB_MON_REG:
 	case RK808_THERMAL_REG:
 	case RK808_DCDC_EN_REG:
+	case RK808_LDO_EN_REG:
 	case RK808_DCDC_UV_STS_REG:
 	case RK808_LDO_UV_STS_REG:
 	case RK808_DCDC_PG_REG:
@@ -432,6 +433,9 @@ static const struct rk808_reg_data rk816_pre_init_reg[] = {
 	{ RK816_INT_STS_REG2, REG_WRITE_MSK, ALL_INT_FLAGS_ST },
 	{ RK816_INT_STS_REG3, REG_WRITE_MSK, ALL_INT_FLAGS_ST },
 	{ RK816_DCDC_EN_REG2, BOOST_EN_MASK, BOOST_DISABLE },
+	/* set write mask bit 1, otherwise 'is_enabled()' get wrong status */
+	{ RK816_LDO_EN_REG1, REGS_WMSK, REGS_WMSK },
+	{ RK816_LDO_EN_REG2, REGS_WMSK, REGS_WMSK },
 };
 
 static struct rk808_reg_data rk816_suspend_reg[] = {
@@ -561,6 +565,7 @@ static const struct rk808_reg_data rk818_pre_init_reg[] = {
 	{ RK818_SLEEP_SET_OFF_REG1, OTG_SLP_SET_MASK, OTG_SLP_SET_OFF },
 	{ RK818_BUCK4_CONFIG_REG, BUCK_ILMIN_MASK,  BUCK_ILMIN_250MA },
 	{ RK808_RTC_CTRL_REG, RTC_STOP, RTC_STOP},
+	{RK808_CLK32OUT_REG, CLK32KOUT2_FUNC_MASK, CLK32KOUT2_FUNC},
 };
 
 static struct rk808_reg_data rk818_suspend_reg[] = {
@@ -1043,6 +1048,23 @@ static int rk817_reboot_notifier_handler(struct notifier_block *nb,
 	struct rk817_reboot_data_t *data;
 	int ret;
 	struct device *dev;
+	int value, power_en_active0, power_en_active1;
+
+	data = container_of(nb, struct rk817_reboot_data_t, reboot_notifier);
+	dev = &data->rk808->i2c->dev;
+
+	regmap_read(data->rk808->regmap, RK817_POWER_EN_SAVE0,
+		    &power_en_active0);
+	regmap_read(data->rk808->regmap, RK817_POWER_EN_SAVE1,
+		    &power_en_active1);
+	value = power_en_active0 & 0x0f;
+	regmap_write(data->rk808->regmap, RK817_POWER_EN_REG(0), value | 0xf0);
+	value = (power_en_active0 & 0xf0) >> 4;
+	regmap_write(data->rk808->regmap, RK817_POWER_EN_REG(1), value | 0xf0);
+	value = power_en_active1 & 0x0f;
+	regmap_write(data->rk808->regmap, RK817_POWER_EN_REG(2), value | 0xf0);
+	value = (power_en_active1 & 0xf0) >> 4;
+	regmap_write(data->rk808->regmap, RK817_POWER_EN_REG(3), value | 0xf0);
 
 	if (action != SYS_RESTART)
 		return NOTIFY_OK;
@@ -1050,8 +1072,6 @@ static int rk817_reboot_notifier_handler(struct notifier_block *nb,
 	if (!cmd || !strlen(cmd) || !strcmp(cmd, "normal"))
 		return NOTIFY_OK;
 
-	data = container_of(nb, struct rk817_reboot_data_t, reboot_notifier);
-	dev = &data->rk808->i2c->dev;
 
 	ret = regmap_update_bits(data->rk808->regmap, RK817_SYS_CFG(3),
 				 RK817_RST_FUNC_MSK, RK817_RST_FUNC_REG);
@@ -1096,8 +1116,6 @@ static void rk817_of_property_prepare(struct rk808 *rk808, struct device *dev)
 
 	dev_info(dev, "support pmic reset mode:%d,%d\n", ret, func);
 
-	if (val & RK817_RST_FUNC_REG)
-		return;
 	rk817_reboot_data.rk808 = rk808;
 	rk817_reboot_data.reboot_notifier.notifier_call =
 		rk817_reboot_notifier_handler;

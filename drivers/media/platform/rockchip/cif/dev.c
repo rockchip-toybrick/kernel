@@ -12,6 +12,7 @@
 #include <linux/of.h>
 #include <linux/of_graph.h>
 #include <linux/of_platform.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/reset.h>
 #include <linux/pm_runtime.h>
 #include <linux/pinctrl/consumer.h>
@@ -22,8 +23,11 @@
 #include "regs.h"
 
 struct cif_match_data {
+	int chip_id;
 	const char * const *clks;
-	int size;
+	const char * const *rsts;
+	int clks_num;
+	int rsts_num;
 };
 
 int rkcif_debug;
@@ -93,6 +97,7 @@ unlock:
 struct rkcif_async_subdev {
 	struct v4l2_async_subdev asd;
 	struct v4l2_mbus_config mbus;
+	int lanes;
 };
 
 static int subdev_notifier_bound(struct v4l2_async_notifier *notifier,
@@ -107,6 +112,7 @@ static int subdev_notifier_bound(struct v4l2_async_notifier *notifier,
 	if (cif_dev->num_sensors == ARRAY_SIZE(cif_dev->sensors))
 		return -EBUSY;
 
+	cif_dev->sensors[cif_dev->num_sensors].lanes = s_asd->lanes;
 	cif_dev->sensors[cif_dev->num_sensors].mbus = s_asd->mbus;
 	cif_dev->sensors[cif_dev->num_sensors].sd = subdev;
 	++cif_dev->num_sensors;
@@ -124,16 +130,19 @@ static int rkcif_fwnode_parse(struct device *dev,
 			container_of(asd, struct rkcif_async_subdev, asd);
 	struct v4l2_fwnode_bus_parallel *bus = &vep->bus.parallel;
 
-	/*
-	 * MIPI sensor is linked with a mipi dphy and its media bus config can
-	 * not be get in here
-	 */
 	if (vep->bus_type != V4L2_MBUS_BT656 &&
-		vep->bus_type != V4L2_MBUS_PARALLEL)
+	    vep->bus_type != V4L2_MBUS_PARALLEL &&
+	    vep->bus_type != V4L2_MBUS_CSI2)
 		return 0;
 
-	rk_asd->mbus.flags = bus->flags;
 	rk_asd->mbus.type = vep->bus_type;
+
+	if (vep->bus_type == V4L2_MBUS_CSI2) {
+		rk_asd->mbus.flags = vep->bus.mipi_csi2.flags;
+		rk_asd->lanes = vep->bus.mipi_csi2.num_data_lanes;
+	} else {
+		rk_asd->mbus.flags = bus->flags;
+	}
 
 	return 0;
 }
@@ -183,10 +192,43 @@ static int rkcif_register_platform_subdevs(struct rkcif_device *cif_dev)
 	return 0;
 }
 
+static const char * const px30_cif_clks[] = {
+	"aclk_cif",
+	"hclk_cif",
+	"pclk_cif",
+	"cif_out",
+};
+
+static const char * const px30_cif_rsts[] = {
+	"rst_cif_a",
+	"rst_cif_h",
+	"rst_cif_pclkin",
+};
+
+static const char * const rk1808_cif_clks[] = {
+	"aclk_cif",
+	"dclk_cif",
+	"hclk_cif",
+	"sclk_cif_out",
+	"pclk_csi2host"
+};
+
+static const char * const rk1808_cif_rsts[] = {
+	"rst_cif_a",
+	"rst_cif_h",
+	"rst_cif_i",
+	"rst_cif_d",
+	"rst_cif_pclkin",
+};
+
 static const char * const rk3128_cif_clks[] = {
 	"aclk_cif",
 	"hclk_cif",
 	"sclk_cif_out",
+};
+
+static const char * const rk3128_cif_rsts[] = {
+	"rst_cif",
 };
 
 static const char * const rk3288_cif_clks[] = {
@@ -196,24 +238,58 @@ static const char * const rk3288_cif_clks[] = {
 	"cif0_out",
 };
 
-static const struct cif_match_data rk3128_cif_clk_data = {
-	.clks = rk3128_cif_clks,
-	.size = ARRAY_SIZE(rk3128_cif_clks),
+static const char * const rk3288_cif_rsts[] = {
+	"rst_cif",
 };
 
-static const struct cif_match_data rk3288_cif_clk_data = {
+static const struct cif_match_data px30_cif_match_data = {
+	.chip_id = CHIP_PX30_CIF,
+	.clks = px30_cif_clks,
+	.clks_num = ARRAY_SIZE(px30_cif_clks),
+	.rsts = px30_cif_rsts,
+	.rsts_num = ARRAY_SIZE(px30_cif_rsts),
+};
+
+static const struct cif_match_data rk1808_cif_match_data = {
+	.chip_id = CHIP_RK1808_CIF,
+	.clks = rk1808_cif_clks,
+	.clks_num = ARRAY_SIZE(rk1808_cif_clks),
+	.rsts = rk1808_cif_rsts,
+	.rsts_num = ARRAY_SIZE(rk1808_cif_rsts),
+};
+
+static const struct cif_match_data rk3128_cif_match_data = {
+	.chip_id = CHIP_RK3128_CIF,
+	.clks = rk3128_cif_clks,
+	.clks_num = ARRAY_SIZE(rk3128_cif_clks),
+	.rsts = rk3128_cif_rsts,
+	.rsts_num = ARRAY_SIZE(rk3128_cif_rsts),
+};
+
+static const struct cif_match_data rk3288_cif_match_data = {
+	.chip_id = CHIP_RK3288_CIF,
 	.clks = rk3288_cif_clks,
-	.size = ARRAY_SIZE(rk3288_cif_clks),
+	.clks_num = ARRAY_SIZE(rk3288_cif_clks),
+	.rsts = rk3288_cif_rsts,
+	.rsts_num = ARRAY_SIZE(rk3288_cif_rsts),
 };
 
 static const struct of_device_id rkcif_plat_of_match[] = {
 	{
+		.compatible = "rockchip,px30-cif",
+		.data = &px30_cif_match_data,
+	},
+	{
+		.compatible = "rockchip,rk1808-cif",
+		.data = &rk1808_cif_match_data,
+	},
+	{
 		.compatible = "rockchip,rk3128-cif",
-		.data = &rk3128_cif_clk_data,
+		.data = &rk3128_cif_match_data,
 	},
 	{
 		.compatible = "rockchip,rk3288-cif",
-		.data = &rk3288_cif_clk_data,
+		.data = &rk3288_cif_match_data,
 	},
 	{},
 };
@@ -227,6 +303,50 @@ static irqreturn_t rkcif_irq_handler(int irq, void *ctx)
 		rkcif_irq_pingpong(cif_dev);
 	else
 		rkcif_irq_oneframe(cif_dev);
+
+	return IRQ_HANDLED;
+}
+
+#define CSIHOST_MAX_ERRINT_COUNT	10
+
+static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
+{
+	struct device *dev = ctx;
+	struct rkcif_device *cif_dev = dev_get_drvdata(dev);
+	static int csi_err1_cnt;
+	u32 val;
+
+	val = read_csihost_reg(cif_dev->csi_base, CSIHOST_ERR1);
+	if (val) {
+		pr_err("ERROR: csi err1 intr: 0x%x\n", val);
+
+		if (++csi_err1_cnt > CSIHOST_MAX_ERRINT_COUNT) {
+			write_csihost_reg(cif_dev->csi_base,
+					  CSIHOST_MSK1, 0xffffffff);
+			csi_err1_cnt = 0;
+		}
+	}
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t rk_csirx_irq2_handler(int irq, void *ctx)
+{
+	struct device *dev = ctx;
+	struct rkcif_device *cif_dev = dev_get_drvdata(dev);
+	static int csi_err2_cnt;
+	u32 val;
+
+	val = read_csihost_reg(cif_dev->csi_base, CSIHOST_ERR2);
+	if (val) {
+		pr_err("ERROR: csi err2 intr: 0x%x\n", val);
+
+		if (++csi_err2_cnt > CSIHOST_MAX_ERRINT_COUNT) {
+			write_csihost_reg(cif_dev->csi_base,
+					  CSIHOST_MSK2, 0xffffffff);
+			csi_err2_cnt = 0;
+		}
+	}
 
 	return IRQ_HANDLED;
 }
@@ -336,12 +456,18 @@ static inline bool is_iommu_enable(struct device *dev)
 
 void rkcif_soft_reset(struct rkcif_device *cif_dev)
 {
+	unsigned int i;
+
 	if (cif_dev->iommu_en)
 		rkcif_iommu_cleanup(cif_dev);
 
-	reset_control_assert(cif_dev->cif_rst);
+	for (i = 0; i < ARRAY_SIZE(cif_dev->cif_rst); i++)
+		if (cif_dev->cif_rst[i])
+			reset_control_assert(cif_dev->cif_rst[i]);
 	udelay(5);
-	reset_control_deassert(cif_dev->cif_rst);
+	for (i = 0; i < ARRAY_SIZE(cif_dev->cif_rst); i++)
+		if (cif_dev->cif_rst[i])
+			reset_control_deassert(cif_dev->cif_rst[i]);
 
 	if (cif_dev->iommu_en)
 		rkcif_iommu_init(cif_dev);
@@ -354,22 +480,20 @@ static int rkcif_plat_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct v4l2_device *v4l2_dev;
 	struct rkcif_device *cif_dev;
-	const struct cif_match_data *clk_data;
+	const struct cif_match_data *data;
 	struct resource *res;
 	int i, ret, irq;
 
 	match = of_match_node(rkcif_plat_of_match, node);
+	if (IS_ERR(match))
+		return PTR_ERR(match);
+
 	cif_dev = devm_kzalloc(dev, sizeof(*cif_dev), GFP_KERNEL);
 	if (!cif_dev)
 		return -ENOMEM;
 
 	dev_set_drvdata(dev, cif_dev);
 	cif_dev->dev = dev;
-
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	cif_dev->base_addr = devm_ioremap_resource(dev, res);
-	if (IS_ERR(cif_dev->base_addr))
-		return PTR_ERR(cif_dev->base_addr);
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq < 0)
@@ -383,22 +507,76 @@ static int rkcif_plat_probe(struct platform_device *pdev)
 	}
 
 	cif_dev->irq = irq;
-	clk_data = match->data;
-	for (i = 0; i < clk_data->size; i++) {
-		struct clk *clk = devm_clk_get(dev, clk_data->clks[i]);
+	data = match->data;
+	cif_dev->chip_id = data->chip_id;
+	if (data->chip_id == CHIP_RK1808_CIF) {
+		using_pingpong = 1;
 
+		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "cif_regs");
+		cif_dev->base_addr = devm_ioremap_resource(dev, res);
+		if (IS_ERR(cif_dev->base_addr))
+			return PTR_ERR(cif_dev->base_addr);
+
+		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "csihost_regs");
+		cif_dev->csi_base = devm_ioremap_resource(dev, res);
+		if (IS_ERR(cif_dev->csi_base))
+			return PTR_ERR(cif_dev->csi_base);
+
+		irq = platform_get_irq_byname(pdev, "csi-intr1");
+		if (irq > 0) {
+			ret = devm_request_irq(dev, irq, rk_csirx_irq1_handler,
+					       0, dev_driver_string(dev), dev);
+			if (ret < 0)
+				dev_err(dev, "request csi-intr1 irq failed: %d\n",
+					ret);
+		} else {
+			dev_err(dev, "No found irq csi-intr1\n");
+		}
+
+		irq = platform_get_irq_byname(pdev, "csi-intr2");
+		if (irq > 0) {
+			ret = devm_request_irq(dev, irq, rk_csirx_irq2_handler,
+					       0, dev_driver_string(dev), dev);
+			if (ret < 0)
+				dev_err(dev, "request csi-intr2 failed: %d\n",
+					ret);
+		} else {
+			dev_err(dev, "No found irq csi-intr2\n");
+		}
+	} else {
+		using_pingpong = 0;
+
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+		cif_dev->base_addr = devm_ioremap_resource(dev, res);
+		if (IS_ERR(cif_dev->base_addr))
+			return PTR_ERR(cif_dev->base_addr);
+	}
+
+	if (data->clks_num > RKCIF_MAX_BUS_CLK ||
+		data->rsts_num > RKCIF_MAX_RESET) {
+		dev_err(dev, "out of range: clks(%d %d) rsts(%d %d)\n",
+			data->clks_num, RKCIF_MAX_BUS_CLK,
+			data->rsts_num, RKCIF_MAX_RESET);
+		return -EINVAL;
+	}
+	for (i = 0; i < data->clks_num; i++) {
+		struct clk *clk = devm_clk_get(dev, data->clks[i]);
 		if (IS_ERR(clk)) {
-			dev_err(dev, "failed to get %s\n", clk_data->clks[i]);
+			dev_err(dev, "failed to get %s\n", data->clks[i]);
 			return PTR_ERR(clk);
 		}
 		cif_dev->clks[i] = clk;
 	}
-	cif_dev->clk_size = clk_data->size;
+	cif_dev->clk_size = data->clks_num;
 
-	cif_dev->cif_rst = devm_reset_control_get(dev, "rst_cif");
-	if (IS_ERR(cif_dev->cif_rst)) {
-		dev_err(dev, "failed to get core cif reset controller\n");
-		return PTR_ERR(cif_dev->cif_rst);
+	for (i = 0; i < data->rsts_num; i++) {
+		struct reset_control *rst =
+			devm_reset_control_get(dev, data->rsts[i]);
+		if (IS_ERR(rst)) {
+			dev_err(dev, "failed to get %s\n", data->rsts[i]);
+			return PTR_ERR(rst);
+		}
+		cif_dev->cif_rst[i] = rst;
 	}
 
 	rkcif_stream_init(cif_dev);
@@ -429,8 +607,15 @@ static int rkcif_plat_probe(struct platform_device *pdev)
 		goto err_unreg_media_dev;
 
 	cif_dev->iommu_en = is_iommu_enable(dev);
-	if (cif_dev->iommu_en)
+	if (cif_dev->iommu_en) {
 		rkcif_iommu_init(cif_dev);
+	} else {
+		ret = of_reserved_mem_device_init(dev);
+		if (ret)
+			v4l2_warn(v4l2_dev,
+				  "No reserved memory region assign to CIF\n");
+	}
+
 	pm_runtime_enable(&pdev->dev);
 
 	return 0;

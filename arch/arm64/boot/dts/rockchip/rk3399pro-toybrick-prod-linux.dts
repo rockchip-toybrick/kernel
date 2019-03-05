@@ -1,0 +1,77 @@
+/dts-v1/;
+#include "rk3399pro-toybrick-prod.dtsi"
+#include "rk3399-android.dtsi"
+
+/* Default camera: ov9750 */
+#include "rk3399pro-toybrick-ov9750.dtsi"
+
+/ {
+	compatible = "rockchip,rk3399pro-toybrick-prod-linux","rockchip,rk3399pro";
+	extbrd: extbrd {
+		compatible = "prod-extboard";
+		io-channels = <&saradc 0>, <&saradc 1>;
+	};
+};
+
+&fiq_debugger {
+	pinctrl-0 = <&uart2c_xfer>;
+};
+
+&rk_key {
+	status = "okay";
+
+	io-channels = <&saradc 2>;
+
+	/delete-node/ power-key;
+	vol-up-key {
+		linux,code = <115>;
+		label = "volume up";
+		rockchip,adc_value = <1>;
+	};
+};
+
+&uart4 {
+	status = "okay";
+};
+
+&spi1 {
+	status = "disabled";
+};
+
+&route_edp {
+	status = "okay";
+};
+
+&route_dsi {
+	status = "okay";
+};
+
+&hdmi_codec {
+	status = "okay";
+};
+
+&i2c6 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+	clock-frequency=<400000>;
+
+	ina219x47c6: ina219@47 {
+		compatible = "ina219";
+		reg = <0x47>;
+	};
+};
+
+&spi5 {
+	status = "okay";
+
+	flash@0 {
+		compatible = "gigadevice,w25q64", "jedec,spi-nor";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0>;
+		m25p,fast-read;
+		// The max SCLK of the flash 104/80 MHZ
+		spi-max-frequency = <50000000>;
+	};
+};

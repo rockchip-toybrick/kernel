@@ -189,9 +189,8 @@ static int pltfrm_camera_module_set_pinctrl_state(
 	if (!IS_ERR_OR_NULL(state)) {
 		ret = pinctrl_select_state(pdata->pinctrl, state);
 		if (ret < 0) {
-			pltfrm_camera_module_pr_err(sd,
-				"could not set pins\n");
-			ret = (ret == -EINVAL)?0:ret;
+			pltfrm_camera_module_pr_err(sd, "could not set pins\n");
+			ret = (ret == -EINVAL) ? 0 : ret;
 		}
 	}
 
@@ -212,7 +211,7 @@ static int pltfrm_camera_module_init_gpio(
 		goto err;
 
 	for (i = 0; i < ARRAY_SIZE(pdata->gpios); i++) {
-		if (pdata->gpios[i].label == NULL) {
+		if (!pdata->gpios[i].label) {
 			pdata->gpios[i].pltfrm_gpio = -1;
 			continue;
 		}
@@ -300,6 +299,7 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 	struct i2c_client *fl_ctrl_client = NULL;
 	struct pltfrm_camera_module_data *pdata = NULL;
 	struct property *prop;
+	unsigned int i;
 
 	pltfrm_camera_module_pr_debug(sd, "\n");
 
@@ -472,6 +472,10 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 			regulator++;
 		} while (--elem_size);
 	}
+
+	for (i = 0; i < ARRAY_SIZE(pdata->gpios); i++)
+		pdata->gpios[i].pltfrm_gpio = -1;
+
 	pdata->gpios[0].label = PLTFRM_CAMERA_MODULE_PIN_PD;
 	pdata->gpios[0].pltfrm_gpio = of_get_named_gpio_flags(
 		np,

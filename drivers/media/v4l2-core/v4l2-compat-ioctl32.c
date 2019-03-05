@@ -101,7 +101,7 @@ static int get_v4l2_window32(struct v4l2_window __user *kp,
 static int put_v4l2_window32(struct v4l2_window __user *kp,
 			     struct v4l2_window32 __user *up)
 {
-	struct v4l2_clip __user *kclips = kp->clips;
+	struct v4l2_clip __user *kclips;
 	struct v4l2_clip32 __user *uclips;
 	compat_caddr_t p;
 	u32 clipcount;
@@ -116,6 +116,8 @@ static int put_v4l2_window32(struct v4l2_window __user *kp,
 	if (!clipcount)
 		return 0;
 
+	if (get_user(kclips, &kp->clips))
+		return -EFAULT;
 	if (get_user(p, &up->clips))
 		return -EFAULT;
 	uclips = compat_ptr(p);
@@ -871,7 +873,7 @@ static int put_v4l2_ext_controls32(struct file *file,
 	    get_user(kcontrols, &kp->controls))
 		return -EFAULT;
 
-	if (!count)
+	if (!count || count > (U32_MAX/sizeof(*ucontrols)))
 		return 0;
 	if (get_user(p, &up->controls))
 		return -EFAULT;
@@ -911,7 +913,11 @@ struct v4l2_event32 {
 	__u32				type;
 	union {
 		compat_s64		value64;
+#ifdef	CONFIG_USB_CONFIGFS_F_UVC_ROCKCHIP
+		__u8			data[4100];
+#else
 		__u8			data[64];
+#endif
 	} u;
 	__u32				pending;
 	__u32				sequence;

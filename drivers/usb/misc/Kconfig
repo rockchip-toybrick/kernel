@@ -268,3 +268,8 @@ config USB_CHAOSKEY
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called chaoskey.
+
+config USB_USBHUB_RESET
+	bool "USBHUB RESET Control driver support"
+	help
+	  Say Y here if you want to control usbhub reset.

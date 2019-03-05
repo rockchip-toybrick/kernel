@@ -121,12 +121,17 @@
 		SYS_STATUS_VIDEO_4K     800000
 		SYS_STATUS_VIDEO_4K_10B 800000
 		SYS_STATUS_PERFORMANCE  800000
-		SYS_STATUS_BOOST        400000
+		SYS_STATUS_BOOST        800000
 		SYS_STATUS_DUALVIEW     800000
 		SYS_STATUS_ISP          800000
 	>;
+	vop-bw-dmc-freq = <
+	/* min_bw(MB/s) max_bw(MB/s) freq(KHz) */
+		0       577      400000
+		578     99999    800000
+	>;
 	auto-min-freq = <400000>;
-	auto-freq-en = <0>;
+	auto-freq-en = <1>;
 };
 
 &dmc_opp_table {
@@ -169,5 +174,26 @@
 		opp-hz = /bits/ 64 <1056000000>;
 		opp-microvolt = <900000>;
 		status = "disabled";
+	};
+};
+
+&firmware_android {
+	compatible = "android,firmware";
+	fstab {
+		compatible = "android,fstab";
+		system {
+			compatible = "android,system";
+			dev = "/dev/block/by-name/system";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait,verify";
+		};
+		vendor {
+			compatible = "android,vendor";
+			dev = "/dev/block/by-name/vendor";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait,verify";
+		};
 	};
 };

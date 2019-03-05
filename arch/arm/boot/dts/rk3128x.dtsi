@@ -76,6 +76,7 @@
 		compatible = "operating-points-v2";
 		opp-shared;
 
+		rockchip,avs = <1>;
 		rockchip,leakage-scaling-sel = <
 			0   254   20
 		>;
@@ -90,35 +91,35 @@
 
 		opp-408000000 {
 			opp-hz = /bits/ 64 <408000000>;
-			opp-microvolt = <950000>;
-			opp-microvolt-L0 = <950000 950000 1175000>;
-			opp-microvolt-L1 = <950000 950000 1125000>;
+			opp-microvolt = <950000 950000 1200000>;
+			opp-microvolt-L0 = <950000 950000 1200000>;
+			opp-microvolt-L1 = <950000 950000 1200000>;
 			clock-latency-ns = <40000>;
 			opp-suspend;
 		};
 		opp-600000000 {
 			opp-hz = /bits/ 64 <600000000>;
-			opp-microvolt = <975000>;
-			opp-microvolt-L0 = <975000 975000 1175000>;
-			opp-microvolt-L1 = <975000 975000 1125000>;
+			opp-microvolt = <975000 975000 1200000>;
+			opp-microvolt-L0 = <975000 975000 1200000>;
+			opp-microvolt-L1 = <975000 975000 1200000>;
 		};
 		opp-816000000 {
 			opp-hz = /bits/ 64 <816000000>;
-			opp-microvolt = <1000000>;
-			opp-microvolt-L0 = <1000000 1000000 1175000>;
-			opp-microvolt-L1 = <1000000 1000000 1125000>;
+			opp-microvolt = <1000000 1000000 1200000>;
+			opp-microvolt-L0 = <1000000 1000000 1200000>;
+			opp-microvolt-L1 = <1000000 1000000 1200000>;
 		};
 		opp-1008000000 {
 			opp-hz = /bits/ 64 <1008000000>;
-			opp-microvolt = <1175000>;
-			opp-microvolt-L0 = <1175000 1175000 1175000>;
-			opp-microvolt-L1 = <1125000 1125000 1125000>;
+			opp-microvolt = <1175000 1175000 1200000>;
+			opp-microvolt-L0 = <1175000 1175000 1200000>;
+			opp-microvolt-L1 = <1125000 1125000 1200000>;
 		};
 		opp-1200000000 {
 			opp-hz = /bits/ 64 <1200000000>;
-			opp-microvolt = <1175000>;
-			opp-microvolt-L0 = <1175000 1175000 1175000>;
-			opp-microvolt-L1 = <1125000 1125000 1125000>;
+			opp-microvolt = <1175000 1175000 1200000>;
+			opp-microvolt-L0 = <1175000 1175000 1200000>;
+			opp-microvolt-L1 = <1125000 1125000 1200000>;
 		};
 	};
 
@@ -664,7 +665,7 @@
 					type = "passive";
 				};
 				soc_crit: soc-crit {
-					temperature = <90000>; /* millicelsius */
+					temperature = <115000>; /* millicelsius */
 					hysteresis = <2000>; /* millicelsius */
 					type = "critical";
 				};
@@ -709,12 +710,11 @@
 		assigned-clock-rates = <32768>;
 		resets = <&cru SRST_TSADC>;
 		reset-names = "tsadc-apb";
-		pinctrl-names = "init", "default", "sleep";
+		pinctrl-names = "gpio", "otpout";
 		pinctrl-0 = <&otp_gpio>;
 		pinctrl-1 = <&otp_out>;
-		pinctrl-2 = <&otp_gpio>;
 		#thermal-sensor-cells = <0>;
-		rockchip,hw-tshut-temp = <95000>;
+		rockchip,hw-tshut-temp = <120000>;
 		status = "disabled";
 	};
 

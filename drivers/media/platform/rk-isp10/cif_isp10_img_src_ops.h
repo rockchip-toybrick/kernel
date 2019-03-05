@@ -60,8 +60,8 @@ struct cif_isp10_img_src_ops {
 		void *img_src,
 		struct cif_isp10_frm_intrvl *frm_intrvl);
 	int (*enum_frame_size)(
-	void *img_src,
-	void *fse);
+		void *img_src,
+		void *fse);
 };
 
 const struct {

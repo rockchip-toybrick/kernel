@@ -1,7 +1,0 @@
-comment "ARM EAIDK EXTIO Borad Driver"
-
-config EAIDK_EXTBRD
-	tristate "ARM EAIDK ExtIO Borad support"
-	default n
-	help
-		ARM EAIDK EXTIO Board Driver. Say Y when you want to support.

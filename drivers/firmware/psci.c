@@ -361,7 +361,7 @@ static struct cpuidle_ops psci_cpuidle_ops __initdata = {
 	.init = psci_dt_cpu_init_idle,
 };
 
-CPUIDLE_METHOD_OF_DECLARE(psci, "arm,psci", &psci_cpuidle_ops);
+CPUIDLE_METHOD_OF_DECLARE(psci, "psci", &psci_cpuidle_ops);
 #endif
 #endif
 
@@ -505,7 +505,7 @@ static int __init psci_probe(void)
 
 	if (PSCI_VERSION_MAJOR(ver) >= 1) {
 		psci_init_cpu_suspend();
-		//psci_init_system_suspend();
+		/* psci_init_system_suspend(); */
 	}
 
 	return 0;

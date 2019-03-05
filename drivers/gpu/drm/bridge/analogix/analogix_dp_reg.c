@@ -372,9 +372,6 @@ void analogix_dp_clear_hotplug_interrupts(struct analogix_dp_device *dp)
 {
 	u32 reg;
 
-	if (gpio_is_valid(dp->hpd_gpio))
-		return;
-
 	reg = HOTPLUG_CHG | HPD_LOST | PLUG;
 	writel(reg, dp->reg_base + ANALOGIX_DP_COMMON_INT_STA_4);
 
@@ -385,9 +382,6 @@ void analogix_dp_clear_hotplug_interrupts(struct analogix_dp_device *dp)
 void analogix_dp_init_hpd(struct analogix_dp_device *dp)
 {
 	u32 reg;
-
-	if (gpio_is_valid(dp->hpd_gpio))
-		return;
 
 	analogix_dp_clear_hotplug_interrupts(dp);
 
@@ -409,27 +403,19 @@ enum dp_irq_type analogix_dp_get_irq_type(struct analogix_dp_device *dp)
 {
 	u32 reg;
 
-	if (gpio_is_valid(dp->hpd_gpio)) {
-		reg = gpio_get_value(dp->hpd_gpio);
-		if (reg)
-			return DP_IRQ_TYPE_HP_CABLE_IN;
-		else
-			return DP_IRQ_TYPE_HP_CABLE_OUT;
-	} else {
-		/* Parse hotplug interrupt status register */
-		reg = readl(dp->reg_base + ANALOGIX_DP_COMMON_INT_STA_4);
+	/* Parse hotplug interrupt status register */
+	reg = readl(dp->reg_base + ANALOGIX_DP_COMMON_INT_STA_4);
 
-		if (reg & PLUG)
-			return DP_IRQ_TYPE_HP_CABLE_IN;
+	if (reg & PLUG)
+		return DP_IRQ_TYPE_HP_CABLE_IN;
 
-		if (reg & HPD_LOST)
-			return DP_IRQ_TYPE_HP_CABLE_OUT;
+	if (reg & HPD_LOST)
+		return DP_IRQ_TYPE_HP_CABLE_OUT;
 
-		if (reg & HOTPLUG_CHG)
-			return DP_IRQ_TYPE_HP_CHANGE;
+	if (reg & HOTPLUG_CHG)
+		return DP_IRQ_TYPE_HP_CHANGE;
 
-		return DP_IRQ_TYPE_UNKNOWN;
-	}
+	return DP_IRQ_TYPE_UNKNOWN;
 }
 
 void analogix_dp_reset_aux(struct analogix_dp_device *dp)
@@ -477,14 +463,9 @@ int analogix_dp_get_plug_in_status(struct analogix_dp_device *dp)
 {
 	u32 reg;
 
-	if (gpio_is_valid(dp->hpd_gpio)) {
-		if (gpio_get_value(dp->hpd_gpio))
-			return 0;
-	} else {
-		reg = readl(dp->reg_base + ANALOGIX_DP_SYS_CTL_3);
-		if (reg & HPD_STATUS)
-			return 0;
-	}
+	reg = readl(dp->reg_base + ANALOGIX_DP_SYS_CTL_3);
+	if (reg & HPD_STATUS)
+		return 0;
 
 	return -EINVAL;
 }
@@ -496,418 +477,6 @@ void analogix_dp_enable_sw_function(struct analogix_dp_device *dp)
 	reg = readl(dp->reg_base + ANALOGIX_DP_FUNC_EN_1);
 	reg &= ~SW_FUNC_EN_N;
 	writel(reg, dp->reg_base + ANALOGIX_DP_FUNC_EN_1);
-}
-
-int analogix_dp_start_aux_transaction(struct analogix_dp_device *dp)
-{
-	int reg;
-	int retval = 0;
-	int timeout_loop = 0;
-
-	/* Enable AUX CH operation */
-	reg = readl(dp->reg_base + ANALOGIX_DP_AUX_CH_CTL_2);
-	reg |= AUX_EN;
-	writel(reg, dp->reg_base + ANALOGIX_DP_AUX_CH_CTL_2);
-
-	/* Is AUX CH command reply received? */
-	reg = readl(dp->reg_base + ANALOGIX_DP_INT_STA);
-	while (!(reg & RPLY_RECEIV)) {
-		timeout_loop++;
-		if (DP_TIMEOUT_LOOP_COUNT < timeout_loop) {
-			dev_err(dp->dev, "AUX CH command reply failed!\n");
-			return -ETIMEDOUT;
-		}
-		reg = readl(dp->reg_base + ANALOGIX_DP_INT_STA);
-		usleep_range(10, 11);
-	}
-
-	/* Clear interrupt source for AUX CH command reply */
-	writel(RPLY_RECEIV, dp->reg_base + ANALOGIX_DP_INT_STA);
-
-	/* Clear interrupt source for AUX CH access error */
-	reg = readl(dp->reg_base + ANALOGIX_DP_INT_STA);
-	if (reg & AUX_ERR) {
-		writel(AUX_ERR, dp->reg_base + ANALOGIX_DP_INT_STA);
-		return -EREMOTEIO;
-	}
-
-	/* Check AUX CH error access status */
-	reg = readl(dp->reg_base + ANALOGIX_DP_AUX_CH_STA);
-	if ((reg & AUX_STATUS_MASK) != 0) {
-		dev_err(dp->dev, "AUX CH error happens: %d\n\n",
-			reg & AUX_STATUS_MASK);
-		return -EREMOTEIO;
-	}
-
-	return retval;
-}
-
-int analogix_dp_write_byte_to_dpcd(struct analogix_dp_device *dp,
-				   unsigned int reg_addr,
-				   unsigned char data)
-{
-	u32 reg;
-	int i;
-	int retval;
-
-	for (i = 0; i < 3; i++) {
-		/* Clear AUX CH data buffer */
-		reg = BUF_CLR;
-		writel(reg, dp->reg_base + ANALOGIX_DP_BUFFER_DATA_CTL);
-
-		/* Select DPCD device address */
-		reg = AUX_ADDR_7_0(reg_addr);
-		writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_7_0);
-		reg = AUX_ADDR_15_8(reg_addr);
-		writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_15_8);
-		reg = AUX_ADDR_19_16(reg_addr);
-		writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_19_16);
-
-		/* Write data buffer */
-		reg = (unsigned int)data;
-		writel(reg, dp->reg_base + ANALOGIX_DP_BUF_DATA_0);
-
-		/*
-		 * Set DisplayPort transaction and write 1 byte
-		 * If bit 3 is 1, DisplayPort transaction.
-		 * If Bit 3 is 0, I2C transaction.
-		 */
-		reg = AUX_TX_COMM_DP_TRANSACTION | AUX_TX_COMM_WRITE;
-		writel(reg, dp->reg_base + ANALOGIX_DP_AUX_CH_CTL_1);
-
-		/* Start AUX transaction */
-		retval = analogix_dp_start_aux_transaction(dp);
-		if (retval == 0)
-			break;
-
-		dev_dbg(dp->dev, "%s: Aux Transaction fail!\n", __func__);
-	}
-
-	return retval;
-}
-
-int analogix_dp_read_byte_from_dpcd(struct analogix_dp_device *dp,
-				    unsigned int reg_addr,
-				    unsigned char *data)
-{
-	u32 reg;
-	int i;
-	int retval;
-
-	for (i = 0; i < 3; i++) {
-		/* Clear AUX CH data buffer */
-		reg = BUF_CLR;
-		writel(reg, dp->reg_base + ANALOGIX_DP_BUFFER_DATA_CTL);
-
-		/* Select DPCD device address */
-		reg = AUX_ADDR_7_0(reg_addr);
-		writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_7_0);
-		reg = AUX_ADDR_15_8(reg_addr);
-		writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_15_8);
-		reg = AUX_ADDR_19_16(reg_addr);
-		writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_19_16);
-
-		/*
-		 * Set DisplayPort transaction and read 1 byte
-		 * If bit 3 is 1, DisplayPort transaction.
-		 * If Bit 3 is 0, I2C transaction.
-		 */
-		reg = AUX_TX_COMM_DP_TRANSACTION | AUX_TX_COMM_READ;
-		writel(reg, dp->reg_base + ANALOGIX_DP_AUX_CH_CTL_1);
-
-		/* Start AUX transaction */
-		retval = analogix_dp_start_aux_transaction(dp);
-		if (retval == 0)
-			break;
-
-		dev_dbg(dp->dev, "%s: Aux Transaction fail!\n", __func__);
-	}
-
-	/* Read data buffer */
-	reg = readl(dp->reg_base + ANALOGIX_DP_BUF_DATA_0);
-	*data = (unsigned char)(reg & 0xff);
-
-	return retval;
-}
-
-int analogix_dp_write_bytes_to_dpcd(struct analogix_dp_device *dp,
-				    unsigned int reg_addr,
-				    unsigned int count,
-				    unsigned char data[])
-{
-	u32 reg;
-	unsigned int start_offset;
-	unsigned int cur_data_count;
-	unsigned int cur_data_idx;
-	int i;
-	int retval = 0;
-
-	/* Clear AUX CH data buffer */
-	reg = BUF_CLR;
-	writel(reg, dp->reg_base + ANALOGIX_DP_BUFFER_DATA_CTL);
-
-	start_offset = 0;
-	while (start_offset < count) {
-		/* Buffer size of AUX CH is 16 * 4bytes */
-		if ((count - start_offset) > 16)
-			cur_data_count = 16;
-		else
-			cur_data_count = count - start_offset;
-
-		for (i = 0; i < 3; i++) {
-			/* Select DPCD device address */
-			reg = AUX_ADDR_7_0(reg_addr + start_offset);
-			writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_7_0);
-			reg = AUX_ADDR_15_8(reg_addr + start_offset);
-			writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_15_8);
-			reg = AUX_ADDR_19_16(reg_addr + start_offset);
-			writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_19_16);
-
-			for (cur_data_idx = 0; cur_data_idx < cur_data_count;
-			     cur_data_idx++) {
-				reg = data[start_offset + cur_data_idx];
-				writel(reg, dp->reg_base +
-				       ANALOGIX_DP_BUF_DATA_0 +
-				       4 * cur_data_idx);
-			}
-
-			/*
-			 * Set DisplayPort transaction and write
-			 * If bit 3 is 1, DisplayPort transaction.
-			 * If Bit 3 is 0, I2C transaction.
-			 */
-			reg = AUX_LENGTH(cur_data_count) |
-				AUX_TX_COMM_DP_TRANSACTION | AUX_TX_COMM_WRITE;
-			writel(reg, dp->reg_base + ANALOGIX_DP_AUX_CH_CTL_1);
-
-			/* Start AUX transaction */
-			retval = analogix_dp_start_aux_transaction(dp);
-			if (retval == 0)
-				break;
-
-			dev_dbg(dp->dev, "%s: Aux Transaction fail!\n",
-				__func__);
-		}
-
-		start_offset += cur_data_count;
-	}
-
-	return retval;
-}
-
-int analogix_dp_read_bytes_from_dpcd(struct analogix_dp_device *dp,
-				     unsigned int reg_addr,
-				     unsigned int count,
-				     unsigned char data[])
-{
-	u32 reg;
-	unsigned int start_offset;
-	unsigned int cur_data_count;
-	unsigned int cur_data_idx;
-	int i;
-	int retval = 0;
-
-	/* Clear AUX CH data buffer */
-	reg = BUF_CLR;
-	writel(reg, dp->reg_base + ANALOGIX_DP_BUFFER_DATA_CTL);
-
-	start_offset = 0;
-	while (start_offset < count) {
-		/* Buffer size of AUX CH is 16 * 4bytes */
-		if ((count - start_offset) > 16)
-			cur_data_count = 16;
-		else
-			cur_data_count = count - start_offset;
-
-		/* AUX CH Request Transaction process */
-		for (i = 0; i < 3; i++) {
-			/* Select DPCD device address */
-			reg = AUX_ADDR_7_0(reg_addr + start_offset);
-			writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_7_0);
-			reg = AUX_ADDR_15_8(reg_addr + start_offset);
-			writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_15_8);
-			reg = AUX_ADDR_19_16(reg_addr + start_offset);
-			writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_19_16);
-
-			/*
-			 * Set DisplayPort transaction and read
-			 * If bit 3 is 1, DisplayPort transaction.
-			 * If Bit 3 is 0, I2C transaction.
-			 */
-			reg = AUX_LENGTH(cur_data_count) |
-				AUX_TX_COMM_DP_TRANSACTION | AUX_TX_COMM_READ;
-			writel(reg, dp->reg_base + ANALOGIX_DP_AUX_CH_CTL_1);
-
-			/* Start AUX transaction */
-			retval = analogix_dp_start_aux_transaction(dp);
-			if (retval == 0)
-				break;
-
-			dev_dbg(dp->dev, "%s: Aux Transaction fail!\n",
-				__func__);
-		}
-
-		for (cur_data_idx = 0; cur_data_idx < cur_data_count;
-		    cur_data_idx++) {
-			reg = readl(dp->reg_base + ANALOGIX_DP_BUF_DATA_0
-						 + 4 * cur_data_idx);
-			data[start_offset + cur_data_idx] =
-				(unsigned char)reg;
-		}
-
-		start_offset += cur_data_count;
-	}
-
-	return retval;
-}
-
-int analogix_dp_select_i2c_device(struct analogix_dp_device *dp,
-				  unsigned int device_addr,
-				  unsigned int reg_addr)
-{
-	u32 reg;
-	int retval;
-
-	/* Set EDID device address */
-	reg = device_addr;
-	writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_7_0);
-	writel(0x0, dp->reg_base + ANALOGIX_DP_AUX_ADDR_15_8);
-	writel(0x0, dp->reg_base + ANALOGIX_DP_AUX_ADDR_19_16);
-
-	/* Set offset from base address of EDID device */
-	writel(reg_addr, dp->reg_base + ANALOGIX_DP_BUF_DATA_0);
-
-	/*
-	 * Set I2C transaction and write address
-	 * If bit 3 is 1, DisplayPort transaction.
-	 * If Bit 3 is 0, I2C transaction.
-	 */
-	reg = AUX_TX_COMM_I2C_TRANSACTION | AUX_TX_COMM_MOT |
-		AUX_TX_COMM_WRITE;
-	writel(reg, dp->reg_base + ANALOGIX_DP_AUX_CH_CTL_1);
-
-	/* Start AUX transaction */
-	retval = analogix_dp_start_aux_transaction(dp);
-	if (retval != 0)
-		dev_dbg(dp->dev, "%s: Aux Transaction fail!\n", __func__);
-
-	return retval;
-}
-
-int analogix_dp_read_byte_from_i2c(struct analogix_dp_device *dp,
-				   unsigned int device_addr,
-				   unsigned int reg_addr,
-				   unsigned int *data)
-{
-	u32 reg;
-	int i;
-	int retval;
-
-	for (i = 0; i < 3; i++) {
-		/* Clear AUX CH data buffer */
-		reg = BUF_CLR;
-		writel(reg, dp->reg_base + ANALOGIX_DP_BUFFER_DATA_CTL);
-
-		/* Select EDID device */
-		retval = analogix_dp_select_i2c_device(dp, device_addr,
-						       reg_addr);
-		if (retval != 0)
-			continue;
-
-		/*
-		 * Set I2C transaction and read data
-		 * If bit 3 is 1, DisplayPort transaction.
-		 * If Bit 3 is 0, I2C transaction.
-		 */
-		reg = AUX_TX_COMM_I2C_TRANSACTION |
-			AUX_TX_COMM_READ;
-		writel(reg, dp->reg_base + ANALOGIX_DP_AUX_CH_CTL_1);
-
-		/* Start AUX transaction */
-		retval = analogix_dp_start_aux_transaction(dp);
-		if (retval == 0)
-			break;
-
-		dev_dbg(dp->dev, "%s: Aux Transaction fail!\n", __func__);
-	}
-
-	/* Read data */
-	if (retval == 0)
-		*data = readl(dp->reg_base + ANALOGIX_DP_BUF_DATA_0);
-
-	return retval;
-}
-
-int analogix_dp_read_bytes_from_i2c(struct analogix_dp_device *dp,
-				    unsigned int device_addr,
-				    unsigned int reg_addr,
-				    unsigned int count,
-				    unsigned char edid[])
-{
-	u32 reg;
-	unsigned int i, j;
-	unsigned int cur_data_idx;
-	unsigned int defer = 0;
-	int retval = 0;
-
-	for (i = 0; i < count; i += 16) {
-		for (j = 0; j < 3; j++) {
-			/* Clear AUX CH data buffer */
-			reg = BUF_CLR;
-			writel(reg, dp->reg_base + ANALOGIX_DP_BUFFER_DATA_CTL);
-
-			/* Set normal AUX CH command */
-			reg = readl(dp->reg_base + ANALOGIX_DP_AUX_CH_CTL_2);
-			reg &= ~ADDR_ONLY;
-			writel(reg, dp->reg_base + ANALOGIX_DP_AUX_CH_CTL_2);
-
-			/*
-			 * If Rx sends defer, Tx sends only reads
-			 * request without sending address
-			 */
-			if (!defer)
-				retval = analogix_dp_select_i2c_device(dp,
-						device_addr, reg_addr + i);
-			else
-				defer = 0;
-
-			if (retval == 0) {
-				/*
-				 * Set I2C transaction and write data
-				 * If bit 3 is 1, DisplayPort transaction.
-				 * If Bit 3 is 0, I2C transaction.
-				 */
-				reg = AUX_LENGTH(16) |
-					AUX_TX_COMM_I2C_TRANSACTION |
-					AUX_TX_COMM_READ;
-				writel(reg, dp->reg_base +
-					ANALOGIX_DP_AUX_CH_CTL_1);
-
-				/* Start AUX transaction */
-				retval = analogix_dp_start_aux_transaction(dp);
-				if (retval == 0)
-					break;
-
-				dev_dbg(dp->dev, "%s: Aux Transaction fail!\n",
-					__func__);
-			}
-			/* Check if Rx sends defer */
-			reg = readl(dp->reg_base + ANALOGIX_DP_AUX_RX_COMM);
-			if (reg == AUX_RX_COMM_AUX_DEFER ||
-			    reg == AUX_RX_COMM_I2C_DEFER) {
-				dev_err(dp->dev, "Defer: %d\n\n", reg);
-				defer = 1;
-			}
-		}
-
-		for (cur_data_idx = 0; cur_data_idx < 16; cur_data_idx++) {
-			reg = readl(dp->reg_base + ANALOGIX_DP_BUF_DATA_0
-						 + 4 * cur_data_idx);
-			edid[i + cur_data_idx] = (unsigned char)reg;
-		}
-	}
-
-	return retval;
 }
 
 void analogix_dp_set_link_bandwidth(struct analogix_dp_device *dp, u32 bwtype)
@@ -1077,34 +646,22 @@ void analogix_dp_set_lane3_link_training(struct analogix_dp_device *dp,
 
 u32 analogix_dp_get_lane0_link_training(struct analogix_dp_device *dp)
 {
-	u32 reg;
-
-	reg = readl(dp->reg_base + ANALOGIX_DP_LN0_LINK_TRAINING_CTL);
-	return reg;
+	return readl(dp->reg_base + ANALOGIX_DP_LN0_LINK_TRAINING_CTL);
 }
 
 u32 analogix_dp_get_lane1_link_training(struct analogix_dp_device *dp)
 {
-	u32 reg;
-
-	reg = readl(dp->reg_base + ANALOGIX_DP_LN1_LINK_TRAINING_CTL);
-	return reg;
+	return readl(dp->reg_base + ANALOGIX_DP_LN1_LINK_TRAINING_CTL);
 }
 
 u32 analogix_dp_get_lane2_link_training(struct analogix_dp_device *dp)
 {
-	u32 reg;
-
-	reg = readl(dp->reg_base + ANALOGIX_DP_LN2_LINK_TRAINING_CTL);
-	return reg;
+	return readl(dp->reg_base + ANALOGIX_DP_LN2_LINK_TRAINING_CTL);
 }
 
 u32 analogix_dp_get_lane3_link_training(struct analogix_dp_device *dp)
 {
-	u32 reg;
-
-	reg = readl(dp->reg_base + ANALOGIX_DP_LN3_LINK_TRAINING_CTL);
-	return reg;
+	return readl(dp->reg_base + ANALOGIX_DP_LN3_LINK_TRAINING_CTL);
 }
 
 void analogix_dp_reset_macro(struct analogix_dp_device *dp)
@@ -1325,4 +882,197 @@ void analogix_dp_disable_scrambling(struct analogix_dp_device *dp)
 	reg = readl(dp->reg_base + ANALOGIX_DP_TRAINING_PTN_SET);
 	reg |= SCRAMBLING_DISABLE;
 	writel(reg, dp->reg_base + ANALOGIX_DP_TRAINING_PTN_SET);
+}
+
+void analogix_dp_set_video_format(struct analogix_dp_device *dp)
+{
+	struct video_info *video = &dp->video_info;
+	const struct drm_display_mode *mode = &video->mode;
+	unsigned int hsw, hfp, hbp, vsw, vfp, vbp;
+
+	hsw = mode->hsync_end - mode->hsync_start;
+	hfp = mode->hsync_start - mode->hdisplay;
+	hbp = mode->htotal - mode->hsync_end;
+	vsw = mode->vsync_end - mode->vsync_start;
+	vfp = mode->vsync_start - mode->vdisplay;
+	vbp = mode->vtotal - mode->vsync_end;
+
+	/* Set Video Format Parameters */
+	writel(TOTAL_LINE_CFG_L(mode->vtotal),
+	       dp->reg_base + ANALOGIX_DP_TOTAL_LINE_CFG_L);
+	writel(TOTAL_LINE_CFG_H(mode->vtotal >> 8),
+	       dp->reg_base + ANALOGIX_DP_TOTAL_LINE_CFG_H);
+	writel(ACTIVE_LINE_CFG_L(mode->vdisplay),
+	       dp->reg_base + ANALOGIX_DP_ACTIVE_LINE_CFG_L);
+	writel(ACTIVE_LINE_CFG_H(mode->vdisplay >> 8),
+	       dp->reg_base + ANALOGIX_DP_ACTIVE_LINE_CFG_H);
+	writel(V_F_PORCH_CFG(vfp),
+	       dp->reg_base + ANALOGIX_DP_V_F_PORCH_CFG);
+	writel(V_SYNC_WIDTH_CFG(vsw),
+	       dp->reg_base + ANALOGIX_DP_V_SYNC_WIDTH_CFG);
+	writel(V_B_PORCH_CFG(vbp),
+	       dp->reg_base + ANALOGIX_DP_V_B_PORCH_CFG);
+	writel(TOTAL_PIXEL_CFG_L(mode->htotal),
+	       dp->reg_base + ANALOGIX_DP_TOTAL_PIXEL_CFG_L);
+	writel(TOTAL_PIXEL_CFG_H(mode->htotal >> 8),
+	       dp->reg_base + ANALOGIX_DP_TOTAL_PIXEL_CFG_H);
+	writel(ACTIVE_PIXEL_CFG_L(mode->hdisplay),
+	       dp->reg_base + ANALOGIX_DP_ACTIVE_PIXEL_CFG_L);
+	writel(ACTIVE_PIXEL_CFG_H(mode->hdisplay >> 8),
+	       dp->reg_base + ANALOGIX_DP_ACTIVE_PIXEL_CFG_H);
+	writel(H_F_PORCH_CFG_L(hfp),
+	       dp->reg_base + ANALOGIX_DP_H_F_PORCH_CFG_L);
+	writel(H_F_PORCH_CFG_H(hfp >> 8),
+	       dp->reg_base + ANALOGIX_DP_H_F_PORCH_CFG_H);
+	writel(H_SYNC_CFG_L(hsw),
+	       dp->reg_base + ANALOGIX_DP_H_SYNC_CFG_L);
+	writel(H_SYNC_CFG_H(hsw >> 8),
+	       dp->reg_base + ANALOGIX_DP_H_SYNC_CFG_H);
+	writel(H_B_PORCH_CFG_L(hbp),
+	       dp->reg_base + ANALOGIX_DP_H_B_PORCH_CFG_L);
+	writel(H_B_PORCH_CFG_H(hbp >> 8),
+	       dp->reg_base + ANALOGIX_DP_H_B_PORCH_CFG_H);
+}
+
+void analogix_dp_video_bist_enable(struct analogix_dp_device *dp)
+{
+	u32 reg;
+
+	/* Enable Video BIST */
+	writel(BIST_EN, dp->reg_base + ANALOGIX_DP_VIDEO_CTL_4);
+
+	/*
+	 * Note that if BIST_EN is set to 1, F_SEL must be cleared to 0
+	 * although video format information comes from registers set by user.
+	 */
+	reg = readl(dp->reg_base + ANALOGIX_DP_VIDEO_CTL_10);
+	reg &= ~FORMAT_SEL;
+	writel(reg, dp->reg_base + ANALOGIX_DP_VIDEO_CTL_10);
+}
+
+ssize_t analogix_dp_transfer(struct analogix_dp_device *dp,
+			     struct drm_dp_aux_msg *msg)
+{
+	u32 reg;
+	u8 *buffer = msg->buffer;
+	int timeout_loop = 0;
+	unsigned int i;
+	int num_transferred = 0;
+
+	/* Buffer size of AUX CH is 16 bytes */
+	if (WARN_ON(msg->size > 16))
+		return -E2BIG;
+
+	/* Clear AUX CH data buffer */
+	reg = BUF_CLR;
+	writel(reg, dp->reg_base + ANALOGIX_DP_BUFFER_DATA_CTL);
+
+	switch (msg->request & ~DP_AUX_I2C_MOT) {
+	case DP_AUX_I2C_WRITE:
+		reg = AUX_TX_COMM_WRITE | AUX_TX_COMM_I2C_TRANSACTION;
+		if (msg->request & DP_AUX_I2C_MOT)
+			reg |= AUX_TX_COMM_MOT;
+		break;
+
+	case DP_AUX_I2C_READ:
+		reg = AUX_TX_COMM_READ | AUX_TX_COMM_I2C_TRANSACTION;
+		if (msg->request & DP_AUX_I2C_MOT)
+			reg |= AUX_TX_COMM_MOT;
+		break;
+
+	case DP_AUX_NATIVE_WRITE:
+		reg = AUX_TX_COMM_WRITE | AUX_TX_COMM_DP_TRANSACTION;
+		break;
+
+	case DP_AUX_NATIVE_READ:
+		reg = AUX_TX_COMM_READ | AUX_TX_COMM_DP_TRANSACTION;
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	reg |= AUX_LENGTH(msg->size);
+	writel(reg, dp->reg_base + ANALOGIX_DP_AUX_CH_CTL_1);
+
+	/* Select DPCD device address */
+	reg = AUX_ADDR_7_0(msg->address);
+	writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_7_0);
+	reg = AUX_ADDR_15_8(msg->address);
+	writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_15_8);
+	reg = AUX_ADDR_19_16(msg->address);
+	writel(reg, dp->reg_base + ANALOGIX_DP_AUX_ADDR_19_16);
+
+	if (!(msg->request & DP_AUX_I2C_READ)) {
+		for (i = 0; i < msg->size; i++) {
+			reg = buffer[i];
+			writel(reg, dp->reg_base + ANALOGIX_DP_BUF_DATA_0 +
+			       4 * i);
+			num_transferred++;
+		}
+	}
+
+	/* Enable AUX CH operation */
+	reg = AUX_EN;
+
+	/* Zero-sized messages specify address-only transactions. */
+	if (msg->size < 1)
+		reg |= ADDR_ONLY;
+
+	writel(reg, dp->reg_base + ANALOGIX_DP_AUX_CH_CTL_2);
+
+	/* Is AUX CH command reply received? */
+	/* TODO: Wait for an interrupt instead of looping? */
+	reg = readl(dp->reg_base + ANALOGIX_DP_INT_STA);
+	while (!(reg & RPLY_RECEIV)) {
+		timeout_loop++;
+		if (timeout_loop > DP_TIMEOUT_LOOP_COUNT) {
+			dev_err(dp->dev, "AUX CH command reply failed!\n");
+			return -ETIMEDOUT;
+		}
+		reg = readl(dp->reg_base + ANALOGIX_DP_INT_STA);
+		usleep_range(10, 11);
+	}
+
+	/* Clear interrupt source for AUX CH command reply */
+	writel(RPLY_RECEIV, dp->reg_base + ANALOGIX_DP_INT_STA);
+
+	/* Clear interrupt source for AUX CH access error */
+	reg = readl(dp->reg_base + ANALOGIX_DP_INT_STA);
+	if (reg & AUX_ERR) {
+		writel(AUX_ERR, dp->reg_base + ANALOGIX_DP_INT_STA);
+		return -EREMOTEIO;
+	}
+
+	/* Check AUX CH error access status */
+	reg = readl(dp->reg_base + ANALOGIX_DP_AUX_CH_STA);
+	if ((reg & AUX_STATUS_MASK)) {
+		dev_err(dp->dev, "AUX CH error happened: %d\n\n",
+			reg & AUX_STATUS_MASK);
+		return -EREMOTEIO;
+	}
+
+	if (msg->request & DP_AUX_I2C_READ) {
+		for (i = 0; i < msg->size; i++) {
+			reg = readl(dp->reg_base + ANALOGIX_DP_BUF_DATA_0 +
+				    4 * i);
+			buffer[i] = (unsigned char)reg;
+			num_transferred++;
+		}
+	}
+
+	/* Check if Rx sends defer */
+	reg = readl(dp->reg_base + ANALOGIX_DP_AUX_RX_COMM);
+	if (reg == AUX_RX_COMM_AUX_DEFER)
+		msg->reply = DP_AUX_NATIVE_REPLY_DEFER;
+	else if (reg == AUX_RX_COMM_I2C_DEFER)
+		msg->reply = DP_AUX_I2C_REPLY_DEFER;
+	else if ((msg->request & ~DP_AUX_I2C_MOT) == DP_AUX_I2C_WRITE ||
+		 (msg->request & ~DP_AUX_I2C_MOT) == DP_AUX_I2C_READ)
+		msg->reply = DP_AUX_I2C_REPLY_ACK;
+	else if ((msg->request & ~DP_AUX_I2C_MOT) == DP_AUX_NATIVE_WRITE ||
+		 (msg->request & ~DP_AUX_I2C_MOT) == DP_AUX_NATIVE_READ)
+		msg->reply = DP_AUX_NATIVE_REPLY_ACK;
+
+	return num_transferred;
 }

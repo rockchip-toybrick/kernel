@@ -96,7 +96,7 @@
 		button-up {
 			label = "Volume Up";
 			linux,code = <KEY_VOLUMEUP>;
-			press-threshold-microvolt = <100000>;
+			press-threshold-microvolt = <18000>;
 		};
 
 		button-down {
@@ -436,6 +436,14 @@
 };
 
 &rga {
+	status = "okay";
+};
+
+&route_edp {
+	status = "okay";
+};
+
+&route_hdmi {
 	status = "okay";
 };
 

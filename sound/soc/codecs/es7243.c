@@ -131,6 +131,7 @@ int es7243_startup(struct i2c_client *client)
 int es7243_start(void)
 {
 	int i = 0;
+	printk("es7243_start\n");
 	for(i = 0; i < count; i++)
 		es7243_startup(es7243_i2c_client[i]);
 	return 0;
@@ -172,6 +173,7 @@ int es7243_set_standby(struct i2c_client *client)
 int es7243_standby(void)
 {
 	int i = 0;
+	printk("es7243_standby\n");
 	for(i = 0; i < count; i++)
 		es7243_set_standby(es7243_i2c_client[i]);
 	return 0;
@@ -190,6 +192,7 @@ static int es7243_i2c_probe(struct i2c_client *client,
 {
 	const struct of_device_id *match;
 	struct device *dev = &client->dev;
+	printk("es7243_i2c_probe\n");
 	if (dev->of_node) {
 		match = of_match_device(of_es7243_match, dev);
 		if (!match) {
@@ -201,6 +204,7 @@ static int es7243_i2c_probe(struct i2c_client *client,
 	count++;
 	es7243_init();
 	es7243_start();
+	printk("es7243_i2c_probe finish\n");
 	return 0;
 }
 

@@ -508,14 +508,14 @@ static int adjoin(struct dm_table *table, struct dm_target *ti)
  * On the other hand, dm-switch needs to process bulk data using messages and
  * excessive use of GFP_NOIO could cause trouble.
  */
-static char **realloc_argv(unsigned *array_size, char **old_argv)
+static char **realloc_argv(unsigned *size, char **old_argv)
 {
 	char **argv;
 	unsigned new_size;
 	gfp_t gfp;
 
-	if (*array_size) {
-		new_size = *array_size * 2;
+	if (*size) {
+		new_size = *size * 2;
 		gfp = GFP_KERNEL;
 	} else {
 		new_size = 8;
@@ -523,8 +523,8 @@ static char **realloc_argv(unsigned *array_size, char **old_argv)
 	}
 	argv = kmalloc(new_size * sizeof(*argv), gfp);
 	if (argv) {
-		memcpy(argv, old_argv, *array_size * sizeof(*argv));
-		*array_size = new_size;
+		memcpy(argv, old_argv, *size * sizeof(*argv));
+		*size = new_size;
 	}
 
 	kfree(old_argv);
@@ -747,6 +747,16 @@ int dm_table_add_target(struct dm_table *t, const char *type,
 		tgt->error = "couldn't split parameters (insufficient memory)";
 		goto bad;
 	}
+
+#ifdef CONFIG_ARCH_ROCKCHIP
+	while (argv &&
+	       strncmp(argv[1], "PARTUUID=", 9) == 0 &&
+	       name_to_dev_t(argv[1]) == 0) {
+		DMINFO("%s: %s: Waiting for device %s ...",
+		       dm_device_name(t->md), type, argv[1]);
+		msleep(100);
+	}
+#endif
 
 	r = tgt->type->ctr(tgt, argc, argv);
 	kfree(argv);

@@ -439,6 +439,9 @@ static int rockchip_spi_prepare_dma(struct rockchip_spi *rs)
 	struct dma_slave_config rxconf, txconf;
 	struct dma_async_tx_descriptor *rxdesc, *txdesc;
 
+	memset(&rxconf, 0, sizeof(struct dma_slave_config));
+	memset(&txconf, 0, sizeof(struct dma_slave_config));
+
 	spin_lock_irqsave(&rs->lock, flags);
 	rs->state &= ~RXBUSY;
 	rs->state &= ~TXBUSY;
@@ -517,6 +520,8 @@ static void rockchip_spi_config(struct rockchip_spi *rs)
 
 	cr0 |= (rs->n_bytes << CR0_DFS_OFFSET);
 	cr0 |= ((rs->mode & 0x3) << CR0_SCPH_OFFSET);
+	if (rs->mode & SPI_LSB_FIRST)
+		cr0 |= (1 << CR0_FBM_OFFSET);/* First Bit Mode */
 	cr0 |= (rs->tmode << CR0_XFM_OFFSET);
 	cr0 |= (rs->type << CR0_FRF_OFFSET);
 
@@ -734,7 +739,7 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 
 	master->auto_runtime_pm = true;
 	master->bus_num = pdev->id;
-	master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LOOP;
+	master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LOOP | SPI_LSB_FIRST;
 	master->num_chipselect = 2;
 	master->dev.of_node = pdev->dev.of_node;
 	master->bits_per_word_mask = SPI_BPW_MASK(16) | SPI_BPW_MASK(8);
@@ -915,6 +920,7 @@ static const struct dev_pm_ops rockchip_spi_pm = {
 
 static const struct of_device_id rockchip_spi_dt_match[] = {
 	{ .compatible = "rockchip,px30-spi",   },
+	{ .compatible = "rockchip,rv1108-spi", },
 	{ .compatible = "rockchip,rk3036-spi", },
 	{ .compatible = "rockchip,rk3066-spi", },
 	{ .compatible = "rockchip,rk3188-spi", },

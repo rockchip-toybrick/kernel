@@ -347,6 +347,8 @@ enum rk805_reg {
 
 #define VOUT_LO_INT	BIT(0)
 #define CLK32KOUT2_EN	BIT(0)
+#define CLK32KOUT2_FUNC		(0 << 1)
+#define CLK32KOUT2_FUNC_MASK	BIT(1)
 #define H5V_EN_MASK		BIT(0)
 #define H5V_EN_ENABLE		BIT(0)
 #define REF_RDY_CTRL_MASK	BIT(1)
@@ -762,6 +764,9 @@ enum rk805_reg {
 #define BUCK3_4_IMAX_MAX			(0x3 << 3)
 #define BOOST_DISABLE				((0x1 << 5) | (0x0 << 1))
 #define BUCK4_VRP_3PERCENT			0xc0
+#define RK816_BUCK_DVS_CONFIRM			(0x1 << 7)
+#define RK816_TYPE_ES2				0x05
+#define RK816_CHIP_VERSION_MASK			0x0f
 
 #define TEMP105C			0x08
 #define TEMP115C			0x0c
@@ -773,6 +778,7 @@ enum rk805_reg {
 #define PWM_MODE_MSK			BIT(7)
 #define FPWM_MODE			BIT(7)
 #define AUTO_PWM_MODE			0
+#define REGS_WMSK			0xf0
 
 enum rk817_reg_id {
 	RK817_ID_DCDC1 = 0,
@@ -818,6 +824,9 @@ enum rk809_reg_id {
 #define RK817_RTC_INT_REG		0xf
 #define RK817_RTC_COMP_LSB_REG		0x10
 #define RK817_RTC_COMP_MSB_REG		0x11
+
+#define RK817_POWER_EN_SAVE0		0x99
+#define RK817_POWER_EN_SAVE1		0xa4
 
 #define RK817_POWER_EN_REG(i)		(0xb1 + (i))
 #define RK817_POWER_SLP_EN_REG(i)	(0xb5 + (i))

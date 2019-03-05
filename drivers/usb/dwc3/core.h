@@ -166,6 +166,11 @@
 #define DWC3_DESCFETCHQ		13
 #define DWC3_EVENTQ		15
 
+/* Global TX Threshold Configuration Register */
+#define DWC3_GTXTHRCFG_MAXRXBURSTSIZE(n) (((n) & 0xff) << 16)
+#define DWC3_GTXTHRCFG_TXPKTCNT(n) (((n) & 0xf) << 24)
+#define DWC3_GTXTHRCFG_PKTCNTSEL BIT(29)
+
 /* Global RX Threshold Configuration Register */
 #define DWC3_GRXTHRCFG_MAXRXBURSTSIZE(n) (((n) & 0x1f) << 19)
 #define DWC3_GRXTHRCFG_RXPKTCNT(n) (((n) & 0xf) << 24)
@@ -238,6 +243,8 @@
 #define DWC3_GUSB3PIPECTL_TX_DEEPH(n)	((n) << 1)
 
 /* Global TX Fifo Size Register */
+#define DWC31_GTXFIFOSIZ_TXFRAMNUM	BIT(15)		/* DWC_usb31 only */
+#define DWC31_GTXFIFOSIZ_TXFDEF(n)	((n) & 0x7fff)	/* DWC_usb31 only */
 #define DWC3_GTXFIFOSIZ_TXFDEF(n)	((n) & 0xffff)
 #define DWC3_GTXFIFOSIZ_TXFSTADDR(n)	((n) & 0xffff0000)
 
@@ -442,6 +449,8 @@
 #define DWC3_DEPCMD_SETTRANSFRESOURCE	(0x02 << 0)
 #define DWC3_DEPCMD_SETEPCONFIG		(0x01 << 0)
 
+#define DWC3_DEPCMD_CMD(x)             ((x) & 0xf)
+
 /* The EP number goes 0..31 so ep0 is always out and ep1 is always in */
 #define DWC3_DALEPENA_EP(n)		(1 << n)
 
@@ -532,6 +541,7 @@ struct dwc3_ep {
 #define DWC3_EP_BUSY		(1 << 4)
 #define DWC3_EP_PENDING_REQUEST	(1 << 5)
 #define DWC3_EP_MISSED_ISOC	(1 << 6)
+#define DWC3_EP_TRANSFER_STARTED (1 << 8)
 
 	/* This last one is specific to EP0 */
 #define DWC3_EP0_DIR_IN		(1 << 31)
@@ -780,6 +790,8 @@ struct dwc3_scratchpad_array {
  * @test_mode_nr: test feature selector
  * @lpm_nyet_threshold: LPM NYET response threshold
  * @hird_threshold: HIRD threshold
+ * @grxthrcfg: global Tx threshold config
+ * @gtxthrcfg: global Rx threshold config
  * @hsphy_interface: "utmi" or "ulpi"
  * @connected: true when we're connected to a host, false otherwise
  * @delayed_status: true when gadget driver asks for delayed status
@@ -809,6 +821,7 @@ struct dwc3_scratchpad_array {
  * @dis_u3_autosuspend_quirk: set if the we disable usb3 autosuspend
  * @dis_u3_susphy_quirk: set if we disable usb3 suspend phy
  * @dis_u2_susphy_quirk: set if we disable usb2 suspend phy
+ * @dis_u1u2_quirk: set if we reject transition to U1 or U2 state
  * @dis_enblslpm_quirk: set if we clear enblslpm in GUSB2PHYCFG,
  *                      disabling the suspend signal to the PHY.
  * @dis_u2_freeclk_exists_quirk : set if we clear u2_freeclk_exists
@@ -821,6 +834,9 @@ struct dwc3_scratchpad_array {
  * @xhci_slow_suspend_quirk: set if need an extraordinary delay to wait
  *			for xHC enter the Halted state after the Run/Stop
  *			(R/S) bit is cleared to '0'.
+ * @xhci_trb_ent_quirk: set if need to enable the Evaluate Next TRB(ENT)
+			flag in the TRB data structure to force xHC to
+			pre-fetch the next TRB of a TD.
  * @usb3_warm_reset_on_resume_quirk: set if need a warm reset on resume
  * @tx_de_emphasis_quirk: set if we enable Tx de-emphasis quirk
  * @tx_de_emphasis: Tx de-emphasis value
@@ -938,6 +954,8 @@ struct dwc3 {
 	u8			test_mode_nr;
 	u8			lpm_nyet_threshold;
 	u8			hird_threshold;
+	u32			grxthrcfg[2];
+	u32			gtxthrcfg[2];
 
 	const char		*hsphy_interface;
 
@@ -966,12 +984,14 @@ struct dwc3 {
 	unsigned		dis_u3_autosuspend_quirk:1;
 	unsigned		dis_u3_susphy_quirk:1;
 	unsigned		dis_u2_susphy_quirk:1;
+	unsigned		dis_u1u2_quirk:1;
 	unsigned		dis_enblslpm_quirk:1;
 	unsigned		dis_rxdet_inp3_quirk:1;
 	unsigned		dis_u2_freeclk_exists_quirk:1;
 	unsigned		dis_del_phy_power_chg_quirk:1;
 	unsigned		tx_ipgap_linecheck_dis_quirk:1;
 	unsigned		xhci_slow_suspend_quirk:1;
+	unsigned		xhci_trb_ent_quirk:1;
 	unsigned		usb3_warm_reset_on_resume_quirk:1;
 
 	unsigned		tx_de_emphasis_quirk:1;

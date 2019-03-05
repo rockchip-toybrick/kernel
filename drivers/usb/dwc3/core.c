@@ -100,7 +100,10 @@ static int dwc3_core_soft_reset(struct dwc3 *dwc)
 	 * XHCI driver will reset the host block. If dwc3 was configured for
 	 * host-only mode, then we can return early.
 	 */
-	if (dwc->dr_mode == USB_DR_MODE_HOST)
+	reg = dwc3_readl(dwc->regs, DWC3_GCTL);
+	if (dwc->dr_mode == USB_DR_MODE_HOST ||
+	    (dwc->dr_mode == USB_DR_MODE_OTG &&
+	    DWC3_GCTL_PRTCAP(reg) == DWC3_GCTL_PRTCAP_HOST))
 		return 0;
 
 	reg = dwc3_readl(dwc->regs, DWC3_DCTL);
@@ -126,6 +129,17 @@ static int dwc3_soft_reset(struct dwc3 *dwc)
 {
 	unsigned long timeout;
 	u32 reg;
+
+	/*
+	 * We're resetting only the device side because, if we're in host mode,
+	 * XHCI driver will reset the host block. If dwc3 was configured for
+	 * host-only mode, then we can return early.
+	 */
+	reg = dwc3_readl(dwc->regs, DWC3_GCTL);
+	if (dwc->dr_mode == USB_DR_MODE_HOST ||
+	    (dwc->dr_mode == USB_DR_MODE_OTG &&
+	    DWC3_GCTL_PRTCAP(reg) == DWC3_GCTL_PRTCAP_HOST))
+		return 0;
 
 	timeout = jiffies + msecs_to_jiffies(500);
 	dwc3_writel(dwc->regs, DWC3_DCTL, DWC3_DCTL_CSFTRST);
@@ -715,6 +729,22 @@ static int dwc3_core_init(struct dwc3 *dwc)
 
 	dwc3_writel(dwc->regs, DWC3_GUCTL1, reg);
 
+	if (dwc->grxthrcfg[0] > 0) {
+		reg = dwc3_readl(dwc->regs, DWC3_GRXTHRCFG);
+		reg |= DWC3_GRXTHRCFG_PKTCNTSEL |
+		       DWC3_GRXTHRCFG_RXPKTCNT(dwc->grxthrcfg[0]) |
+		       DWC3_GRXTHRCFG_MAXRXBURSTSIZE(dwc->grxthrcfg[1]);
+		dwc3_writel(dwc->regs, DWC3_GRXTHRCFG, reg);
+	}
+
+	if (dwc->gtxthrcfg[0] > 0) {
+		reg = dwc3_readl(dwc->regs, DWC3_GTXTHRCFG);
+		reg |= DWC3_GTXTHRCFG_PKTCNTSEL |
+		       DWC3_GTXTHRCFG_TXPKTCNT(dwc->gtxthrcfg[0]) |
+		       DWC3_GTXTHRCFG_MAXRXBURSTSIZE(dwc->gtxthrcfg[1]);
+		dwc3_writel(dwc->regs, DWC3_GTXTHRCFG, reg);
+	}
+
 	return 0;
 
 err4:
@@ -986,6 +1016,8 @@ static int dwc3_probe(struct platform_device *pdev)
 				"snps,dis_u3_susphy_quirk");
 	dwc->dis_u2_susphy_quirk = device_property_read_bool(dev,
 				"snps,dis_u2_susphy_quirk");
+	dwc->dis_u1u2_quirk = device_property_read_bool(dev,
+				"snps,dis-u1u2-quirk");
 	dwc->dis_enblslpm_quirk = device_property_read_bool(dev,
 				"snps,dis_enblslpm_quirk");
 	dwc->dis_rxdet_inp3_quirk = device_property_read_bool(dev,
@@ -998,6 +1030,8 @@ static int dwc3_probe(struct platform_device *pdev)
 				"snps,tx-ipgap-linecheck-dis-quirk");
 	dwc->xhci_slow_suspend_quirk = device_property_read_bool(dev,
 				"snps,xhci-slow-suspend-quirk");
+	dwc->xhci_trb_ent_quirk = device_property_read_bool(dev,
+				"snps,xhci-trb-ent-quirk");
 	dwc->usb3_warm_reset_on_resume_quirk = device_property_read_bool(dev,
 				"snps,usb3-warm-reset-on-resume-quirk");
 
@@ -1009,6 +1043,11 @@ static int dwc3_probe(struct platform_device *pdev)
 				    &dwc->hsphy_interface);
 	device_property_read_u32(dev, "snps,quirk-frame-length-adjustment",
 				 &dwc->fladj);
+	device_property_read_u32_array(dev, "snps,gtx-threshold-cfg",
+				       dwc->gtxthrcfg, 2);
+
+	device_property_read_u32_array(dev, "snps,grx-threshold-cfg",
+				       dwc->grxthrcfg, 2);
 
 	/* default to superspeed if no maximum_speed passed */
 	if (dwc->maximum_speed == USB_SPEED_UNKNOWN)

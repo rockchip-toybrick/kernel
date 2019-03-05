@@ -1,0 +1,106 @@
+/dts-v1/;
+#include "rk3399pro-toybrick-prop.dtsi"
+//#include "lcd-mipi2lvds-for-toybrick.dtsi"
+
+/ {
+	compatible = "rockchip,rk3399pro-toybrick-prop-android","rockchip,rk3399pro";
+
+	wireless-wlan {
+		compatible = "wlan-platdata";
+		wifi_chip_type = "rtl8188eu";
+		status = "okay";
+	};
+	chosen {
+		bootargs = "console=ttyFIQ0 androidboot.baseband=N/A androidboot.selinux=permissive androidboot.veritymode=enforcing androidboot.hardware=rk30board androidboot.console=ttyFIQ0 init=/init initrd=0x62000000,0x00800000 earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1";
+	};
+};
+
+&pcie_phy {
+	status = "okay";
+};
+
+&pcie0 {
+	ep-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;
+	num-lines = <4>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie_clkreqn_cpm &pcie_ep>;
+	status = "okay";
+};
+
+&fiq_debugger {
+	pinctrl-0 = <&uart2c_xfer>;
+};
+
+&firmware_android {
+	compatible = "android,firmware";
+	fstab {
+		compatible = "android,fstab";
+		system {
+			compatible = "android,system";
+			dev = "/dev/block/by-name/system";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait,verify";
+		};
+		vendor {
+			compatible = "android,vendor";
+			dev = "/dev/block/by-name/vendor";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait,verify";
+		};
+	};
+};
+
+&hdmi_dp_sound {
+	status = "okay";
+};
+
+&isp0 {
+	status = "okay";
+};
+
+&isp1 {
+	status = "okay";
+};
+
+&isp0_mmu {
+	status = "okay";
+};
+
+&isp1_mmu {
+	status = "okay";
+};
+
+&rk_key {
+	status = "okay";
+	io-channels = <&saradc 2>;
+	/delete-node/ power-key;
+};
+
+&uart4 {
+	status = "okay";
+};
+
+&spi1 {
+	status = "disabled";
+};
+
+&route_edp {
+	status = "okay";
+	connect = <&vopb_out_edp>;
+};
+
+&route_dsi {
+	status = "okay";
+	connect = <&vopl_out_dsi>;
+};
+
+&pinctrl {
+	pcie {
+		pcie_ep: pcie-ep {
+			rockchip,pins =
+				<0 12 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+};

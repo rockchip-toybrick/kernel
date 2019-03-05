@@ -77,13 +77,16 @@ static long clk_fd_round_rate(struct clk_hw *hw, unsigned long rate,
 	unsigned long m, n;
 	u64 ret;
 
-	if (!rate || rate >= *parent_rate)
+	if (!rate)
 		return *parent_rate;
 
-	if (fd->approximation)
+	if (fd->approximation) {
 		fd->approximation(hw, rate, parent_rate, &m, &n);
-	else
+	} else {
+		if (rate >= *parent_rate)
+			return *parent_rate;
 		clk_fd_general_approximation(hw, rate, parent_rate, &m, &n);
+	}
 
 	ret = (u64)*parent_rate * m;
 	do_div(ret, n);
@@ -102,6 +105,24 @@ static int clk_fd_set_rate(struct clk_hw *hw, unsigned long rate,
 	rational_best_approximation(rate, parent_rate,
 			GENMASK(fd->mwidth - 1, 0), GENMASK(fd->nwidth - 1, 0),
 			&m, &n);
+
+	/*
+	 * When compensation the fractional divider,
+	 * the [1:0] bits of the numerator register are omitted,
+	 * which will lead to a large deviation in the result.
+	 * Therefore, it is required that the numerator must
+	 * be greater than 4.
+	 */
+	if (m < 4 && m != 0) {
+		val = DIV_ROUND_UP(4, m);
+		n *= val;
+		m *= val;
+		if (n > fd->nmask) {
+			pr_debug("%s n(%ld) is overflow, use mask value\n",
+				 __func__, n);
+			n = fd->nmask;
+		}
+	}
 
 	if (fd->lock)
 		spin_lock_irqsave(fd->lock, flags);

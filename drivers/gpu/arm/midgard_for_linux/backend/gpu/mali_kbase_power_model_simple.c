@@ -46,7 +46,7 @@ static unsigned long model_static_power(struct devfreq *devfreq,
 	unsigned long temp_squared, temp_cubed, temp_scaling_factor;
 	const unsigned long voltage_cubed = (voltage * voltage * voltage) >> 10;
 
-	if (gpu_tz) {
+	if (!IS_ERR_OR_NULL(gpu_tz) && gpu_tz->ops->get_temp) {
 		int ret;
 
 		ret = gpu_tz->ops->get_temp(gpu_tz, &temperature);

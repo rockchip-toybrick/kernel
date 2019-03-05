@@ -30,14 +30,12 @@
 # Invoke gcc, looking for warnings, and causing a failure if there are
 # non-whitelisted warnings.
 
+from __future__ import print_function
 import errno
 import re
 import os
 import sys
 import subprocess
-
-# Note that gcc uses unicode, which may depend on the locale.  TODO:
-# force LANG to be set to en_US.UTF-8 to get consistent warnings.
 
 allowed_warnings = set([
     "posix-cpu-timers.c:1268", # kernel/time/posix-cpu-timers.c:1268:13: warning: 'now' may be used uninitialized in this function
@@ -81,10 +79,14 @@ allowed_warnings = set([
     "compat.c:524", # net/compat.c:524:35: warning: ‘gsr_source’ offset 132 in ‘struct compat_group_source_req’ isn’t aligned to 8 [-Wpacked-not-aligned]
     "compat.c:536", # net/compat.c:536:1: warning: alignment 4 of ‘struct compat_group_filter’ is less than 8 [-Wpacked-not-aligned]
     "compat.c:530", # net/compat.c:530:35: warning: ‘gf_group’ offset 4 in ‘struct compat_group_filter’ isn’t aligned to 8 [-Wpacked-not-aligned]
+    "halphyrf_8188e_ce.c:2208", # drivers/net/wireless/rockchip_wlan/rtl8189es/hal/phydm/rtl8188e/halphyrf_8188e_ce.c:2208:1: warning: the frame size of 1056 bytes is larger than 1024 bytes
+    "halphyrf_8723b_ce.c:2879", # drivers/net/wireless/rockchip_wlan/rtl8723bu/hal/phydm/rtl8723b/halphyrf_8723b_ce.c:2879:1: warning: the frame size of 1056 bytes is larger than 1024 bytes
  ])
 
 # Capture the name of the object file, can find it.
 ofile = None
+
+do_exit = False;
 
 warning_re = re.compile(r'''(.*/|)([^/]+\.[a-z]+:\d+):(\d+:)? warning:''')
 def interpret_warning(line):
@@ -92,7 +94,7 @@ def interpret_warning(line):
     line = line.rstrip('\n')
     m = warning_re.match(line)
     if m and m.group(2) not in allowed_warnings:
-        print "error, forbidden warning:", m.group(2)
+        print ("error, forbidden warning:" + m.group(2))
 
         # If there is a warning, remove any object if it exists.
         if ofile:
@@ -100,7 +102,8 @@ def interpret_warning(line):
                 os.remove(ofile)
             except OSError:
                 pass
-        sys.exit(1)
+        global do_exit
+        do_exit = True;
 
 def run_gcc():
     args = sys.argv[1:]
@@ -115,19 +118,23 @@ def run_gcc():
     compiler = sys.argv[0]
 
     try:
-        proc = subprocess.Popen(args, stderr=subprocess.PIPE)
+        env = os.environ.copy()
+        env['LC_ALL'] = 'C'
+        proc = subprocess.Popen(args, stderr=subprocess.PIPE, env=env)
         for line in proc.stderr:
-            print line,
-            interpret_warning(line)
+            print (line.decode("utf-8"), end="")
+            interpret_warning(line.decode("utf-8"))
+        if do_exit:
+            sys.exit(1)
 
         result = proc.wait()
     except OSError as e:
         result = e.errno
         if result == errno.ENOENT:
-            print args[0] + ':',e.strerror
-            print 'Is your PATH set correctly?'
+            print (args[0] + ':' + e.strerror)
+            print ('Is your PATH set correctly?')
         else:
-            print ' '.join(args), str(e)
+            print (' '.join(args) + str(e))
 
     return result
 

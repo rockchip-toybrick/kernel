@@ -1,0 +1,31 @@
+/dts-v1/;
+#include "rk3399pro-toybrick-prop.dtsi"
+#include "rk3399pro-toybrick-ov9750.dtsi"
+
+/ {
+	compatible = "rockchip,rk3399pro-toybrick-evb-linux","rockchip,rk3399pro";
+	extbrd: extbrd {
+		compatible = "prop-extboard";
+		io-channels = <&saradc 0>, <&saradc 1>;
+	};
+};
+
+&fiq_debugger {
+	pinctrl-0 = <&uart2c_xfer>;
+};
+
+&rk_key {
+	status = "disabled";
+};
+
+&route_edp {
+	status = "okay";
+};
+
+&route_dsi {
+	status = "okay";
+};
+
+&hdmi_codec {
+	status = "okay";
+};

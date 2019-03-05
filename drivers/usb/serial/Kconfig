@@ -62,6 +62,7 @@ config USB_SERIAL_SIMPLE
 		- Fundamental Software dongle.
 		- Google USB serial devices
 		- HP4x calculators
+		- Libtransistor USB console
 		- a number of Motorola phones
 		- Motorola Tetra devices
 		- Novatel Wireless GPS receivers
@@ -715,9 +716,9 @@ config USB_SERIAL_DEBUG
 	  module will be called usb-debug.
 
 config USB_SERIAL_XR21V1414
-	tristate "USB Serial Exar XR21V1414 support"
-	depends on USB
-	help
-	  This selects support for Exar XR21V1414 serial ports.
+       tristate "USB Serial Exar XR21V1414 support"
+       depends on USB
+       help
+         This selects support for Exar XR21V1414 serial ports.
 
 endif # USB_SERIAL

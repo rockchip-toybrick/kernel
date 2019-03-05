@@ -101,13 +101,10 @@
 		prepare-delay-ms = <20>;
 		unprepare-delay-ms = <20>;
 		disable-delay-ms = <20>;
+		bus-format = <MEDIA_BUS_FMT_RGB888_1X7X4_SPWG>;
 
 		width-mm = <217>;
 		height-mm = <136>;
-
-		rockchip,data-mapping = "vesa";
-		rockchip,data-width = <24>;
-		rockchip,output = "lvds";
 
 		display-timings {
 			native-mode = <&timing0>;
@@ -309,15 +306,15 @@
 				};
 			};
 
-			vcc2v5_ddr: LDO_REG1 {
+			vcc_1v0: LDO_REG1 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <2500000>;
-				regulator-max-microvolt = <2500000>;
-				regulator-name = "vcc2v5_ddr";
+				regulator-min-microvolt = <1000000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-name = "vcc_1v0";
 				regulator-state-mem {
 					regulator-on-in-suspend;
-					regulator-suspend-microvolt = <2500000>;
+					regulator-suspend-microvolt = <1000000>;
 				};
 			};
 
@@ -509,11 +506,16 @@
 	};
 };
 
+&lvds_in_vopb {
+	status = "okay";
+};
+
 &lvds_in_vopl {
 	status = "disabled";
 };
 
 &route_lvds {
+	connect = <&vopb_out_lvds>;
 	status = "okay";
 };
 
@@ -586,7 +588,7 @@
 };
 
 &tsadc {
-	pinctrl-names = "init", "default";
+	pinctrl-names = "gpio", "otpout";
 	pinctrl-0 = <&tsadc_otp_gpio>;
 	pinctrl-1 = <&tsadc_otp_out>;
 	status = "okay";
@@ -640,4 +642,25 @@
 
 &vpu_combo {
 	status = "okay";
+};
+
+&firmware_android {
+	compatible = "android,firmware";
+	fstab {
+		compatible = "android,fstab";
+		system {
+			compatible = "android,system";
+			dev = "/dev/block/by-name/system";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait";
+		};
+		vendor {
+			compatible = "android,vendor";
+			dev = "/dev/block/by-name/vendor";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait";
+		};
+	};
 };

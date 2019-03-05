@@ -5,6 +5,7 @@
 #include <linux/types.h>
 #include <linux/init.h>
 #include <linux/device.h>
+#include <linux/clk.h>
 
 struct rksdmmc_iomux {
     char    *name;  //set the MACRO of gpio
@@ -43,6 +44,7 @@ struct rksdmmc_gpio_wifi_moudle {
     struct rksdmmc_gpio   GPS_LAN;  //pin33--GPS_LAN
 	struct rksdmmc_gpio   work_led_gpio;
     struct regmap *grf;
+	struct clk *ext_clk;
 };
 
 enum {
@@ -75,6 +77,7 @@ enum {
     WIFI_RTL_SERIES,
     WIFI_ESP8089,
     WIFI_MVL88W8977,
+    WIFI_SSV6051,
     TYPE_MAX,
 };
 

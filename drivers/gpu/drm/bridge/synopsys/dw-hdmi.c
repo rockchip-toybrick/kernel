@@ -1085,7 +1085,7 @@ static void hdmi_video_csc(struct dw_hdmi *hdmi)
 	if (is_color_space_interpolation(hdmi))
 		interpolation = HDMI_CSC_CFG_INTMODE_CHROMA_INT_FORMULA1;
 	else if (is_color_space_decimation(hdmi))
-		decimation = HDMI_CSC_CFG_DECMODE_CHROMA_INT_FORMULA3;
+		decimation = HDMI_CSC_CFG_DECMODE_CHROMA_INT_FORMULA1;
 
 	switch (hdmi_bus_fmt_color_depth(hdmi->hdmi_data.enc_out_bus_format)) {
 	case 8:
@@ -1826,7 +1826,7 @@ static void hdmi_config_hdr_infoframe(struct dw_hdmi *hdmi)
 
 	/* Dynamic Range and Mastering Infoframe is introduced in v2.11a. */
 	if (hdmi->version < 0x211a) {
-		DRM_ERROR("Not support DRM Infoframe\n");
+		DRM_DEBUG("Not support DRM Infoframe\n");
 		return;
 	}
 
@@ -1959,14 +1959,11 @@ static void hdmi_av_composer(struct dw_hdmi *hdmi,
 	dev_dbg(hdmi->dev, "final tmdsclk = %d\n", vmode->mtmdsclock);
 
 	/* Set up HDMI_FC_INVIDCONF
-	 * fc_invidconf.HDCP_keepout must be set (1'b1)
-	 * when activate the scrambler feature.
+	 * Some display equipments require that the interval
+	 * between Video Data and Data island must be at least 58 pixels,
+	 * and fc_invidconf.HDCP_keepout set (1'b1) can meet the requirement.
 	 */
-	inv_val = (vmode->mtmdsclock > 340000000 ||
-		   (hdmi_info->scdc.scrambling.low_rates &&
-		    hdmi->scramble_low_rates) ?
-		   HDMI_FC_INVIDCONF_HDCP_KEEPOUT_ACTIVE :
-		   HDMI_FC_INVIDCONF_HDCP_KEEPOUT_INACTIVE);
+	inv_val = HDMI_FC_INVIDCONF_HDCP_KEEPOUT_ACTIVE;
 
 	inv_val |= mode->flags & DRM_MODE_FLAG_PVSYNC ?
 		HDMI_FC_INVIDCONF_VSYNC_IN_POLARITY_ACTIVE_HIGH :
@@ -2174,6 +2171,19 @@ static void dw_hdmi_clear_overflow(struct dw_hdmi *hdmi)
 	val = hdmi_readb(hdmi, HDMI_FC_INVIDCONF);
 	for (i = 0; i < count; i++)
 		hdmi_writeb(hdmi, val, HDMI_FC_INVIDCONF);
+
+	/* Audio software reset */
+	if (hdmi->sink_has_audio) {
+		val = hdmi_readb(hdmi, HDMI_AUD_CONF0);
+		val &= HDMI_AUD_CONF0_I2S_SELECT_MASK;
+		hdmi_modb(hdmi, ~val, HDMI_AUD_CONF0_I2S_SELECT_MASK,
+			  HDMI_AUD_CONF0);
+		udelay(10);
+		hdmi_modb(hdmi, val | HDMI_AUD_CONF0_SW_RESET,
+			  HDMI_AUD_CONF0_SW_RESET |
+			  HDMI_AUD_CONF0_I2S_SELECT_MASK,
+			  HDMI_AUD_CONF0);
+	}
 }
 
 static void hdmi_enable_overflow_interrupts(struct dw_hdmi *hdmi)
@@ -2498,6 +2508,7 @@ static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
 	struct edid *edid;
 	struct drm_display_mode *mode;
 	const u8 def_modes[6] = {4, 16, 31, 19, 17, 2};
+	struct drm_display_info *info = &connector->display_info;
 	struct hdr_static_metadata *metedata =
 			&connector->display_info.hdmi.hdr_panel_metadata;
 	int i, ret = 0;
@@ -2533,6 +2544,10 @@ static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
 				ret++;
 			}
 		}
+		info->edid_hdmi_dc_modes = 0;
+		info->hdmi.y420_dc_modes = 0;
+		info->color_formats = 0;
+
 		dev_info(hdmi->dev, "failed to get edid\n");
 	}
 
@@ -2580,7 +2595,7 @@ dw_hdmi_connector_atomic_begin(struct drm_connector *connector,
 	unsigned int enc_in_encoding;
 	unsigned int enc_out_encoding;
 
-	if (!hdmi->hpd_state || !conn_state->crtc)
+	if (!conn_state->crtc)
 		return;
 
 	if (!hdmi->hdmi_data.video_mode.mpixelclock)
@@ -2631,7 +2646,7 @@ dw_hdmi_connector_atomic_flush(struct drm_connector *connector,
 	unsigned int out_bus_format = hdmi->hdmi_data.enc_out_bus_format;
 
 
-	if (!hdmi->hpd_state || !conn_state->crtc)
+	if (!conn_state->crtc)
 		return;
 
 	DRM_DEBUG("%s\n", __func__);
@@ -3835,10 +3850,30 @@ void dw_hdmi_suspend(struct device *dev)
 {
 	struct dw_hdmi *hdmi = dev_get_drvdata(dev);
 
+	if (!hdmi) {
+		dev_warn(dev, "Hdmi has not been initialized\n");
+		return;
+	}
+
 	mutex_lock(&hdmi->mutex);
+
+	/*
+	 * When system shutdown, hdmi should be disabled.
+	 * When system suspend, dw_hdmi_bridge_disable will disable hdmi first.
+	 * To prevent duplicate operation, we should determine whether hdmi
+	 * has been disabled.
+	 */
+	if (!hdmi->disabled) {
+		hdmi->disabled = true;
+		dw_hdmi_update_power(hdmi);
+		dw_hdmi_update_phy_mask(hdmi);
+	}
+	mutex_unlock(&hdmi->mutex);
+
 	if (hdmi->irq)
 		disable_irq(hdmi->irq);
-	mutex_unlock(&hdmi->mutex);
+	cancel_delayed_work(&hdmi->work);
+	flush_workqueue(hdmi->workqueue);
 	pinctrl_pm_select_sleep_state(dev);
 }
 EXPORT_SYMBOL_GPL(dw_hdmi_suspend);
@@ -3846,6 +3881,11 @@ EXPORT_SYMBOL_GPL(dw_hdmi_suspend);
 void dw_hdmi_resume(struct device *dev)
 {
 	struct dw_hdmi *hdmi = dev_get_drvdata(dev);
+
+	if (!hdmi) {
+		dev_warn(dev, "Hdmi has not been initialized\n");
+		return;
+	}
 
 	pinctrl_pm_select_default_state(dev);
 	mutex_lock(&hdmi->mutex);

@@ -32,7 +32,6 @@
 #include <linux/i2c.h>
 #include <linux/spi/spi.h>
 #include <linux/iio/consumer.h>
-#include <linux/adc.h>
 #include <linux/wakelock.h>
 #include <linux/gpio.h>
 
@@ -96,7 +95,10 @@ extern int es8316_headset_detect(int jack_insert);
 #if defined(CONFIG_SND_SOC_CX2072X)
 extern int cx2072x_jack_report(void);
 #endif
-
+#ifdef CONFIG_SND_SOC_ES7243
+extern int es7243_standby(void);
+extern int es7243_start(void);
+#endif
 /* headset private data */
 struct headset_priv {
 	struct input_dev *input_dev;

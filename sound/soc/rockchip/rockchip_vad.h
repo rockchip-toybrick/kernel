@@ -45,7 +45,7 @@
 #define SRC_ADDR_MODE_FIXED		BIT(14)
 #define INCR_BURST_LEN_SHIFT		10
 #define INCR_BURST_LEN_MASK		GENMASK(13, 10)
-#define INCR_BURST_LEN(x)		((x) << INCR_BURST_LEN_SHIFT)
+#define INCR_BURST_LEN(x)		((x - 1) << INCR_BURST_LEN_SHIFT)
 #define SRC_BURST_NUM_SHIFT		7
 #define SRC_BURST_NUM_MASK		GENMASK(9, 7)
 #define SRC_BURST_NUM(x)		((x - 1) << SRC_BURST_NUM_SHIFT)
@@ -110,6 +110,7 @@
 #define NOISE_LEVEL_SHIFT		12
 #define NOISE_LEVEL_MASK		GENMASK(14, 12)
 #define NOISE_LEVEL(x)			((x) << NOISE_LEVEL_SHIFT)
+#define GAIN_SHIFT			0
 #define GAIN_MASK			GENMASK(9, 0)
 #define GAIN(x)				(x)
 
@@ -174,6 +175,30 @@
 #define ERR_INT_EN			BIT(1)
 #define VAD_DET_INT_EN_MASK		BIT(0)
 #define VAD_DET_INT_EN			BIT(0)
+
+#define VAD_AUX_CONTROL			0x78
+#define SAMPLE_CNT_EN_MASK		BIT(29)
+#define SAMPLE_CNT_EN			BIT(29)
+#define SAMPLE_CNT_DIS			0
+#define INT_TRIG_CTRL_EN_MASK		BIT(28)
+#define INT_TRIG_CTRL_EN		BIT(28)
+#define INT_TRIG_CTRL_DIS		0
+#define INT_TRIG_VALID_THD_MASK		GENMASK(27, 16)
+#define INT_TRIG_VALID_THD(x)		(((x) - 1) << 16)
+#define DATA_TRANS_KBYTE_THD_MASK	GENMASK(11, 4)
+#define DATA_TRANS_KBYTE_THD(x)		(((x) - 1) << 4)
+#define DATA_TRANS_TRIG_INT_EN_MASK	BIT(2)
+#define DATA_TRANS_TRIG_INT_EN		BIT(2)
+#define DATA_TRANS_TRIG_INT_DIS		0
+#define RAM_ITF_EN_MASK			BIT(1)
+#define RAM_ITF_EN			0
+#define RAM_ITF_DIS			BIT(1)
+#define BUS_WRITE_EN_MASK		BIT(0)
+#define BUS_WRITE_EN			BIT(0)
+#define BUS_WRITE_DIS			0
+
+#define VAD_SAMPLE_CNT			0x7c
+#define VAD_NOISE_DATA			0x100
 
 /* acodec */
 #define ACODEC_BASE			0xff560000

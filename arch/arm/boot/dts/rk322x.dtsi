@@ -109,8 +109,8 @@
 		clocks = <&cru PLL_APLL>;
 		rockchip,max-volt = <1350000>;
 		rockchip,leakage-voltage-sel = <
-			1   4     0
-			5   254   1
+			1   8     0
+			9   254   1
 		>;
 		nvmem-cells = <&cpu_leakage>;
 		nvmem-cell-names = "cpu_leakage";
@@ -281,6 +281,8 @@
 		clocks = <&cru SCLK_I2S1>, <&cru HCLK_I2S1_8CH>;
 		dmas = <&pdma 14>, <&pdma 15>;
 		dma-names = "tx", "rx";
+		resets = <&cru SRST_I2S1>;
+		reset-names = "reset-m";
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2s1_bus>;
 		status = "disabled";
@@ -296,6 +298,8 @@
 		clocks = <&cru SCLK_I2S0>, <&cru HCLK_I2S0_8CH>;
 		dmas = <&pdma 11>, <&pdma 12>;
 		dma-names = "tx", "rx";
+		resets = <&cru SRST_I2S0>;
+		reset-names = "reset-m";
 		status = "disabled";
 	};
 
@@ -323,6 +327,8 @@
 		clocks = <&cru SCLK_I2S2>, <&cru HCLK_I2S2_2CH>;
 		dmas = <&pdma 0>, <&pdma 1>;
 		dma-names = "tx", "rx";
+		resets = <&cru SRST_I2S2>;
+		reset-names = "reset-m";
 		status = "disabled";
 	};
 
@@ -681,7 +687,7 @@
 					type = "passive";
 				};
 				soc_crit: soc-crit {
-					temperature = <90000>; /* millicelsius */
+					temperature = <115000>; /* millicelsius */
 					hysteresis = <2000>; /* millicelsius */
 					type = "critical";
 				};
@@ -726,12 +732,11 @@
 		assigned-clock-rates = <32768>;
 		resets = <&cru SRST_TSADC>;
 		reset-names = "tsadc-apb";
-		pinctrl-names = "init", "default", "sleep";
+		pinctrl-names = "gpio", "otpout";
 		pinctrl-0 = <&otp_gpio>;
 		pinctrl-1 = <&otp_out>;
-		pinctrl-2 = <&otp_gpio>;
 		#thermal-sensor-cells = <0>;
-		rockchip,hw-tshut-temp = <95000>;
+		rockchip,hw-tshut-temp = <120000>;
 		status = "disabled";
 	};
 
@@ -1081,6 +1086,7 @@
 		fifo-depth = <0x100>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_bus4>;
+		cd-gpios = <&gpio1 RK_PC1 GPIO_ACTIVE_LOW>;
 		status = "disabled";
 	};
 

@@ -559,6 +559,12 @@ config USB_CAM_GPIO
 	help
 	  Enable this driver will support usb camera gpio control
 
+config EXTIO
+	bool "External Borad IO driver"
+	default n
+	help
+	  Enable this driver will support external board io control
+
 config GPIO_DET
 	bool "gpio detection driver"
 	help
@@ -576,5 +582,4 @@ source "drivers/misc/mic/Kconfig"
 source "drivers/misc/genwqe/Kconfig"
 source "drivers/misc/echo/Kconfig"
 source "drivers/misc/cxl/Kconfig"
-source "drivers/misc/extbrd/Kconfig"
 endmenu

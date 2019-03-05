@@ -1,4 +1,3 @@
-//#define DEBUG
 #include <media/v4l2-subdev.h>
 #include <linux/i2c.h>
 #include <linux/slab.h>
@@ -35,18 +34,19 @@ struct device_info_node  {
 };
 
 struct run_mclk_node {
-	const char * clk_name;
-	struct clk *   clk;
-	unsigned long rate;
-	struct list_head request;
-	struct list_head enable;
+	const char		*clk_name;
+	struct clk		*clk;
+	unsigned long		rate;
+	struct list_head	request;
+	struct list_head	enable;
 };
 
 static DEFINE_MUTEX(mclk_mutex);
 
 static struct run_mclk_node run_mclk;
 
-static struct device_info_node *find_device_info_node(struct device *dev, struct list_head *head)
+static struct device_info_node *find_device_info_node(struct device *dev,
+						      struct list_head *head)
 {
 	struct list_head *pos;
 	struct device_info_node *node = NULL;
@@ -70,7 +70,7 @@ int rk_camera_mclk_get(struct device *dev, const char *str)
 	struct device_info_node *node;
 
 	mutex_lock(&mclk_mutex);
-	if (run_mclk.clk_name == NULL && run_mclk.clk == NULL) {
+	if (!run_mclk.clk_name && !run_mclk.clk) {
 		run_mclk.clk = clk_get(dev, str);
 		if (!run_mclk.clk) {
 			camera_error(dev, "get %s clock error!\n",  str);
@@ -80,7 +80,7 @@ int rk_camera_mclk_get(struct device *dev, const char *str)
 		INIT_LIST_HEAD(&run_mclk.request);
 		INIT_LIST_HEAD(&run_mclk.enable);
 		run_mclk.clk_name =  str;
-	} else if (0 != strcmp(str, run_mclk.clk_name)) {
+	} else if (strcmp(str, run_mclk.clk_name) != 0) {
 		camera_error(dev, "mclk can't reuse %s\n", str);
 		goto end;
 	} else {
@@ -94,7 +94,7 @@ int rk_camera_mclk_get(struct device *dev, const char *str)
 		goto end;
 	}
 
-	node = kzalloc(sizeof(struct device_info_node ), GFP_KERNEL);
+	node = kzalloc(sizeof(*node), GFP_KERNEL);
 	node->dev = dev;
 	list_add_tail(&node->list, &run_mclk.request);
 
@@ -125,7 +125,9 @@ int rk_camera_mclk_set_rate(struct device *dev, unsigned long rate)
 		camera_debug(dev, "set rate ok!\n");
 	} else {
 		if (run_mclk.rate != rate)
-			camera_error(dev, "rate not match, cur rate = %lu, wanted rate = %lu\n", run_mclk.rate, rate);
+			camera_error(dev, "rate not match, cur rate = %lu,"
+				     "wanted rate = %lu\n",
+				     run_mclk.rate, rate);
 	}
 
 end:
@@ -150,7 +152,7 @@ int rk_camera_mclk_prepare_enable(struct device *dev)
 	if (!node) {
 		if (list_empty(&run_mclk.enable))
 			enable_flag = 1;
-		node = kzalloc(sizeof(struct device_info_node), GFP_KERNEL);
+		node = kzalloc(sizeof(*node), GFP_KERNEL);
 		node->dev = dev;
 		list_add_tail(&node->list, &run_mclk.enable);
 		camera_debug(dev, "mclk add to enable list\n");
@@ -159,6 +161,7 @@ int rk_camera_mclk_prepare_enable(struct device *dev)
 	}
 
 	if (enable_flag) {
+		camera_debug(dev, "mclk start to enable!\n");
 		clk_set_rate(run_mclk.clk, run_mclk.rate);
 		clk_prepare_enable(run_mclk.clk);
 	}
@@ -193,7 +196,8 @@ int rk_camera_mclk_disable_unprepare(struct device *dev)
 
 	if (list_empty(&run_mclk.enable)) {
 		clk_disable_unprepare(run_mclk.clk);
-		camera_debug(dev, "%s clk_disable_unprepare\n", run_mclk.clk_name);
+		camera_debug(dev, "%s clk_disable_unprepare\n",
+			     run_mclk.clk_name);
 	}
 
 	ret = 0;
@@ -201,7 +205,6 @@ end:
 	mutex_unlock(&mclk_mutex);
 	return ret;
 }
-
 
 int rk_camera_mclk_put(struct device *dev)
 {

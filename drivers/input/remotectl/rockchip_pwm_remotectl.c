@@ -18,7 +18,10 @@
 #include <linux/rockchip/rockchip_sip.h>
 
 #include "rockchip_pwm_remotectl.h"
-
+#define CONFIG_PWM_PCBA_TEST 1
+#ifdef CONFIG_PWM_PCBA_TEST
+static int keycode;
+#endif
 
 
 /*sys/module/rk_pwm_remotectl/parameters,
@@ -234,6 +237,9 @@ static void rk_pwm_remotectl_do_something(unsigned long  data)
 		if (ddata->count < 0x10)
 			return;
 		DBG_CODE("RMC_GETDATA=%x\n", (ddata->scandata>>8));
+		#ifdef CONFIG_PWM_PCBA_TEST
+		keycode = ddata->scandata >> 8;
+		#endif
 		if ((ddata->scandata&0x0ff) ==
 		    ((~ddata->scandata >> 8) & 0x0ff)) {
 			if (remotectl_keycode_lookup(ddata)) {
@@ -382,7 +388,30 @@ static int rk_pwm_remotectl_hw_init(struct rkxx_remotectl_drvdata *ddata)
 	writel_relaxed(val, ddata->base + PWM_REG_CTRL);
 	return 0;
 }
+#ifdef CONFIG_PWM_PCBA_TEST
+static ssize_t pwm_show(struct kobject *kobj, struct kobj_attribute *attr,
+			 char *buf)
+{
+	return sprintf(buf, "keycode 0x%x\n", keycode);
 
+}
+
+static struct kobject *pwm_kobj;
+struct pwm_attribute {
+
+	struct attribute    attr;
+
+	ssize_t (*show)(struct kobject *kobj, struct kobj_attribute *attr,
+			char *buf);
+	ssize_t (*store)(struct kobject *kobj, struct kobj_attribute *attr,
+			 const char *buf, size_t n);
+};
+
+static struct pwm_attribute pwm_attrs[] = {
+	/*     node_name    permision       show_func   store_func */
+	__ATTR(pwm_pcba,  S_IRUGO | S_IWUSR,  pwm_show, NULL),
+};
+#endif
 
 static int rk_pwm_probe(struct platform_device *pdev)
 {
@@ -403,8 +432,19 @@ static int rk_pwm_probe(struct platform_device *pdev)
 	int pwm_id;
 	int pwm_freq;
 	int count;
-
 	pr_err(".. rk pwm remotectl v1.1 init\n");
+#ifdef CONFIG_PWM_PCBA_TEST
+	pwm_kobj = kobject_create_and_add("pwm_pcba", NULL);
+	if (!pwm_kobj)
+		return -ENOMEM;
+	for (i = 0; i < ARRAY_SIZE(pwm_attrs); i++) {
+		ret = sysfs_create_file(pwm_kobj, &pwm_attrs[i].attr);
+		if (ret != 0) {
+			printk(KERN_ERR "create pwm sysfs %d error\n", i);
+			/* return ret; */
+		}
+	}
+#endif
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!r) {
 		dev_err(&pdev->dev, "no memory resources defined\n");
@@ -570,6 +610,8 @@ static int rk_pwm_probe(struct platform_device *pdev)
 		}
 	}
 	sip_smc_remotectl_config(REMOTECTL_ENABLE, 1);
+
+
 end:
 	return 0;
 error_irq:

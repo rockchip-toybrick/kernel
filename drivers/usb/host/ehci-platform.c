@@ -30,6 +30,7 @@
 #include <linux/of.h>
 #include <linux/phy/phy.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/reset.h>
 #include <linux/usb.h>
 #include <linux/usb/hcd.h>
@@ -61,6 +62,18 @@ static void ehci_rockchip_relinquish_port(struct usb_hcd *hcd, int portnum)
 	portsc &= ~(PORT_OWNER | PORT_RWC_BITS);
 
 	ehci_writel(ehci, portsc, status_reg);
+}
+
+static void ehci_rockchip_usic_init(struct usb_hcd *hcd)
+{
+	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+
+	ehci_writel(ehci, USIC_ENABLE,
+		    hcd->regs + USIC_ENABLE_OFFSET);
+	ehci_writel(ehci, USIC_MICROFRAME_COUNT,
+		    hcd->regs + USIC_MICROFRAME_OFFSET);
+	ehci_writel(ehci, USIC_SCALE_DOWN,
+		    hcd->regs + USIC_SCALE_DOWN_OFFSET);
 }
 
 static int ehci_platform_reset(struct usb_hcd *hcd)
@@ -222,6 +235,10 @@ static int ehci_platform_probe(struct platform_device *dev)
 			hcd->rk3288_relinquish_port_quirk = 1;
 		}
 
+		if (of_property_read_bool(dev->dev.of_node,
+					  "rockchip-has-usic"))
+			ehci->has_usic = 1;
+
 		priv->num_phys = of_count_phandle_with_args(dev->dev.of_node,
 				"phys", "#phy-cells");
 
@@ -292,6 +309,9 @@ static int ehci_platform_probe(struct platform_device *dev)
 	}
 #endif
 
+	pm_runtime_set_active(&dev->dev);
+	pm_runtime_enable(&dev->dev);
+	pm_runtime_get_sync(&dev->dev);
 	if (pdata->power_on) {
 		err = pdata->power_on(dev);
 		if (err < 0)
@@ -313,6 +333,9 @@ static int ehci_platform_probe(struct platform_device *dev)
 	if (err)
 		goto err_power;
 
+	if (ehci->has_usic)
+		ehci_rockchip_usic_init(hcd);
+
 	device_wakeup_enable(hcd->self.controller);
 	platform_set_drvdata(dev, hcd);
 
@@ -322,6 +345,8 @@ err_power:
 	if (pdata->power_off)
 		pdata->power_off(dev);
 err_reset:
+	pm_runtime_put_sync(&dev->dev);
+	pm_runtime_disable(&dev->dev);
 	if (priv->rst)
 		reset_control_assert(priv->rst);
 err_put_clks:
@@ -355,6 +380,9 @@ static int ehci_platform_remove(struct platform_device *dev)
 		clk_put(priv->clks[clk]);
 
 	usb_put_hcd(hcd);
+
+	pm_runtime_put_sync(&dev->dev);
+	pm_runtime_disable(&dev->dev);
 
 	if (pdata == &ehci_platform_defaults)
 		dev->dev.platform_data = NULL;

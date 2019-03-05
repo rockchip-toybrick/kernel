@@ -55,7 +55,7 @@ static int rockchip_msm261s4030h0_card_audio_probe(struct platform_device *pdev)
 	int ret;
 
 	//set dev name to driver->name for sound card register
-	printk("csq11 %s,%s\n",__FILE__,__FUNCTION__);
+	printk("%s,%s\n",__FILE__,__FUNCTION__);
 	dev_set_name(&pdev->dev, "%s", pdev->dev.driver->name);
 
 	ret = snd_soc_register_codec(&pdev->dev,
@@ -64,14 +64,13 @@ static int rockchip_msm261s4030h0_card_audio_probe(struct platform_device *pdev)
 
 	if (ret)
 		printk("%s() register card failed:%d\n", __FUNCTION__, ret);
-	printk("---------------------rockchip_pcm_card_audio_probe111-------------------\n");
+	printk("---------------------rockchip_pcm_card_audio_probe-------------------\n");
 	return ret;
 }
 
 static int rockchip_msm261s4030h0_card_audio_remove(struct platform_device *pdev)
 {
 	snd_soc_unregister_codec(&pdev->dev);
-
 	return 0;
 }
 

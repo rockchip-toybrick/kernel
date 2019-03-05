@@ -12,7 +12,7 @@
 	compatible = "rockchip,rk3308-evb", "rockchip,rk3308";
 
 	chosen {
-		bootargs = "earlycon=uart8250,mmio32,0xff0c0000 swiotlb=1 console=ttyFIQ0 root=PARTUUID=614e0000-0000 rootfstype=squashfs rootwait";
+		bootargs = "earlycon=uart8250,mmio32,0xff0c0000 swiotlb=1 console=ttyFIQ0 root=PARTUUID=614e0000-0000 rootfstype=squashfs rootwait snd_aloop.index=7 snd_aloop.use_raw_jiffies=1";
 	};
 
 	adc-keys0 {
@@ -111,6 +111,30 @@
 		rockchip,codec = <&acodec>;
 	};
 
+	bluetooth_sound: bluetooth-sound {
+		status = "disabled";
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "rockchip,rk3308-pcm";
+		rockchip,mclk-fs = <128>;
+		rockchip,cpu = <&i2s_2ch_0>;
+		rockchip,codec = <&dummy_codec>;
+		rockchip,format = "dsp_b";
+		rockchip,bitclock-inversion = <0>;
+		rockchip,wait-card-locked = <0>;
+	};
+
+	spdif_rx_sound: spdif-rx-sound {
+		status = "disabled";
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "rockchip,spdif-rx-sound";
+		simple-audio-card,cpu {
+			sound-dai = <&spdif_rx>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&dummy_codec>;
+		};
+	};
+
 	spdif_tx_sound: spdif-tx-sound {
 		status = "disabled";
 		compatible = "simple-audio-card";
@@ -130,6 +154,7 @@
 		regulator-min-microvolt = <827000>;
 		regulator-max-microvolt = <1340000>;
 		regulator-init-microvolt = <1015000>;
+		regulator-early-min-microvolt = <1015000>;
 		regulator-always-on;
 		regulator-boot-on;
 		regulator-settling-time-up-us = <250>;
@@ -239,8 +264,8 @@
 &acodec {
 	status = "okay";
 
-	#sound-dai-cells = <0>;
-
+	rockchip,no-deep-low-power;
+	rockchip,loopback-grp = <3>;
 	hp-ctl-gpios = <&gpio0 RK_PA1 GPIO_ACTIVE_HIGH>;
 	spk-ctl-gpios = <&gpio0 RK_PA5 GPIO_ACTIVE_HIGH>;
 };
@@ -633,8 +658,6 @@
 
 &i2s_8ch_2 {
 	status = "okay";
-
-	#sound-dai-cells = <0>;
 };
 
 &nandc {
@@ -648,6 +671,10 @@
 		)
 	>;
 
+	status = "okay";
+};
+
+&rng {
 	status = "okay";
 };
 
@@ -676,6 +703,10 @@
 	card-detect-delay = <300>;
 	vmmc-supply = <&vcc_sd>;
 	status = "disabled";
+};
+
+&sfc {
+	status = "okay";
 };
 
 &tsadc {

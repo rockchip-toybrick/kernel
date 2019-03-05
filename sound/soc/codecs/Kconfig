@@ -740,7 +740,7 @@ config SND_SOC_TAS5086
 	depends on I2C
 
 config SND_SOC_TAS571X
-	tristate "Texas Instruments TAS5711/TAS5717/TAS5719 power amplifiers"
+	tristate "Texas Instruments TAS5711/TAS5717/TAS5719/TAS5731 power amplifiers"
 	depends on I2C
 
 config SND_SOC_TC358749X
@@ -1012,3 +1012,8 @@ config SND_SOC_MSM261S4030H0
 config SND_SOC_ES7243
         tristate "ASoC support for Rockchip es7243"
 endmenu
+config SND_SOC_MSM261S4030H0
+	tristate "ASoC support for Rockchip msm261s4030h0"
+
+config SND_SOC_ES7243
+	tristate "ASoC support for Rockchip es7243"

@@ -1284,6 +1284,9 @@ static inline void __stop_tx(struct uart_8250_port *p)
 {
 	if (p->ier & UART_IER_THRI) {
 		p->ier &= ~UART_IER_THRI;
+#ifdef CONFIG_ARCH_ROCKCHIP
+		p->ier &= ~UART_IER_PTIME;
+#endif
 		serial_out(p, UART_IER, p->ier);
 		serial8250_rpm_put_tx(p);
 	}
@@ -1311,12 +1314,19 @@ static void serial8250_start_tx(struct uart_port *port)
 	struct uart_8250_port *up = up_to_u8250p(port);
 
 	serial8250_rpm_get_tx(up);
-
+#ifdef CONFIG_ARCH_ROCKCHIP
+	if (up->dma && up->dma->txchan && !up->dma->tx_dma(up))
+		return;
+#else
 	if (up->dma && !up->dma->tx_dma(up))
 		return;
+#endif
 
 	if (!(up->ier & UART_IER_THRI)) {
 		up->ier |= UART_IER_THRI;
+#ifdef CONFIG_ARCH_ROCKCHIP
+		up->ier |= UART_IER_PTIME;
+#endif
 		serial_port_out(port, UART_IER, up->ier);
 
 		if (up->bugs & UART_BUG_TXEN) {
@@ -1551,7 +1561,7 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 	unsigned char status;
 	unsigned long flags;
 	struct uart_8250_port *up = up_to_u8250p(port);
-	int dma_err = 0;
+	int dma_err = -1, idx;
 
 	if (iir & UART_IIR_NO_INT)
 		return 0;
@@ -1561,7 +1571,15 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 	status = serial_port_in(port, UART_LSR);
 
 	DEBUG_INTR("status = %x...", status);
+#ifdef CONFIG_ARCH_ROCKCHIP
+	if (status & (UART_LSR_DR | UART_LSR_BI)) {
+		if (up->dma && up->dma->rxchan)
+			dma_err = up->dma->rx_dma(up, iir);
 
+		if (!up->dma || dma_err)
+			status = serial8250_rx_chars(up, status);
+	}
+#else
 	if (status & (UART_LSR_DR | UART_LSR_BI)) {
 		if (up->dma)
 			dma_err = up->dma->rx_dma(up, iir);
@@ -1569,11 +1587,36 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 		if (!up->dma || dma_err)
 			status = serial8250_rx_chars(up, status);
 	}
+#endif
 	serial8250_modem_status(up);
+#ifdef CONFIG_ARCH_ROCKCHIP
+	if ((!up->dma || (up->dma && (!up->dma->txchan || up->dma->tx_err))) &&
+	    ((iir & 0xf) == UART_IIR_THRI))
+		serial8250_tx_chars(up);
+#else
 	if ((!up->dma || (up->dma && up->dma->tx_err)) &&
 	    (status & UART_LSR_THRE))
 		serial8250_tx_chars(up);
+#endif
 
+#ifdef CONFIG_ARCH_ROCKCHIP
+	if (status & UART_LSR_BRK_ERROR_BITS) {
+
+		idx = serial_index(port);
+
+		if (status & UART_LSR_OE)
+			pr_err("ttyS%d: Overrun error!\n", idx);
+		if (status & UART_LSR_PE)
+			pr_err("ttyS%d: Parity error!\n", idx);
+		if (status & UART_LSR_FE)
+			pr_err("ttyS%d: Frame error!\n", idx);
+		if (status & UART_LSR_BI)
+			pr_err("ttyS%d: Break interrupt!\n", idx);
+
+		pr_err("ttyS%d: maybe rx pin is low or baudrate is not correct!\n",
+			idx);
+	}
+#endif
 	spin_unlock_irqrestore(&port->lock, flags);
 	return 1;
 }
@@ -2207,6 +2250,10 @@ static void serial8250_set_divisor(struct uart_port *port, unsigned int baud,
 {
 	struct uart_8250_port *up = up_to_u8250p(port);
 
+#ifdef CONFIG_ARCH_ROCKCHIP
+	serial_port_out(port, UART_MCR, UART_MCR_LOOP);
+#endif
+
 	/* Workaround to enable 115200 baud on OMAP1510 internal ports */
 	if (is_omap1510_8250(up)) {
 		if (baud == 115200) {
@@ -2226,6 +2273,13 @@ static void serial8250_set_divisor(struct uart_port *port, unsigned int baud,
 		serial_port_out(port, UART_LCR, up->lcr | UART_LCR_DLAB);
 
 	serial_dl_write(up, quot);
+
+#ifdef CONFIG_ARCH_ROCKCHIP
+	serial_port_out(port, UART_MCR, up->mcr);
+	if (quot != serial_dl_read(up))
+		pr_warn_ratelimited("ttyS%d set divisor fail, quot:%d != dll,dlh:%d\n",
+					 serial_index(port), quot, serial_dl_read(up));
+#endif
 
 	/* XR17V35x UARTs have an extra fractional divisor register (DLD) */
 	if (up->port.type == PORT_XR17V35X) {
@@ -2330,6 +2384,7 @@ serial8250_do_set_termios(struct uart_port *port, struct ktermios *termios,
 	if ((termios->c_cflag & CREAD) == 0)
 		port->ignore_status_mask |= UART_LSR_DR;
 
+#ifndef CONFIG_ARCH_ROCKCHIP
 	/*
 	 * CTS flow control flag and modem status interrupts
 	 */
@@ -2343,6 +2398,7 @@ serial8250_do_set_termios(struct uart_port *port, struct ktermios *termios,
 		up->ier |= UART_IER_RTOIE;
 
 	serial_port_out(port, UART_IER, up->ier);
+#endif
 
 	if (up->capabilities & UART_CAP_EFR) {
 		unsigned char efr = 0;
@@ -2361,7 +2417,13 @@ serial8250_do_set_termios(struct uart_port *port, struct ktermios *termios,
 			serial_port_out(port, UART_EFR, efr);
 	}
 
+#ifdef CONFIG_ARCH_ROCKCHIP
+	/* Reset uart to make sure it is idle, then set buad rate */
+	serial_port_out(port, 0x88 >> 2, 0x7);
+#endif
+
 	serial8250_set_divisor(port, baud, quot, frac);
+
 #ifdef CONFIG_ARCH_ROCKCHIP
 	up->fcr = UART_FCR_ENABLE_FIFO | UART_FCR_T_TRIG_10 | UART_FCR_R_TRIG_10;
 #endif
@@ -2380,6 +2442,23 @@ serial8250_do_set_termios(struct uart_port *port, struct ktermios *termios,
 		serial_port_out(port, UART_FCR, up->fcr);	/* set fcr */
 	}
 	serial8250_set_mctrl(port, port->mctrl);
+
+#ifdef CONFIG_ARCH_ROCKCHIP
+	/*
+	 * CTS flow control flag and modem status interrupts
+	 */
+	up->ier &= ~UART_IER_MSI;
+	if (!(up->bugs & UART_BUG_NOMSR) &&
+			UART_ENABLE_MS(&up->port, termios->c_cflag))
+		up->ier |= UART_IER_MSI;
+	if (up->capabilities & UART_CAP_UUE)
+		up->ier |= UART_IER_UUE;
+	if (up->capabilities & UART_CAP_RTOIE)
+		up->ier |= UART_IER_RTOIE;
+
+	serial_port_out(port, UART_IER, up->ier);
+#endif
+
 	spin_unlock_irqrestore(&port->lock, flags);
 	serial8250_rpm_put(up);
 
