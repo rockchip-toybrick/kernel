@@ -81,7 +81,6 @@ struct imx_camera_module_config {
 	bool auto_wb_enabled;
 	struct imx_camera_module_reg *reg_table;
 	u32 reg_table_num_entries;
-	struct imx_camera_module_reg *reg_diff_table;
 	u32 reg_diff_table_num_entries;
 	u32 v_blanking_time_us;
 	u32 line_length_pck;

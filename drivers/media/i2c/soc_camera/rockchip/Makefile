@@ -9,7 +9,6 @@ obj-$(CONFIG_VIDEO_ADV7181) += adv_camera_module.o rk_camera_module.o adv7181_v4
 obj-$(CONFIG_VIDEO_OV7675) += ov_camera_module.o rk_camera_module.o ov7675_v4l2-i2c-subdev.o
 obj-$(CONFIG_VIDEO_NT99230) += ov_camera_module.o rk_camera_module.o nt99230_v4l2-i2c-subdev.o
 obj-$(CONFIG_VIDEO_OV13850) += ov_camera_module.o rk_camera_module.o ov13850_v4l2-i2c-subdev.o
-obj-$(CONFIG_VIDEO_OV9750) += ov_camera_module.o rk_camera_module.o ov9750_v4l2-i2c-subdev.o rk_camera_mclk.o
 obj-$(CONFIG_VIDEO_IMX258) += imx_camera_module.o rk_camera_module.o imx258_v4l2-i2c-subdev.o rk_camera_mclk.o dw9714_v4l2-i2c-subdev.o
 obj-$(CONFIG_VIDEO_OV9281) += ov_camera_module.o rk_camera_module.o ov9281_v4l2-i2c-subdev.o
 obj-$(CONFIG_VIDEO_OV9750) += ov_camera_module.o rk_camera_module.o ov9750_v4l2-i2c-subdev.o rk_camera_mclk.o

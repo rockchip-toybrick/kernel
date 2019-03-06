@@ -11,6 +11,7 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
+
 #ifndef CONFIG_OF
 #error "this file requires device tree support"
 #endif
@@ -1508,7 +1509,6 @@ int pltfrm_camera_module_set_pm_state(
 			PLTFRM_CAMERA_MODULE_PIN_PWR,
 			PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
 
-
 		if (pdata->regulators.regulator) {
 			for (i = 0; i < pdata->regulators.cnt; i++) {
 				struct pltfrm_camera_module_regulator
@@ -1540,7 +1540,6 @@ int pltfrm_camera_module_set_pin_state(
 		if (pin == pdata->gpios[i].label) {
 			if (!gpio_is_valid(pdata->gpios[i].pltfrm_gpio))
 				return 0;
-
 			if (state == PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE)
 				gpio_val = (pdata->gpios[i].active_low ==
 					OF_GPIO_ACTIVE_LOW) ? 0 : 1;
@@ -1578,7 +1577,6 @@ int pltfrm_camera_module_get_pin_state(
 		if (pin == pdata->gpios[i].label) {
 			if (!gpio_is_valid(pdata->gpios[i].pltfrm_gpio))
 				return 0;
-
 			gpio_val = gpio_get_value(pdata->gpios[i].pltfrm_gpio);
 			pltfrm_camera_module_pr_debug(
 				sd,

@@ -810,11 +810,6 @@ int cif_isp10_s_vcm(
 	unsigned int id,
 	int val);
 
-int cif_isp10_s_vcm(
-	struct cif_isp10_device *dev,
-	unsigned int id,
-	int val);
-
 void cif_isp10_sensor_mode_data_sync(
 	struct cif_isp10_device *dev,
 	unsigned int frame_id,

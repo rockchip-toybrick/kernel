@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __RKCAMSYS_INTERNAL_H__
 #define __RKCAMSYS_INTERNAL_H__
+
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/init.h>
@@ -470,48 +471,12 @@ camsys_extdev_t *extdev, camsys_sysctrl_t *devctl, camsys_dev_t *camsys_dev)
 			if (devctl->on) {
 				gpio_direction_output(gpio->io, gpio->active);
 				gpio_set_value(gpio->io, gpio->active);
-				if (devctl->ops == CamSys_PwrEn) {
-					if (strncmp(extdev->dev_name,"OV9750",6)==0) {
-						unsigned int gpio_avdd;
-						gpio_avdd = camsys_gpio_get("RK30_PIN4_PD1");
-						gpio_direction_output(gpio_avdd, gpio->active);
-						gpio_set_value(gpio_avdd, gpio->active);
-						udelay(5000);
-						gpio_avdd = camsys_gpio_get("RK30_PIN1_PC2");
-						gpio_direction_output(gpio_avdd, gpio->active);
-						gpio_set_value(gpio_avdd, gpio->active);
-						udelay(5000);					
-					} else {
-						unsigned int gpio_avdd;
-						gpio_avdd = camsys_gpio_get("RK30_PIN4_PD1");
-						gpio_direction_output(gpio_avdd, !gpio->active);
-						gpio_set_value(gpio_avdd, !gpio->active);
-						udelay(5000);
-						gpio_avdd = camsys_gpio_get("RK30_PIN1_PC2");
-						gpio_direction_output(gpio_avdd, !gpio->active);
-						gpio_set_value(gpio_avdd, !gpio->active);
-						udelay(5000);
-					}
-				}
 				camsys_trace(1,
 					"Sysctl %d success, gpio(%d) set %d",
 					devctl->ops, gpio->io, gpio->active);
 			} else {
 				gpio_direction_output(gpio->io, !gpio->active);
 				gpio_set_value(gpio->io, !gpio->active);
-				if (devctl->ops == CamSys_PwrEn) {
-					if (strncmp(extdev->dev_name,"OV9750",6)==0) {
-						unsigned int gpio_avdd;
-						gpio_avdd = camsys_gpio_get("RK30_PIN4_PD1");
-						gpio_direction_output(gpio_avdd, !gpio->active);
-						gpio_set_value(gpio_avdd, !gpio->active);
-						udelay(5000);
-						gpio_avdd = camsys_gpio_get("RK30_PIN1_PC2");
-						gpio_direction_output(gpio_avdd, !gpio->active);
-						gpio_set_value(gpio_avdd, !gpio->active);
-						udelay(5000);
-					} 
-				}
 				camsys_trace(1,
 					"Sysctl %d success, gpio(%d) set %d",
 					devctl->ops, gpio->io, !gpio->active);

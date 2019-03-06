@@ -1663,9 +1663,6 @@ static int cif_isp10_config_isp(
 			if (dev->sp_stream.state == CIF_ISP10_STATE_READY) {
 				output->quantization =
 				dev->config.mi_config.sp.output.quantization;
-
-				if (in_pix_fmt == CIF_Y10)
-					output->pix_fmt = CIF_YUV400;
 			}
 
 			if (dev->mp_stream.state == CIF_ISP10_STATE_READY) {
