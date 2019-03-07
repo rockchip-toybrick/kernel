@@ -10,6 +10,9 @@
 / {
 	model = "Rockchip RK3328 EVB";
 	compatible = "rockchip,rk3328-evb", "rockchip,rk3328";
+	chosen {
+	  	bootargs = "console=ttyFIQ0 androidboot.baseband=N/A androidboot.selinux=permissive androidboot.veritymode=/dev/block/platform/ff520000.dwmmc/by-name/metadata androidboot.hardware=rk30board androidboot.console=ttyFIQ0 firmware_class.path=/vendor/etc/firmware init=/init initrd=0x62000000,0x00800000";
+	};
 };
 
 &firmware_android{
