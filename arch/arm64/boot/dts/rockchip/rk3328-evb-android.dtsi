@@ -618,7 +618,7 @@
 };
 
 &tve {
-	status = "okay";
+	status = "disabled";
 };
 
 &u2phy {

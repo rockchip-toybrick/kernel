@@ -77,7 +77,7 @@
 			connect = <&vop_out_hdmi>;
 		};
 		route_tve: route-tve {
-			status = "okay";
+			status = "disabled";
 			logo,uboot = "logo.bmp";
 			logo,kernel = "logo_kernel.bmp";
 			logo,mode = "fullscreen";
