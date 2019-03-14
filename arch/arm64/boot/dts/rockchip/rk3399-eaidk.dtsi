@@ -322,8 +322,8 @@
         rockchip,playback-channels = <2>;
         rockchip,capture-channels = <2>;
         #sound-dai-cells = <0>;
-		assigned-clocks = <&cru SCLK_I2S_8CH>; 
-		assigned-clock-parents = <&cru SCLK_I2S1_8CH>;
+		//assigned-clocks = <&cru SCLK_I2S_8CH>; 
+		//assigned-clock-parents = <&cru SCLK_I2S1_8CH>;
 };
 
 &i2s2 {
