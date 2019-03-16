@@ -10,6 +10,8 @@ struct ipa_power_model_data {
 	u32 dynamic_coefficient;
 	s32 ts[4];
 	struct thermal_zone_device *tz;
+	u32 leakage;
+	u32 ref_leakage;
 };
 
 #ifdef CONFIG_ROCKCHIP_IPA
@@ -17,7 +19,7 @@ int rockchip_ipa_power_model_init(struct device *dev,
 				  struct ipa_power_model_data **data);
 unsigned long
 rockchip_ipa_get_static_power(struct ipa_power_model_data *model_data,
-			      unsigned long voltage);
+			      unsigned long voltage_mv);
 #else
 static inline int
 rockchip_ipa_power_model_init(struct device *dev,
@@ -28,7 +30,7 @@ rockchip_ipa_power_model_init(struct device *dev,
 
 static inline unsigned long
 rockchip_ipa_get_static_power(struct ipa_power_model_data *data,
-			      unsigned long voltage)
+			      unsigned long voltage_mv)
 {
 	return 0;
 }

@@ -50,6 +50,38 @@
 	model = "Rockchip RK3399 Excavator Board (Linux Opensource)";
 	compatible = "rockchip,rk3399-excavator-linux", "rockchip,rk3399";
 
+	adc-keys {
+		compatible = "adc-keys";
+		io-channels = <&saradc 1>;
+		io-channel-names = "buttons";
+		poll-interval = <100>;
+		keyup-threshold-microvolt = <1800000>;
+
+		esc-key {
+			linux,code = <KEY_ESC>;
+			label = "esc";
+			press-threshold-microvolt = <1310000>;
+		};
+
+		menu-key {
+			linux,code = <KEY_MENU>;
+			label = "menu";
+			press-threshold-microvolt = <987000>;
+		};
+
+		vol-down-key {
+			linux,code = <KEY_VOLUMEDOWN>;
+			label = "volume down";
+			press-threshold-microvolt = <300000>;
+		};
+
+		vol-up-key {
+			linux,code = <KEY_VOLUMEUP>;
+			label = "volume up";
+			press-threshold-microvolt = <17000>;
+		};
+	};
+
 	fiq_debugger: fiq-debugger {
 		compatible = "rockchip,fiq-debugger";
 		rockchip,serial-id = <2>;
@@ -340,6 +372,14 @@
 		};
 	};
 
+	vm149c: vm149c@0c {
+		compatible = "silicon touch,vm149c";
+		status = "okay";
+		reg = <0x0c>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+	};
+
 	ov13850: ov13850@10 {
 		compatible = "ovti,ov13850";
 		status = "okay";
@@ -352,6 +392,12 @@
 		pwdn-gpios = <&gpio1 4 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "rockchip,camera_default";
 		pinctrl-0 = <&cif_clkout>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-CT0116";
+		rockchip,camera-module-lens-name = "Largan-50013A1";
+
+		lens-focus = <&vm149c>;
 
 		port {
 			ucam_out0: endpoint {
@@ -372,6 +418,10 @@
 
 &pcie0 {
 	status = "okay";
+};
+
+&uart2 {
+	status = "disabled";
 };
 
 &vopb {

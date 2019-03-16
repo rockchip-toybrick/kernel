@@ -917,6 +917,7 @@ static int raw_config_mi(struct rkisp1_stream *stream)
 	struct rkisp1_device *dev = stream->ispdev;
 	struct v4l2_mbus_framefmt *in_frm =
 		&dev->active_sensor->fmt.format;
+	u32 in_size;
 
 	v4l2_dbg(1, rkisp1_debug, &dev->v4l2_dev,
 		"stream:%d input %dx%d\n",
@@ -933,13 +934,20 @@ static int raw_config_mi(struct rkisp1_stream *stream)
 		return 0;
 
 	/* raw output size equal to sensor input size */
+	if (stream->id == RKISP1_STREAM_RAW) {
+		in_size = stream->out_fmt.plane_fmt[0].sizeimage;
+	} else {
+		struct rkisp1_stream *raw = &dev->stream[RKISP1_STREAM_RAW];
+
+		in_size = raw->out_fmt.plane_fmt[0].sizeimage;
+	}
 	dmatx0_set_pic_size(base, in_frm->width, in_frm->height);
 	dmatx0_set_pic_off(base, 0);
 	dmatx0_ctrl(base,
 		CIF_ISP_CSI0_DMATX0_VC(1) |
 		CIF_ISP_CSI0_DMATX0_SIMG_SWP |
 		CIF_ISP_CSI0_DMATX0_SIMG_MODE);
-	mi_raw0_set_size(base, in_frm->height * in_frm->width * 2);
+	mi_raw0_set_size(base, in_size);
 	mi_raw0_set_offs(base, 0);
 	mi_raw0_set_length(base, 0);
 	mi_raw0_set_irq_offs(base, 0);
@@ -1175,18 +1183,25 @@ static void rkisp1_stream_stop(struct rkisp1_stream *stream)
 
 	stream->stopping = true;
 	stream->ops->stop_mi(stream);
-	ret = wait_event_timeout(stream->done,
-				 !stream->streaming,
-				 msecs_to_jiffies(1000));
-	if (!ret) {
-		v4l2_warn(v4l2_dev, "waiting on event return error %d\n", ret);
+	if (dev->isp_state == ISP_START) {
+		ret = wait_event_timeout(stream->done,
+					 !stream->streaming,
+					 msecs_to_jiffies(1000));
+		if (!ret) {
+			v4l2_warn(v4l2_dev, "waiting on event return error %d\n", ret);
+			stream->stopping = false;
+			stream->streaming = false;
+		}
+	} else {
 		stream->stopping = false;
 		stream->streaming = false;
 	}
+
 	if (stream->id != RKISP1_STREAM_RAW) {
 		disable_dcrop(stream, true);
 		disable_rsz(stream, true);
 	}
+
 	stream->burst =
 		CIF_MI_CTRL_BURST_LEN_LUM_16 |
 		CIF_MI_CTRL_BURST_LEN_CHROM_16;
@@ -1223,8 +1238,13 @@ static int rkisp1_start(struct rkisp1_stream *stream)
 			"stream raw only support to open after stream mp/sp");
 		return -EINVAL;
 	}
+
+#if RKISP1_RK3326_USE_OLDMIPI
+	if (dev->isp_ver == ISP_V13)
+#else
 	if (dev->isp_ver == ISP_V12 ||
 		dev->isp_ver == ISP_V13)
+#endif
 		raw_config_mi(stream);
 
 	if (stream->ops->set_data_path)
@@ -1356,8 +1376,6 @@ static int rkisp1_create_dummy_buf(struct rkisp1_stream *stream)
 {
 	struct rkisp1_dummy_buffer *dummy_buf = &stream->dummy_buf;
 	struct rkisp1_device *dev = stream->ispdev;
-	struct v4l2_mbus_framefmt *in_frm = NULL;
-	u32 in_size;
 
 	/* get a maximum size */
 	dummy_buf->size = max3(stream->out_fmt.plane_fmt[0].bytesperline *
@@ -1367,8 +1385,10 @@ static int rkisp1_create_dummy_buf(struct rkisp1_stream *stream)
 	if (dev->active_sensor->mbus.type == V4L2_MBUS_CSI2 &&
 		(dev->isp_ver == ISP_V12 ||
 		dev->isp_ver == ISP_V13)) {
-		in_frm = &dev->active_sensor->fmt.format;
-		in_size = in_frm->height * in_frm->width * 2;
+		u32 in_size;
+		struct rkisp1_stream *raw = &dev->stream[RKISP1_STREAM_RAW];
+
+		in_size = raw->out_fmt.plane_fmt[0].sizeimage;
 		dummy_buf->size = max(dummy_buf->size, in_size);
 	}
 
@@ -1580,7 +1600,7 @@ static int rkisp_init_vb2_queue(struct vb2_queue *q,
 	return vb2_queue_init(q);
 }
 
-static void rkisp1_set_fmt(struct rkisp1_stream *stream,
+static int rkisp1_set_fmt(struct rkisp1_stream *stream,
 			   struct v4l2_pix_format_mplane *pixm,
 			   bool try)
 {
@@ -1593,8 +1613,15 @@ static void rkisp1_set_fmt(struct rkisp1_stream *stream,
 	unsigned int i;
 
 	fmt = find_fmt(stream, pixm->pixelformat);
-	if (!fmt)
-		fmt = config->fmts;
+	if (!fmt) {
+		v4l2_err(&stream->ispdev->v4l2_dev,
+			 "nonsupport pixelformat:%c%c%c%c\n",
+			 pixm->pixelformat,
+			 pixm->pixelformat >> 8,
+			 pixm->pixelformat >> 16,
+			 pixm->pixelformat >> 24);
+		return -EINVAL;
+	}
 
 	if (stream->id != RKISP1_STREAM_RAW) {
 		other_stream =
@@ -1674,6 +1701,8 @@ static void rkisp1_set_fmt(struct rkisp1_stream *stream,
 			 stream->id, pixm->width, pixm->height,
 			 stream->out_fmt.width, stream->out_fmt.height);
 	}
+
+	return 0;
 }
 
 static int rkisp1_dma_attach_device(struct rkisp1_device *rkisp1_dev)
@@ -1777,10 +1806,6 @@ void rkisp1_stream_init(struct rkisp1_device *dev, u32 id)
 
 	stream->streaming = false;
 	stream->interlaced = false;
-	rkisp1_set_stream_def_fmt(dev, id,
-				  RKISP1_DEFAULT_WIDTH,
-				  RKISP1_DEFAULT_HEIGHT,
-				  V4L2_PIX_FMT_YUYV);
 
 	stream->burst =
 		CIF_MI_CTRL_BURST_LEN_LUM_16 |
@@ -1816,9 +1841,7 @@ static int rkisp1_try_fmt_vid_cap_mplane(struct file *file, void *fh,
 {
 	struct rkisp1_stream *stream = video_drvdata(file);
 
-	rkisp1_set_fmt(stream, &f->fmt.pix_mp, true);
-
-	return 0;
+	return rkisp1_set_fmt(stream, &f->fmt.pix_mp, true);
 }
 
 static int rkisp1_enum_fmt_vid_cap_mplane(struct file *file, void *priv,
@@ -1849,9 +1872,7 @@ static int rkisp1_s_fmt_vid_cap_mplane(struct file *file,
 		return -EBUSY;
 	}
 
-	rkisp1_set_fmt(stream, &f->fmt.pix_mp, false);
-
-	return 0;
+	return rkisp1_set_fmt(stream, &f->fmt.pix_mp, false);
 }
 
 static int rkisp1_g_fmt_vid_cap_mplane(struct file *file, void *fh,
@@ -2000,10 +2021,16 @@ void rkisp1_unregister_stream_vdevs(struct rkisp1_device *dev)
 	struct rkisp1_stream *raw_stream = &dev->stream[RKISP1_STREAM_RAW];
 
 	rkisp1_unregister_stream_vdev(mp_stream);
+
 	if (dev->isp_ver != ISP_V10_1)
 		rkisp1_unregister_stream_vdev(sp_stream);
+
+#if RKISP1_RK3326_USE_OLDMIPI
+	if (dev->isp_ver == ISP_V13)
+#else
 	if (dev->isp_ver == ISP_V12 ||
 		dev->isp_ver == ISP_V13)
+#endif
 		rkisp1_unregister_stream_vdev(raw_stream);
 }
 
@@ -2027,8 +2054,12 @@ static int rkisp1_register_stream_vdev(struct rkisp1_stream *stream)
 		break;
 	case RKISP1_STREAM_RAW:
 		vdev_name = RAW_VDEV_NAME;
+#if RKISP1_RK3326_USE_OLDMIPI
+		if (dev->isp_ver != ISP_V13)
+#else
 		if (dev->isp_ver != ISP_V12 &&
 			dev->isp_ver != ISP_V13)
+#endif
 			return 0;
 		break;
 	default:

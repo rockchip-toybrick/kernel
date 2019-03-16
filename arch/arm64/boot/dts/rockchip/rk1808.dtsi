@@ -54,6 +54,13 @@
 			dynamic-power-coefficient = <74>;
 			#cooling-cells = <2>;
 			cpu-idle-states = <&CPU_SLEEP>;
+			power-model {
+				compatible = "simple-power-model";
+				ref-leakage = <31>;
+				static-coefficient = <100000>;
+				ts = <59740 24105 (-245) 7>;
+				thermal-zone = "soc-thermal";
+			};
 		};
 
 		cpu1: cpu@1 {
@@ -188,6 +195,41 @@
 		compatible = "rockchip,cpuinfo";
 		nvmem-cells = <&efuse_id>, <&efuse_cpu_version>;
 		nvmem-cell-names = "id", "cpu-version";
+	};
+
+	bus_soc: bus-soc {
+		compatible = "rockchip,rk1808-bus";
+		rockchip,busfreq-policy = "autocs";
+		soc-bus0 {
+			bus-id = <0>;
+			timer-us = <20>;
+			enable-msk = <0x4077>;
+			status = "okay";
+		};
+		soc-bus1 {
+			bus-id = <1>;
+			timer-us = <200>;
+			enable-msk = <0x41ff>;
+			status = "okay";
+		};
+		soc-bus2 {
+			bus-id = <2>;
+			timer-us = <200>;
+			enable-msk = <0x4007>;
+			status = "okay";
+		};
+		soc-bus3 {
+			bus-id = <3>;
+			timer-us = <200>;
+			enable-msk = <0x4001>;
+			status = "okay";
+		};
+		soc-bus4 {
+			bus-id = <4>;
+			timer-us = <200>;
+			enable-msk = <0x4001>;
+			status = "okay";
+		};
 	};
 
 	gmac_clkin: external-gmac-clock {
@@ -590,16 +632,20 @@
 		compatible = "rockchip,rk1808-cru";
 		reg = <0x0 0xff350000 0x0 0x5000>;
 		rockchip,grf = <&grf>;
+		rockchip,pmugrf = <&pmugrf>;
 		#clock-cells = <1>;
 		#reset-cells = <1>;
 
 		assigned-clocks =
+			<&cru SCLK_32K_IOE>,
 			<&cru PLL_GPLL>, <&cru PLL_CPLL>,
 			<&cru PLL_PPLL>, <&cru ARMCLK>,
 			<&cru MSCLK_PERI>, <&cru LSCLK_PERI>,
 			<&cru HSCLK_BUS_PRE>, <&cru MSCLK_BUS_PRE>,
 			<&cru LSCLK_BUS_PRE>;
+		assigned-clock-parents = <&xin32k>;
 		assigned-clock-rates =
+			<32768>,
 			<1188000000>, <1000000000>,
 			<100000000>, <816000000>,
 			<200000000>, <100000000>,
@@ -652,7 +698,7 @@
 		soc_thermal: soc-thermal {
 			polling-delay-passive = <20>; /* milliseconds */
 			polling-delay = <1000>; /* milliseconds */
-			sustainable-power = <527>; /* milliwatts */
+			sustainable-power = <977>; /* milliwatts */
 
 			thermal-sensors = <&tsadc 0>;
 
@@ -1635,9 +1681,10 @@
 
 		npu_power_model: power-model {
 			compatible = "simple-power-model";
-			static-coefficient = <342478>;
+			ref-leakage = <31>;
+			static-coefficient = <100000>;
 			dynamic-coefficient = <3080>;
-			ts = <32000 4700 (-80) 2>;
+			ts = <8861 30312 (-500) 10>;
 			thermal-zone = "soc-thermal";
 		};
 	};
@@ -1974,7 +2021,7 @@
 			emmc_clk: emmc-clk {
 				rockchip,pins =
 					/* emmc_clkout */
-					<1 RK_PB1 1 &pcfg_pull_up_2ma>;
+					<1 RK_PB1 1 &pcfg_pull_up_4ma>;
 			};
 
 			emmc_rstnout: emmc-rstnout {
@@ -1986,21 +2033,21 @@
 			emmc_bus8: emmc-bus8 {
 				rockchip,pins =
 					/* emmc_d0 */
-					<1 RK_PA0 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA0 1 &pcfg_pull_up_4ma>,
 					/* emmc_d1 */
-					<1 RK_PA1 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA1 1 &pcfg_pull_up_4ma>,
 					/* emmc_d2 */
-					<1 RK_PA2 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA2 1 &pcfg_pull_up_4ma>,
 					/* emmc_d3 */
-					<1 RK_PA3 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA3 1 &pcfg_pull_up_4ma>,
 					/* emmc_d4 */
-					<1 RK_PA4 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA4 1 &pcfg_pull_up_4ma>,
 					/* emmc_d5 */
-					<1 RK_PA5 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA5 1 &pcfg_pull_up_4ma>,
 					/* emmc_d6 */
-					<1 RK_PA6 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA6 1 &pcfg_pull_up_4ma>,
 					/* emmc_d7 */
-					<1 RK_PA7 1 &pcfg_pull_up_2ma>;
+					<1 RK_PA7 1 &pcfg_pull_up_4ma>;
 			};
 
 			emmc_pwren: emmc-pwren {
@@ -2010,7 +2057,7 @@
 
 			emmc_cmd: emmc-cmd {
 				rockchip,pins =
-					<1 RK_PB2 1 &pcfg_pull_up_2ma>;
+					<1 RK_PB2 1 &pcfg_pull_up_4ma>;
 			};
 		};
 
@@ -2484,23 +2531,23 @@
 			sdmmc0_bus4: sdmmc0-bus4 {
 				rockchip,pins =
 				/* sdmmc0_d0 */
-				<4 RK_PA2 1 &pcfg_pull_none>,
+				<4 RK_PA2 1 &pcfg_pull_up_8ma>,
 				/* sdmmc0_d1 */
-				<4 RK_PA3 1 &pcfg_pull_none>,
+				<4 RK_PA3 1 &pcfg_pull_up_8ma>,
 				/* sdmmc0_d2 */
-				<4 RK_PA4 1 &pcfg_pull_none>,
+				<4 RK_PA4 1 &pcfg_pull_up_8ma>,
 				/* sdmmc0_d3 */
-				<4 RK_PA5 1 &pcfg_pull_none>;
+				<4 RK_PA5 1 &pcfg_pull_up_8ma>;
 			};
 
 			sdmmc0_cmd: sdmmc0-cmd {
 				rockchip,pins =
-					<4 RK_PA0 1 &pcfg_pull_none>;
+					<4 RK_PA0 1 &pcfg_pull_up_8ma>;
 			};
 
 			sdmmc0_clk: sdmmc0-clk {
 				rockchip,pins =
-					<4 RK_PA1 1 &pcfg_pull_none_4ma>;
+					<4 RK_PA1 1 &pcfg_pull_up_8ma>;
 			};
 
 			sdmmc0_detn: sdmmc0-detn {
@@ -2513,23 +2560,23 @@
 			sdmmc1_bus4: sdmmc1-bus4 {
 				rockchip,pins =
 				/* sdmmc1_d0 */
-				<4 RK_PB0 1 &pcfg_pull_none>,
+				<4 RK_PB0 1 &pcfg_pull_up_4ma>,
 				/* sdmmc1_d1 */
-				<4 RK_PB1 1 &pcfg_pull_none>,
+				<4 RK_PB1 1 &pcfg_pull_up_4ma>,
 				/* sdmmc1_d2 */
-				<4 RK_PB2 1 &pcfg_pull_none>,
+				<4 RK_PB2 1 &pcfg_pull_up_4ma>,
 				/* sdmmc1_d3 */
-				<4 RK_PB3 1 &pcfg_pull_none>;
+				<4 RK_PB3 1 &pcfg_pull_up_4ma>;
 			};
 
 			sdmmc1_cmd: sdmmc1-cmd {
 				rockchip,pins =
-					<4 RK_PA6 1 &pcfg_pull_none>;
+					<4 RK_PA6 1 &pcfg_pull_up_4ma>;
 			};
 
 			sdmmc1_clk: sdmmc1-clk {
 				rockchip,pins =
-					<4 RK_PA7 1 &pcfg_pull_none_4ma>;
+					<4 RK_PA7 1 &pcfg_pull_up_4ma>;
 			};
 		};
 
@@ -2922,12 +2969,12 @@
 		xin32k {
 			clkin_32k: clkin-32k {
 				rockchip,pins =
-					<0 RK_PC2 1 &pcfg_input_smt>;
+					<0 RK_PC2 1 &pcfg_pull_none>;
 			};
 
 			clkout_32k: clkout-32k {
 				rockchip,pins =
-					<0 RK_PC2 1 &pcfg_output_high>;
+					<0 RK_PC2 1 &pcfg_pull_none>;
 			};
 		};
 	};
