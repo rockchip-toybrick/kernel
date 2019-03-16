@@ -4,6 +4,10 @@
 
 / {
 	compatible = "rockchip,rk3399pro-toybrick-evb-linux","rockchip,rk3399pro";
+	extbrd: extbrd {
+		compatible = "prop-extboard";
+		io-channels = <&saradc 0>, <&saradc 1>;
+	};
 };
 
 &fiq_debugger {

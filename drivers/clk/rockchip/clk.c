@@ -179,6 +179,19 @@ static void rockchip_fractional_approximation(struct clk_hw *hw,
 	u32 div;
 
 	p_rate = clk_hw_get_rate(clk_hw_get_parent(hw));
+
+	if (strstr(clk_hw_get_name(hw), "uart")) {
+		if (rate <= 24000000) {
+			*parent_rate = 24000000;
+		} else {
+			if (fd->max_prate)
+				*parent_rate = fd->max_prate;
+			else
+				*parent_rate = 480000000;
+		}
+		goto frac_ration;
+	}
+
 	if (((rate * 20 > p_rate) && (p_rate % rate != 0)) ||
 	    (fd->max_prate && fd->max_prate < p_rate)) {
 		p_parent = clk_hw_get_parent(clk_hw_get_parent(hw));
@@ -203,6 +216,7 @@ static void rockchip_fractional_approximation(struct clk_hw *hw,
 		}
 	}
 
+frac_ration:
 	/*
 	 * Get rate closer to *parent_rate to guarantee there is no overflow
 	 * for m and n. In the result it will be the nearest rate left shifted
@@ -407,9 +421,12 @@ struct rockchip_clk_provider * __init rockchip_clk_init(struct device_node *np,
 	ctx->clk_data.clk_num = nr_clks;
 	ctx->cru_node = np;
 	ctx->grf = ERR_PTR(-EPROBE_DEFER);
+	ctx->pmugrf = ERR_PTR(-EPROBE_DEFER);
 	spin_lock_init(&ctx->lock);
 	ctx->grf = syscon_regmap_lookup_by_phandle(ctx->cru_node,
 						   "rockchip,grf");
+	ctx->pmugrf = syscon_regmap_lookup_by_phandle(ctx->cru_node,
+						   "rockchip,pmugrf");
 
 	return ctx;
 
@@ -489,6 +506,13 @@ void __init rockchip_clk_register_branches(
 			clk = rockchip_clk_register_muxgrf(list->name,
 				list->parent_names, list->num_parents,
 				flags, ctx->grf, list->muxdiv_offset,
+				list->mux_shift, list->mux_width,
+				list->mux_flags);
+			break;
+		case branch_muxpmugrf:
+			clk = rockchip_clk_register_muxgrf(list->name,
+				list->parent_names, list->num_parents,
+				flags, ctx->pmugrf, list->muxdiv_offset,
 				list->mux_shift, list->mux_width,
 				list->mux_flags);
 			break;

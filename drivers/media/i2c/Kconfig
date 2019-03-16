@@ -509,6 +509,14 @@ config VIDEO_IMX323
 	help
 	  This driver supports IMX323 cameras from Sony
 
+config VIDEO_IMX327
+	tristate "Sony imx327 sensor support"
+	depends on VIDEO_V4L2 && I2C
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This driver supports IMX327 cameras from Sony
+
 config VIDEO_VIRT_CAMERA
 	tristate "Rockchip virtual sensor support"
 	depends on VIDEO_V4L2 && I2C
@@ -652,6 +660,17 @@ config VIDEO_OV7750
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called ov7750.
+
+config VIDEO_OV8858
+	tristate "OmniVision OV8858 sensor support"
+	depends on I2C && VIDEO_V4L2
+	depends on MEDIA_CAMERA_SUPPORT
+	help
+	  This is a Video4Linux2 sensor-level driver for the OmniVision
+	  OV8858 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ov8858.
 
 config VIDEO_OV9650
 	tristate "OmniVision OV9650/OV9652 sensor support"
@@ -850,6 +869,15 @@ config VIDEO_GC2035
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called gc2035.
+
+config VIDEO_PREISP_DUMMY_SENSOR
+	tristate "Preisp dummy sensor support"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	help
+	  Support for the preisp dummy sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called pisp_dmy.
 
 comment "Flash devices"
 

@@ -61,6 +61,9 @@
 #define RK3326_GRF_IO_VSEL_OFFSET	0x0180
 #define RK3326_GRF_PD_VI_CON_OFFSET	0x0430
 
+#define RK3368_GRF_SOC_CON6_OFFSET	0x0418
+#define RK3368_GRF_IO_VSEL_OFFSET	0x0900
+
 #define RK3399_GRF_SOC_CON9	0x6224
 #define RK3399_GRF_SOC_CON21	0x6254
 #define RK3399_GRF_SOC_CON22	0x6258
@@ -99,6 +102,10 @@
 #define RK3326_CSI_DPHY_CTRL_PWRCTL		0x04
 #define RK3326_CSI_DPHY_CTRL_DIG_RST		0x80
 
+#define RK3368_CSI_DPHY_CTRL_LANE_ENABLE	0x00
+#define RK3368_CSI_DPHY_CTRL_PWRCTL		0x04
+#define RK3368_CSI_DPHY_CTRL_DIG_RST		0x80
+
 #define MIPI_CSI_DPHY_CTRL_DATALANE_ENABLE_OFFSET_BIT	2
 #define MIPI_CSI_DPHY_CTRL_CLKLANE_ENABLE_OFFSET_BIT	6
 
@@ -123,6 +130,16 @@
 #define RK3326_CSI_DPHY_LANE3_WR_THS_SETTLE	\
 		(RK3326_CSI_DPHY_LANE2_WR_THS_SETTLE + 0x80)
 
+#define RK3368_CSI_DPHY_CLK_WR_THS_SETTLE	0x100
+#define RK3368_CSI_DPHY_LANE0_WR_THS_SETTLE	\
+		(RK3368_CSI_DPHY_CLK_WR_THS_SETTLE + 0x80)
+#define RK3368_CSI_DPHY_LANE1_WR_THS_SETTLE	\
+		(RK3368_CSI_DPHY_LANE0_WR_THS_SETTLE + 0x80)
+#define RK3368_CSI_DPHY_LANE2_WR_THS_SETTLE	\
+		(RK3368_CSI_DPHY_LANE1_WR_THS_SETTLE + 0x80)
+#define RK3368_CSI_DPHY_LANE3_WR_THS_SETTLE	\
+		(RK3368_CSI_DPHY_LANE2_WR_THS_SETTLE + 0x80)
+
 /* Calibration reception enable */
 #define RK1808_CSI_DPHY_CLK_CALIB_EN		0x168
 #define RK1808_CSI_DPHY_LANE0_CALIB_EN		0x1e8
@@ -141,6 +158,16 @@
 #define RK3326_CSI_DPHY_LANE3_CALIB_EN		\
 		MIPI_CSI_DPHY_CTRL_INVALID_OFFSET
 
+#define RK3368_CSI_DPHY_CLK_CALIB_EN		\
+		MIPI_CSI_DPHY_CTRL_INVALID_OFFSET
+#define RK3368_CSI_DPHY_LANE0_CALIB_EN		\
+		MIPI_CSI_DPHY_CTRL_INVALID_OFFSET
+#define RK3368_CSI_DPHY_LANE1_CALIB_EN		\
+		MIPI_CSI_DPHY_CTRL_INVALID_OFFSET
+#define RK3368_CSI_DPHY_LANE2_CALIB_EN		\
+		MIPI_CSI_DPHY_CTRL_INVALID_OFFSET
+#define RK3368_CSI_DPHY_LANE3_CALIB_EN		\
+		MIPI_CSI_DPHY_CTRL_INVALID_OFFSET
 /*
  * CSI HOST
  */
@@ -192,6 +219,8 @@ enum dphy_reg_id {
 	GRF_DPHY_CSIPHY_FORCERXMODE,
 	GRF_DPHY_CSIPHY_CLKLANE_EN,
 	GRF_DPHY_CSIPHY_DATALANE_EN,
+	/* rk3368 only */
+	GRF_ISP_MIPI_CSI_HOST_SEL,
 	/* below is for rk3399 only */
 	GRF_DPHY_RX0_CLK_INV_SEL,
 	GRF_DPHY_RX1_CLK_INV_SEL,
@@ -300,6 +329,13 @@ static const struct dphy_reg rk3326_grf_dphy_regs[] = {
 	[GRF_DPHY_CSIPHY_DATALANE_EN] = PHY_REG(RK3326_GRF_PD_VI_CON_OFFSET, 4, 4),
 };
 
+static const struct dphy_reg rk3368_grf_dphy_regs[] = {
+	[GRF_DVP_V18SEL] = PHY_REG(RK3368_GRF_IO_VSEL_OFFSET, 1, 1),
+	[GRF_DPHY_CSIPHY_FORCERXMODE] = PHY_REG(RK3368_GRF_SOC_CON6_OFFSET, 4, 8),
+	[GRF_ISP_MIPI_CSI_HOST_SEL] = PHY_REG(RK3368_GRF_SOC_CON6_OFFSET, 1, 1),
+	[GRF_CON_DISABLE_ISP] = PHY_REG(RK3368_GRF_SOC_CON6_OFFSET, 1, 0),
+};
+
 static const struct dphy_reg rk3399_grf_dphy_regs[] = {
 	[GRF_DPHY_RX0_TURNREQUEST] = PHY_REG(RK3399_GRF_SOC_CON9, 4, 0),
 	[GRF_DPHY_RX0_CLK_INV_SEL] = PHY_REG(RK3399_GRF_SOC_CON9, 1, 10),
@@ -375,6 +411,22 @@ static const struct csiphy_reg rk3326_csiphy_regs[] = {
 	[CSIPHY_LANE3_CALIB_ENABLE] = CSIPHY_REG(RK3326_CSI_DPHY_LANE3_CALIB_EN),
 };
 
+static const struct csiphy_reg rk3368_csiphy_regs[] = {
+	[CSIPHY_CTRL_LANE_ENABLE] = CSIPHY_REG(RK3368_CSI_DPHY_CTRL_LANE_ENABLE),
+	[CSIPHY_CTRL_PWRCTL] = CSIPHY_REG(RK3368_CSI_DPHY_CTRL_PWRCTL),
+	[CSIPHY_CTRL_DIG_RST] = CSIPHY_REG(RK3368_CSI_DPHY_CTRL_DIG_RST),
+	[CSIPHY_CLK_THS_SETTLE] = CSIPHY_REG(RK3368_CSI_DPHY_CLK_WR_THS_SETTLE),
+	[CSIPHY_LANE0_THS_SETTLE] = CSIPHY_REG(RK3368_CSI_DPHY_LANE0_WR_THS_SETTLE),
+	[CSIPHY_LANE1_THS_SETTLE] = CSIPHY_REG(RK3368_CSI_DPHY_LANE1_WR_THS_SETTLE),
+	[CSIPHY_LANE2_THS_SETTLE] = CSIPHY_REG(RK3368_CSI_DPHY_LANE2_WR_THS_SETTLE),
+	[CSIPHY_LANE3_THS_SETTLE] = CSIPHY_REG(RK3368_CSI_DPHY_LANE3_WR_THS_SETTLE),
+	[CSIPHY_CLK_CALIB_ENABLE] = CSIPHY_REG(RK3368_CSI_DPHY_CLK_CALIB_EN),
+	[CSIPHY_LANE0_CALIB_ENABLE] = CSIPHY_REG(RK3368_CSI_DPHY_LANE0_CALIB_EN),
+	[CSIPHY_LANE1_CALIB_ENABLE] = CSIPHY_REG(RK3368_CSI_DPHY_LANE1_CALIB_EN),
+	[CSIPHY_LANE2_CALIB_ENABLE] = CSIPHY_REG(RK3368_CSI_DPHY_LANE2_CALIB_EN),
+	[CSIPHY_LANE3_CALIB_ENABLE] = CSIPHY_REG(RK3368_CSI_DPHY_LANE3_CALIB_EN),
+};
+
 struct hsfreq_range {
 	u32 range_h;
 	u8 cfg_bit;
@@ -427,6 +479,7 @@ struct mipidphy_priv {
 	bool is_streaming;
 	void __iomem *txrx_base_addr;
 	int (*stream_on)(struct mipidphy_priv *priv, struct v4l2_subdev *sd);
+	int (*stream_off)(struct mipidphy_priv *priv, struct v4l2_subdev *sd);
 };
 
 static inline struct mipidphy_priv *to_dphy_priv(struct v4l2_subdev *subdev)
@@ -530,7 +583,7 @@ static void csi_mipidphy_wr_ths_settle(struct mipidphy_priv *priv, int hsfreq,
 	}
 
 	read_csiphy_reg(priv, offset, &val);
-	val = (val & ~0xf) | hsfreq;
+	val = (val & ~0x7f) | hsfreq;
 	write_csiphy_reg(priv, offset, val);
 }
 
@@ -593,6 +646,39 @@ static int mipidphy_get_sensor_data_rate(struct v4l2_subdev *sd)
 	return 0;
 }
 
+static int mipidphy_update_sensor_mbus(struct v4l2_subdev *sd)
+{
+	struct mipidphy_priv *priv = to_dphy_priv(sd);
+	struct v4l2_subdev *sensor_sd = get_remote_sensor(sd);
+	struct mipidphy_sensor *sensor = sd_to_sensor(priv, sensor_sd);
+	struct v4l2_mbus_config mbus;
+	int ret;
+
+	ret = v4l2_subdev_call(sensor_sd, video, g_mbus_config, &mbus);
+	if (ret)
+		return ret;
+
+	sensor->mbus = mbus;
+	switch (mbus.flags & V4L2_MBUS_CSI2_LANES) {
+	case V4L2_MBUS_CSI2_1_LANE:
+		sensor->lanes = 1;
+		break;
+	case V4L2_MBUS_CSI2_2_LANE:
+		sensor->lanes = 2;
+		break;
+	case V4L2_MBUS_CSI2_3_LANE:
+		sensor->lanes = 3;
+		break;
+	case V4L2_MBUS_CSI2_4_LANE:
+		sensor->lanes = 4;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int mipidphy_s_stream_start(struct v4l2_subdev *sd)
 {
 	struct mipidphy_priv *priv = to_dphy_priv(sd);
@@ -605,6 +691,7 @@ static int mipidphy_s_stream_start(struct v4l2_subdev *sd)
 	if (ret < 0)
 		return ret;
 
+	mipidphy_update_sensor_mbus(sd);
 	priv->stream_on(priv, sd);
 
 	priv->is_streaming = true;
@@ -619,6 +706,8 @@ static int mipidphy_s_stream_stop(struct v4l2_subdev *sd)
 	if (!priv->is_streaming)
 		return 0;
 
+	if (priv->stream_off)
+		priv->stream_off(priv, sd);
 	priv->is_streaming = false;
 
 	return 0;
@@ -639,6 +728,7 @@ static int mipidphy_g_mbus_config(struct v4l2_subdev *sd,
 	struct v4l2_subdev *sensor_sd = get_remote_sensor(sd);
 	struct mipidphy_sensor *sensor = sd_to_sensor(priv, sensor_sd);
 
+	mipidphy_update_sensor_mbus(sd);
 	*config = sensor->mbus;
 
 	return 0;
@@ -753,6 +843,13 @@ static const struct hsfreq_range rk3326_mipidphy_hsfreq_ranges[] = {
 	{1249, 0x0c}, {1349, 0x0d}, {1500, 0x0e}
 };
 
+static const struct hsfreq_range rk3368_mipidphy_hsfreq_ranges[] = {
+	{ 109, 0x00}, { 149, 0x01}, { 199, 0x02}, { 249, 0x03},
+	{ 299, 0x04}, { 399, 0x05}, { 499, 0x06}, { 599, 0x07},
+	{ 699, 0x08}, { 799, 0x09}, { 899, 0x0a}, {1099, 0x0b},
+	{1249, 0x0c}, {1349, 0x0d}, {1500, 0x0e}
+};
+
 static const struct hsfreq_range rk3399_mipidphy_hsfreq_ranges[] = {
 	{  89, 0x00}, {  99, 0x10}, { 109, 0x20}, { 129, 0x01},
 	{ 139, 0x11}, { 149, 0x21}, { 169, 0x02}, { 179, 0x12},
@@ -779,6 +876,10 @@ static const char * const rk3326_mipidphy_clks[] = {
 	"dphy-ref",
 };
 
+static const char * const rk3368_mipidphy_clks[] = {
+	"pclk_dphyrx",
+};
+
 static const char * const rk3399_mipidphy_clks[] = {
 	"dphy-ref",
 	"dphy-cfg",
@@ -788,6 +889,12 @@ static const char * const rk3399_mipidphy_clks[] = {
 
 static void default_mipidphy_individual_init(struct mipidphy_priv *priv)
 {
+}
+
+static void rk3368_mipidphy_individual_init(struct mipidphy_priv *priv)
+{
+	/* isp select */
+	write_grf_reg(priv, GRF_ISP_MIPI_CSI_HOST_SEL, 1);
 }
 
 static void rk3399_mipidphy_individual_init(struct mipidphy_priv *priv)
@@ -818,6 +925,13 @@ static int mipidphy_rx_stream_on(struct mipidphy_priv *priv,
 			hsfreq = hsfreq_ranges[i].cfg_bit;
 			break;
 		}
+	}
+
+	if (i == num_hsfreq_ranges) {
+		i = num_hsfreq_ranges - 1;
+		dev_warn(priv->dev, "data rate: %lld mbps, max support %d mbps",
+			 priv->data_rate_mbps, hsfreq_ranges[i].range_h + 1);
+		hsfreq = hsfreq_ranges[i].cfg_bit;
 	}
 
 	/* RK3288 isp connected to phy0-rx */
@@ -902,6 +1016,13 @@ static int mipidphy_txrx_stream_on(struct mipidphy_priv *priv,
 			hsfreq = hsfreq_ranges[i].cfg_bit;
 			break;
 		}
+	}
+
+	if (i == num_hsfreq_ranges) {
+		i = num_hsfreq_ranges - 1;
+		dev_warn(priv->dev, "data rate: %lld mbps, max support %d mbps",
+			 priv->data_rate_mbps, hsfreq_ranges[i].range_h + 1);
+		hsfreq = hsfreq_ranges[i].cfg_bit;
 	}
 
 	/*
@@ -1050,6 +1171,14 @@ static int csi_mipidphy_stream_on(struct mipidphy_priv *priv,
 			break;
 		}
 	}
+
+	if (i == num_hsfreq_ranges) {
+		i = num_hsfreq_ranges - 1;
+		dev_warn(priv->dev, "data rate: %lld mbps, max support %d mbps",
+			 priv->data_rate_mbps, hsfreq_ranges[i].range_h + 1);
+		hsfreq = hsfreq_ranges[i].cfg_bit;
+	}
+
 	csi_mipidphy_wr_ths_settle(priv, hsfreq, MIPI_DPHY_LANE_CLOCK);
 	if (sensor->lanes > 0x00)
 		csi_mipidphy_wr_ths_settle(priv, hsfreq, MIPI_DPHY_LANE_DATA0);
@@ -1063,6 +1192,18 @@ static int csi_mipidphy_stream_on(struct mipidphy_priv *priv,
 	write_grf_reg(priv, GRF_DPHY_CSIPHY_CLKLANE_EN, 0x1);
 	write_grf_reg(priv, GRF_DPHY_CSIPHY_DATALANE_EN,
 		      GENMASK(sensor->lanes - 1, 0));
+
+	return 0;
+}
+
+static int csi_mipidphy_stream_off(struct mipidphy_priv *priv,
+				   struct v4l2_subdev *sd)
+{
+	/* disable all lanes */
+	write_csiphy_reg(priv, CSIPHY_CTRL_LANE_ENABLE, 0x01);
+	/* disable pll and ldo */
+	write_csiphy_reg(priv, CSIPHY_CTRL_PWRCTL, 0xe3);
+	usleep_range(500, 1000);
 
 	return 0;
 }
@@ -1100,6 +1241,17 @@ static const struct dphy_drv_data rk3326_mipidphy_drv_data = {
 	.individual_init = default_mipidphy_individual_init,
 };
 
+static const struct dphy_drv_data rk3368_mipidphy_drv_data = {
+	.clks = rk3368_mipidphy_clks,
+	.num_clks = ARRAY_SIZE(rk3368_mipidphy_clks),
+	.hsfreq_ranges = rk3368_mipidphy_hsfreq_ranges,
+	.num_hsfreq_ranges = ARRAY_SIZE(rk3368_mipidphy_hsfreq_ranges),
+	.grf_regs = rk3368_grf_dphy_regs,
+	.csiphy_regs = rk3368_csiphy_regs,
+	.ctl_type = MIPI_DPHY_CTL_CSI_HOST,
+	.individual_init = rk3368_mipidphy_individual_init,
+};
+
 static const struct dphy_drv_data rk3399_mipidphy_drv_data = {
 	.clks = rk3399_mipidphy_clks,
 	.num_clks = ARRAY_SIZE(rk3399_mipidphy_clks),
@@ -1123,6 +1275,10 @@ static const struct of_device_id rockchip_mipidphy_match_id[] = {
 	{
 		.compatible = "rockchip,rk3326-mipi-dphy",
 		.data = &rk3326_mipidphy_drv_data,
+	},
+	{
+		.compatible = "rockchip,rk3368-mipi-dphy",
+		.data = &rk3368_mipidphy_drv_data,
 	},
 	{
 		.compatible = "rockchip,rk3399-mipi-dphy",
@@ -1327,6 +1483,7 @@ static int rockchip_mipidphy_probe(struct platform_device *pdev)
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 		priv->csihost_base_addr = devm_ioremap_resource(dev, res);
 		priv->stream_on = csi_mipidphy_stream_on;
+		priv->stream_off = csi_mipidphy_stream_off;
 	} else {
 		priv->stream_on = mipidphy_txrx_stream_on;
 		priv->txrx_base_addr = NULL;
@@ -1334,6 +1491,7 @@ static int rockchip_mipidphy_probe(struct platform_device *pdev)
 		priv->txrx_base_addr = devm_ioremap_resource(dev, res);
 		if (IS_ERR(priv->txrx_base_addr))
 			priv->stream_on = mipidphy_rx_stream_on;
+		priv->stream_off = NULL;
 	}
 
 	sd = &priv->sd;

@@ -354,6 +354,35 @@ pvtm_value_out:
 	return ret;
 }
 
+int rockchip_of_get_leakage(struct device *dev, char *lkg_name, int *leakage)
+{
+	struct device_node *np;
+	struct nvmem_cell *cell;
+	int ret;
+
+	np = of_parse_phandle(dev->of_node, "operating-points-v2", 0);
+	if (!np) {
+		dev_warn(dev, "OPP-v2 not supported\n");
+		return -ENOENT;
+	}
+
+	cell = of_nvmem_cell_get(np, "leakage");
+	if (IS_ERR(cell)) {
+		ret = rockchip_get_efuse_value(np, lkg_name, leakage);
+	} else {
+		nvmem_cell_put(cell);
+		ret = rockchip_get_efuse_value(np, "leakage", leakage);
+	}
+	of_node_put(np);
+	if (ret) {
+		dev_err(dev, "Failed to get %s\n", lkg_name);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(rockchip_of_get_leakage);
+
 void rockchip_of_get_lkg_sel(struct device *dev, struct device_node *np,
 			     char *lkg_name, int process,
 			     int *volt_sel, int *scale_sel)
@@ -906,6 +935,20 @@ static void rockchip_high_temp_adjust(struct thermal_opp_info *info,
 		info->is_high_temp = is_high;
 }
 
+int rockchip_cpu_suspend_low_temp_adjust(struct thermal_opp_info *info)
+{
+	if (!info || !info->is_low_temp_enabled)
+		return 0;
+
+	if (info->is_high_temp)
+		rockchip_high_temp_adjust(info, false);
+	if (!info->is_low_temp)
+		rockchip_low_temp_adjust(info, true);
+
+	return 0;
+}
+EXPORT_SYMBOL(rockchip_cpu_suspend_low_temp_adjust);
+
 static int rockchip_thermal_zone_notifier_call(struct notifier_block *nb,
 					       unsigned long value, void *data)
 {
@@ -925,6 +968,8 @@ static int rockchip_thermal_zone_notifier_call(struct notifier_block *nb,
 	}
 
 	if (temperature > info->high_temp) {
+		if (info->is_low_temp)
+			rockchip_low_temp_adjust(info, false);
 		if (!info->is_high_temp)
 			rockchip_high_temp_adjust(info, true);
 	} else if (temperature < (info->high_temp - info->temp_hysteresis)) {
@@ -1090,6 +1135,8 @@ rockchip_register_thermal_notifier(struct device *dev,
 	    !info->low_limit && !info->high_limit)
 		goto info_free;
 
+	if (info->low_temp_table || info->low_temp_min_volt)
+		info->is_low_temp_enabled = true;
 	srcu_notifier_chain_register(&tz->thermal_notifier_list,
 				     &info->thermal_nb);
 	thermal_zone_device_update(tz);

@@ -2386,7 +2386,8 @@ static u64 vop_calc_max_bandwidth(struct vop_bandwidth *bw, int start,
 }
 
 static size_t vop_crtc_bandwidth(struct drm_crtc *crtc,
-				 struct drm_crtc_state *crtc_state)
+				 struct drm_crtc_state *crtc_state,
+				 unsigned int *plane_num_total)
 {
 	struct drm_atomic_state *state = crtc_state->state;
 	struct drm_display_mode *adjusted_mode = &crtc_state->adjusted_mode;
@@ -2408,6 +2409,8 @@ static size_t vop_crtc_bandwidth(struct drm_crtc *crtc,
 			continue;
 		plane_num++;
 	}
+	if (plane_num_total)
+		*plane_num_total += plane_num;
 	pbandwidth = kmalloc_array(plane_num, sizeof(*pbandwidth),
 				   GFP_KERNEL);
 	if (!pbandwidth)
@@ -2547,6 +2550,7 @@ static void vop_update_csc(struct drm_crtc *crtc)
 	case MEDIA_BUS_FMT_RGB666_1X18:
 	case MEDIA_BUS_FMT_RGB666_1X24_CPADHI:
 	case MEDIA_BUS_FMT_RGB666_1X7X3_SPWG:
+	case MEDIA_BUS_FMT_RGB666_1X7X3_JEIDA:
 		VOP_CTRL_SET(vop, dither_down_en, 1);
 		VOP_CTRL_SET(vop, dither_down_mode, RGB888_TO_RGB666);
 		break;

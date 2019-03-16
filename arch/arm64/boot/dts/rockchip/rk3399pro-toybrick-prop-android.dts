@@ -3,7 +3,7 @@
 //#include "lcd-mipi2lvds-for-toybrick.dtsi"
 
 / {
-	compatible = "rockchip,rk3399pro-toybrick-evb-android","rockchip,rk3399pro";
+	compatible = "rockchip,rk3399pro-toybrick-prop-android","rockchip,rk3399pro";
 
 	wireless-wlan {
 		compatible = "wlan-platdata";

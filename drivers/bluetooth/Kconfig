@@ -18,6 +18,12 @@ config BT_RTKBTUSB
     help
        RTK Bluetooth HCI USB driver
 
+config BT_RTKBTUSB_LINUX
+    tristate "RTK HCI USB driver for linux"
+    depends on USB
+    help
+       RTK Bluetooth HCI USB driver for linux
+
 config BT_HCIBTUSB
 	tristate "HCI USB driver"
 	depends on USB

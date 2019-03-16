@@ -8,10 +8,8 @@
 / {
 	compatible = "rockchip,rk3399pro-toybrick-prod-linux","rockchip,rk3399pro";
 	extbrd: extbrd {
-		compatible = "eaidk-extboard";
+		compatible = "prod-extboard";
 		io-channels = <&saradc 0>, <&saradc 1>;
-		pinctrl-names = "default";
-		pinctrl-0 =<&extkey_gpio>;
 	};
 };
 
@@ -75,17 +73,5 @@
 		m25p,fast-read;
 		// The max SCLK of the flash 104/80 MHZ
 		spi-max-frequency = <50000000>;
-	};
-};
-
-&pinctrl {
-	extbrd {
-		extkey_gpio: extkey-gpio {
-			rockchip,pins =
-				<0 5 RK_FUNC_GPIO &pcfg_pull_up>,
-				<0 6 RK_FUNC_GPIO &pcfg_pull_up>,
-				<1 9 RK_FUNC_GPIO &pcfg_pull_up>,
-				<1 10 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
 	};
 };

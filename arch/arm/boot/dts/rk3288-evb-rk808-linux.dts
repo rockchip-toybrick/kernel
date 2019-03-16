@@ -495,6 +495,14 @@
 &i2c3 {
 	status = "okay";
 
+	vm149c: vm149c@0c {
+		compatible = "silicon touch,vm149c";
+		status = "okay";
+		reg = <0x0c>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+	};
+
 	ov13850: ov13850@10 {
 		compatible = "ovti,ov13850";
 		status = "okay";
@@ -504,6 +512,11 @@
 
 		reset-gpios = <&gpio7 21 GPIO_ACTIVE_HIGH>;
 		pwdn-gpios = <&gpio2 15 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-CT0116";
+		rockchip,camera-module-lens-name = "Largan-50013A1";
+		lens-focus = <&vm149c>;
 
 		port {
 			cam_out: endpoint {
@@ -567,10 +580,6 @@
 };
 
 &sound {
-	status = "okay";
-};
-
-&uart2 {
 	status = "okay";
 };
 
