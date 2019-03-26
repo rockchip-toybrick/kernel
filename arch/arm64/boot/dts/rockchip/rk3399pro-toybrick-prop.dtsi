@@ -1,6 +1,5 @@
 #include "rk3399pro-toybrick.dtsi"
 #include "rk3399-vop-clk-set.dtsi"
-#include "rk3399-android.dtsi"
 
 / {
 	compatible = "rockchip,rk3399pro-toybrick-prop","rockchip,rk3399pro";

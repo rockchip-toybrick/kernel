@@ -1,5 +1,7 @@
 /dts-v1/;
 #include "rk3399pro-toybrick-prop.dtsi"
+#include "rk3399-android.dtsi"
+
 //#include "lcd-mipi2lvds-for-toybrick.dtsi"
 
 / {
