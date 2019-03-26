@@ -45,6 +45,88 @@
 		default-brightness-level = <200>;
 	};
 
+	isp0: isp@ff910000 {
+		compatible = "rockchip,rk3399-isp", "rockchip,isp";
+		reg = <0x0 0xff910000 0x0 0x4000>;
+		interrupts = <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH 0>;
+		assigned-clocks = <&cru SCLK_CIF_OUT_SRC>;
+		assigned-clock-parents = <&cru PLL_GPLL>;
+		assigned-clock-rates = <800000000>;
+		clocks =
+			<&cru SCLK_CIF_OUT>, <&cru SCLK_CIF_OUT_SRC>,
+			<&cru SCLK_DPHY_TX1RX1_CFG>, <&cru SCLK_MIPIDPHY_REF>,
+			<&cru ACLK_ISP0_NOC>, <&cru ACLK_ISP0_WRAPPER>,
+			<&cru HCLK_ISP0_NOC>, <&cru HCLK_ISP0_WRAPPER>,
+			<&cru SCLK_ISP0>, <&cru SCLK_DPHY_RX0_CFG>;
+		clock-names =
+			"clk_cif_out", "clk_cif_pll",
+			"pclk_dphytxrx", "pclk_dphy_ref",
+			"aclk_isp0_noc", "aclk_isp0_wrapper",
+			"hclk_isp0_noc", "hclk_isp0_wrapper",
+			"clk_isp0", "pclk_dphyrx";
+		pinctrl-names =
+			"cif_clkout", "isp_dvp8bit0", "isp_mipi_fl",
+			"isp_mipi_fl_prefl", "isp_flash_as_gpio",
+			"isp_flash_as_trigger_out";
+		pinctrl-0 = <&cif_clkout>;
+		pinctrl-1 = <&cif_clkout &isp_dvp_d0d7>;
+		pinctrl-2 = <&cif_clkout>;
+		pinctrl-3 = <&cif_clkout &isp_prelight>;
+		pinctrl-4 = <&isp_flash_trigger_as_gpio>;
+		pinctrl-5 = <&isp_flash_trigger>;
+		rockchip,isp,mipiphy = <2>;
+		rockchip,isp,cifphy = <1>;
+		rockchip,isp,dsiphy,reg = <0xff968000 0x8000>;
+		rockchip,grf = <&grf>;
+		rockchip,cru = <&cru>;
+		rockchip,gpios = <&gpio1 3 GPIO_ACTIVE_HIGH>;
+		rockchip,isp,iommu-enable = <1>;
+		power-domains = <&power RK3399_PD_ISP0>;
+		iommus = <&isp0_mmu>;
+		status = "disabled";
+	};
+
+	isp1: isp@ff920000 {
+		compatible = "rockchip,rk3399-isp", "rockchip,isp";
+		reg = <0x0 0xff920000 0x0 0x4000>;
+		interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH 0>;
+		clocks =
+			<&cru ACLK_ISP1_NOC>, <&cru ACLK_ISP1_WRAPPER>,
+			<&cru HCLK_ISP1_NOC>, <&cru HCLK_ISP1_WRAPPER>,
+			<&cru SCLK_ISP1>, <&cru SCLK_CIF_OUT>,
+			<&cru SCLK_CIF_OUT_SRC>, <&cru SCLK_DPHY_TX1RX1_CFG>,
+			<&cru SCLK_MIPIDPHY_REF>, <&cru PCLK_ISP1_WRAPPER>,
+			<&cru SCLK_DPHY_RX0_CFG>, <&cru PCLK_MIPI_DSI1>,
+			<&cru SCLK_MIPIDPHY_CFG>;
+		clock-names =
+			"aclk_isp1_noc", "aclk_isp1_wrapper",
+			"hclk_isp1_noc", "hclk_isp1_wrapper",
+			"clk_isp1", "clk_cif_out",
+			"clk_cif_pll", "pclk_dphytxrx",
+			"pclk_dphy_ref", "pclk_isp1",
+			"pclk_dphyrx", "pclk_mipi_dsi",
+			"mipi_dphy_cfg";
+		pinctrl-names =
+			"cif_clkout", "isp_dvp8bit0", "isp_mipi_fl",
+			"isp_mipi_fl_prefl", "isp_flash_as_gpio",
+			"isp_flash_as_trigger_out";
+		pinctrl-0 = <&cif_clkout>;
+		pinctrl-1 = <&cif_clkout &isp_dvp_d0d7>;
+		pinctrl-2 = <&cif_clkout>;
+		pinctrl-3 = <&isp_prelight>;
+		pinctrl-4 = <&isp_flash_trigger_as_gpio>;
+		pinctrl-5 = <&isp_flash_trigger>;
+		rockchip,isp,mipiphy = <2>;
+		rockchip,isp,cifphy = <1>;
+		rockchip,isp,dsiphy,reg = <0xff968000 0x8000>;
+		rockchip,grf = <&grf>;
+		rockchip,cru = <&cru>;
+		rockchip,gpios = <&gpio1 3 GPIO_ACTIVE_HIGH>;
+		rockchip,isp,iommu-enable = <1>;
+		power-domains = <&power RK3399_PD_ISP1>;
+		iommus = <&isp1_mmu>;
+		status = "disabled";
+	};
 };
 
 &pwm0 {
@@ -53,5 +135,14 @@
 
 &backlight {
 	status = "okay";
+};
+
+&pinctrl {
+	isp {
+		isp_prelight: isp-prelight {
+			/*ISP_PRELIGHTTRIG*/
+			rockchip,pins = <1 4 RK_FUNC_1 &pcfg_pull_none>;
+		};
+	};
 };
 
