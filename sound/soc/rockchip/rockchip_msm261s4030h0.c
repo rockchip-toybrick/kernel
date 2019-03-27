@@ -25,6 +25,9 @@
 
 #include "rockchip_i2s.h"
 
+extern int es7243_standby(void);
+extern int es7243_start(void);
+
 #ifdef CONFIG_MACH_RK_FAC
 #include <plat/config.h>
 extern int codec_type;
@@ -44,6 +47,7 @@ static int rk3399_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	int mclk, ret;
+	es7243_start();
 
 	/* in bypass mode, the mclk has to be one of the frequencies below */
 	switch (params_rate(params)) {
@@ -71,7 +75,8 @@ static int rk3399_hw_params(struct snd_pcm_substream *substream,
 		dev_err(codec_dai->dev, "Can't set cpu clock out %d\n", ret);
 		return ret;
 	}
-
+	
+	printk(KERN_ERR "rk3399_hw_params mic record\n");
 	return 0;
 }
 
