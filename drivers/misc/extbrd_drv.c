@@ -365,15 +365,7 @@ static int eai610_gpio_keys[] = {
 	RK_GPIO(4, 24),
 };
 
-static int prod_gpio_keys[] = {
-	RK_GPIO(1, 10), //GPIO1_B2
-	RK_GPIO(0, 6), //GPIO1_A6
-};
-static int prop_gpio_keys[] = {
-	RK_GPIO(1, 10), //GPIO1_B2
-	RK_GPIO(1, 7),  //GPIO1_A7
-};
-#define EXT_KEY_NUM  	ARR_SIZE(prod_gpio_keys)
+#define EXT_KEY_NUM  	ARR_SIZE(eai610_gpio_keys)
 #endif /* End of EXT_GPIO_KEYS */
 
 #ifdef EXT_ADC
@@ -523,7 +515,7 @@ static int extbrd_probe(struct platform_device *pdev)
 			EXTBRD_DEBUG("This is Prod extboard.\n");
 			board_type = BOARD_PROD;
 #ifdef EXT_GPIO_KEYS
-			gpio_keys = prod_gpio_keys;
+			gpio_keys = NULL;
 #endif
 #ifdef EXT_ADC
 			ext_gpio_leds = prod_ext_gpio_leds;
@@ -533,7 +525,7 @@ static int extbrd_probe(struct platform_device *pdev)
 			EXTBRD_DEBUG("This is Prop extboard.\n");
 			board_type = BOARD_PROP;
 #ifdef EXT_GPIO_KEYS
-			gpio_keys = prop_gpio_keys;
+			gpio_keys = NULL;
 #endif
 #ifdef EXT_ADC
 			ext_gpio_leds = prop_ext_gpio_leds;
