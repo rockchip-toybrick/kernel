@@ -177,6 +177,14 @@
 		compatible = "usbhub-reset";
 		uhrst-gpio = <&gpio4 21 GPIO_ACTIVE_HIGH>;
 	};
+
+	fan_gpio_test: fan-gpio-test {
+		compatible = "fan-gpio-test";
+		pinctrl-names = "default";
+		pinctrl-0 = <&fan_test_gpio>;
+		fan-test-gpios = <&gpio1 RK_PA1 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
 };
 
 &vopl {
@@ -905,6 +913,13 @@
 			rockchip,pins =
 				<2 26 RK_FUNC_GPIO &pcfg_output_low>,
 				<2 27 RK_FUNC_GPIO &pcfg_output_low>;
+		};
+	};
+
+	fan-test {
+		fan_test_gpio: fan-test-gpio {
+			rockchip,pins =
+				<1 RK_PA1 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 };
