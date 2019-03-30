@@ -3,7 +3,7 @@
 #include "rk3399-linux.dtsi"
 
 /* Default camera: ov9750 */
-//#include "rk3399pro-toybrick-ov9750.dtsi"
+#include "rk3399pro-toybrick-ov9750.dtsi"
 
 / {
 	compatible = "rockchip,rk3399pro-toybrick-prod-linux","rockchip,rk3399pro";

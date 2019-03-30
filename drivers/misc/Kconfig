@@ -565,6 +565,12 @@ config EXTIO
 	help
 	  Enable this driver will support external board io control
 
+config GPIO_FAN_TEST
+	bool "GPIO Fan Test driver"
+	default n
+	help
+	  Enable this driver will support fan io control
+
 config GPIO_DET
 	bool "gpio detection driver"
 	help

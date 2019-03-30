@@ -27,6 +27,8 @@
 
 extern int es7243_standby(void);
 extern int es7243_start(void);
+extern int es7243_init(void);
+
 
 #ifdef CONFIG_MACH_RK_FAC
 #include <plat/config.h>
@@ -47,8 +49,10 @@ static int rk3399_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	int mclk, ret;
+	es7243_init();
+	udelay(5);
 	es7243_start();
-
+	udelay(5);
 	/* in bypass mode, the mclk has to be one of the frequencies below */
 	switch (params_rate(params)) {
 	case 8000:

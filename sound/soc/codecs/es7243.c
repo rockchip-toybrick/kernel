@@ -187,11 +187,44 @@ static const struct of_device_id of_es7243_match[] = {
 
 MODULE_DEVICE_TABLE(of, of_es7243_match);
 
+static ssize_t es7243_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	int i = 0, j = 0;
+	char es7243_reg[500] = {0};
+	char buffer[50] = {0};
+	for (i = 0; i < count; i++) {
+		for (j = 0; j < 0xf; j++) {
+			sprintf(buffer, "reg(0x%x)--0x%x\n", j, es7243_i2c_read(es7243_i2c_client[i], j));
+			strcat(es7243_reg, buffer);
+		}
+	}
+    return sprintf(buf, "%s\n", es7243_reg);
+}
+
+static ssize_t es7243_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	es7243_init();
+	return count;
+}
+
+static struct kobject *es7243_kobj;
+struct es7243_attribute {
+    struct attribute    attr;
+    ssize_t (*show)(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+    ssize_t (*store)(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t n);
+};
+
+static struct es7243_attribute es7243_attrs[] = {
+    /*     node_name    permision       show_func   store_func */
+	__ATTR(es7243,  S_IRUGO | S_IWUSR,  es7243_show, es7243_store),
+};
+
 static int es7243_i2c_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
 	const struct of_device_id *match;
 	struct device *dev = &client->dev;
+	int i = 0, ret = 0;
 	printk("es7243_i2c_probe\n");
 	if (dev->of_node) {
 		match = of_match_device(of_es7243_match, dev);
@@ -201,10 +234,18 @@ static int es7243_i2c_probe(struct i2c_client *client,
 		}
 	}
 	es7243_i2c_client[count] = client;
+	es7243_kobj = kobject_create_and_add("es7243", NULL);
+	if (!es7243_kobj)
+		return -ENOMEM;
+	for (i = 0; i < ARRAY_SIZE(es7243_attrs); i++) {
+		ret = sysfs_create_file(es7243_kobj, &es7243_attrs[i].attr);
+		if (ret != 0) {
+			printk(KERN_ERR "create pwm sysfs %d error\n", i);
+			/* return ret; */
+		}
+	}
 	count++;
-	es7243_init();
-	es7243_start();
-	printk("es7243_i2c_probe finish\n");
+	printk("es7243_i2c_probe finish,count %d\n", count);
 	return 0;
 }
 
