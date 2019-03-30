@@ -31,5 +31,6 @@
 #define ES7243_CHIPID_REG0E		0x0E
 int es7243_standby(void);
 int es7243_start(void);
+int es7243_init(void);
 #endif /* _ES7243_H_ */
 
