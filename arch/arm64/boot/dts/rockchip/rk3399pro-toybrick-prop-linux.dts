@@ -56,6 +56,12 @@
 			reg = <0x0 0x0 0x0 0x0>;
 		};
 	};
+
+	wireless-wlan {
+		compatible = "wlan-platdata";
+		wifi_chip_type = "rtl8188eu";
+		status = "okay";
+	};
 };
 
 &display_subsystem {
