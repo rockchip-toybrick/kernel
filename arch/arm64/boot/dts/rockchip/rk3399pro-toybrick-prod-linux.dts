@@ -4,7 +4,7 @@
 
 /* Default camera: ov9750 */
 #include "rk3399pro-toybrick-ov9750.dtsi"
-
+//#include "rk3399pro-toybrick-imx258.dtsi"
 / {
 	compatible = "rockchip,rk3399pro-toybrick-prod-linux","rockchip,rk3399pro";
 	extbrd: extbrd {
