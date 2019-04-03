@@ -14,3 +14,4 @@ obj-$(CONFIG_VIDEO_OV9750) += ov_camera_module.o rk_camera_module.o ov9750_v4l2-
 obj-$(CONFIG_VIDEO_ov5640) += ov_camera_module.o rk_camera_module.o ov5640_v4l2-i2c-subdev.o
 obj-$(CONFIG_VIDEO_SC031GS) += sc_camera_module.o rk_camera_module.o sc031gs_v4l2-i2c-subdev.o
 obj-$(CONFIG_VIDEO_SC2232) += sc_camera_module.o rk_camera_module.o sc2232_v4l2-i2c-subdev.o
+obj-$(CONFIG_VIDEO_IMX258) += imx_camera_module.o rk_camera_module.o imx258_v4l2-i2c-subdev.o rk_camera_mclk.o dw9714_v4l2-i2c-subdev.o
