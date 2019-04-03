@@ -1,8 +1,7 @@
 /dts-v1/;
 #include "rk3399pro-toybrick-prop.dtsi"
-#include "rk3399pro-toybrick-ov9750.dtsi"
 #include "rk3399-linux.dtsi"
-
+#include "rk3399pro-toybrick-ov9750.dtsi"
 / {
 	compatible = "rockchip,rk3399pro-toybrick-evb-linux","rockchip,rk3399pro";
 	extbrd: extbrd {
