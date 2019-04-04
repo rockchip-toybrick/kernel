@@ -182,9 +182,11 @@
 	};
 };
 
+/*
 &usbhub_reset {
     uhrst-gpio = <&gpio1 10 GPIO_ACTIVE_HIGH>;
 };
+*/
 
 &pwm3 {
 	status = "okay";
