@@ -1,0 +1,174 @@
+/*
+ * Copyright (c) 2018 Fuzhou Rockchip Electronics Co., Ltd
+ *
+ * This file is dual-licensed: you can use it either under the terms
+ * of the GPL or the X11 license, at your option. Note that this dual
+ * licensing only applies to this file, and not this project as a
+ * whole.
+ *
+ *  a) This file is free software; you can redistribute it and/or
+ *     modify it under the terms of the GNU General Public License as
+ *     published by the Free Software Foundation; either version 2 of the
+ *     License, or (at your option) any later version.
+ *
+ *     This file is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ * Or, alternatively,
+ *
+ *  b) Permission is hereby granted, free of charge, to any person
+ *     obtaining a copy of this software and associated documentation
+ *     files (the "Software"), to deal in the Software without
+ *     restriction, including without limitation the rights to use,
+ *     copy, modify, merge, publish, distribute, sublicense, and/or
+ *     sell copies of the Software, and to permit persons to whom the
+ *     Software is furnished to do so, subject to the following
+ *     conditions:
+ *
+ *     The above copyright notice and this permission notice shall be
+ *     included in all copies or substantial portions of the Software.
+ *
+ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ *     OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+&cif_isp0 {
+	rockchip,camera-modules-attached = <&camera0>;
+	status = "okay";
+};
+
+&cif_isp1 {
+	rockchip,camera-modules-attached = <&camera1>;
+	status = "okay";
+};
+
+&isp0 {
+	status = "okay";
+};
+
+&isp1 {
+	status = "okay";
+};
+
+&isp0_mmu {
+	status = "okay";
+};
+
+&isp1_mmu {
+	status = "okay";
+};
+
+&pinctrl {
+	cam_mclk {
+		cam_default_pins: cam-default-pins {
+			rockchip,pins = <2 11 RK_FUNC_3 &pcfg_pull_none>;
+		};
+	};
+};
+
+&i2c1 {
+	status = "okay";
+
+	afc0: af-controller@0 {
+		status = "okay";
+		compatible = "dongwoon,dw9714-v4l2-i2c-subdev";
+		reg = <0x0C>;
+
+		rockchip,vcm-start-current = <20>;
+		rockchip,vcm-rated-current = <76>;
+		rockchip,vcm-step-mode = <0>;
+	};
+
+	camera0: camera-module@10 {
+		status = "okay";
+		compatible = "sony,imx258-v4l2-i2c-subdev";
+		reg = <0x10>;
+		device_type = "v4l2-i2c-subdev";
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "clk_cif_out";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_default_pins>;
+
+		rockchip,pd-gpio = <&gpio4 RK_PD0 GPIO_ACTIVE_LOW>;
+		rockchip,rst-gpio = <&gpio4 RK_PD2 GPIO_ACTIVE_LOW>;
+
+		rockchip,camera-module-mclk-name = "clk_cif_out";
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "MDG001";
+		rockchip,camera-module-len-name = "NONE";
+		rockchip,camera-module-fov-h = "80";
+		rockchip,camera-module-fov-v = "65";
+		rockchip,camera-module-orientation = <0>;
+		rockchip,camera-module-iq-flip = <0>;
+		rockchip,camera-module-iq-mirror = <0>;
+		rockchip,camera-module-flip = <1>;
+		rockchip,camera-module-mirror = <1>;
+		rockchip,af-ctrl = <&afc0>;
+
+		rockchip,camera-module-defrect0 = <2096 1560 0 0 2096 1560>;
+		rockchip,camera-module-defrect1 = <4208 3120 0 0 4208 3120>;
+		rockchip,camera-module-flash-support = <0>;
+		rockchip,camera-module-mipi-dphy-index = <0>;
+		as-master = <0>;
+	};
+
+};
+
+&i2c2 {
+	status = "okay";
+
+	afc1: af-controller@0 {
+		status = "okay";
+		compatible = "dongwoon,dw9714-v4l2-i2c-subdev";
+		reg = <0x0C>;
+
+		rockchip,vcm-start-current = <20>;
+		rockchip,vcm-rated-current = <76>;
+		rockchip,vcm-step-mode = <0>;
+	};
+
+	camera1: camera-module@10 {
+		status = "okay";
+		compatible = "sony,imx258-v4l2-i2c-subdev";
+		reg = <0x10>;
+		device_type = "v4l2-i2c-subdev";
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "clk_cif_out";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_default_pins>;
+
+		rockchip,pd-gpio = <&gpio4 RK_PD0 GPIO_ACTIVE_LOW>;
+		rockchip,rst-gpio = <&gpio4 RK_PD2 GPIO_ACTIVE_LOW>;
+
+		rockchip,camera-module-mclk-name = "clk_cif_out";
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "MDG001";
+		rockchip,camera-module-len-name = "NONE";
+		rockchip,camera-module-fov-h = "80";
+		rockchip,camera-module-fov-v = "65";
+		rockchip,camera-module-orientation = <0>;
+		rockchip,camera-module-iq-flip = <0>;
+		rockchip,camera-module-iq-mirror = <0>;
+		rockchip,camera-module-flip = <1>;
+		rockchip,camera-module-mirror = <1>;
+		rockchip,af-ctrl = <&afc1>;
+
+		rockchip,camera-module-defrect0 = <2096 1560 0 0 2096 1560>;
+		rockchip,camera-module-defrect1 = <4208 3120 0 0 4208 3120>;
+		rockchip,camera-module-flash-support = <0>;
+		rockchip,camera-module-mipi-dphy-index = <1>;
+		as-master = <0>;
+	};
+
+};
+

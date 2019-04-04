@@ -202,6 +202,7 @@ struct imx_camera_module {
 	u32 rotation;
 	void *pltfm_data;
 	bool inited;
+	bool as_master;
 	struct mutex lock;
 };
 
@@ -270,6 +271,10 @@ int imx_camera_module_s_ctrl(
 int imx_camera_module_s_ext_ctrls(
 	struct v4l2_subdev *sd,
 	struct v4l2_ext_controls *ctrls);
+
+int imx_camera_module_enum_frame_size(struct v4l2_subdev *sd,
+					struct v4l2_subdev_pad_config *cfg,
+					struct v4l2_subdev_frame_size_enum *fse);
 
 int imx_camera_module_enum_frameintervals(
 	struct v4l2_subdev *sd,

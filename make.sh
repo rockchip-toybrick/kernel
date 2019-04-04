@@ -13,8 +13,10 @@ function help()
 	echo
 	echo "e.g. ./make.sh android prod"
 	echo "     ./make.sh android prop"
+    echo "     ./make.sh android bq96board"
 	echo "     ./make.sh linux prod"
 	echo "     ./make.sh linux prop"
+    echo "     ./make.sh linux bq96board"
 }
 
 if [ $# -lt 2 ];then
@@ -33,7 +35,11 @@ case $1 in
 		;;
 	linux)
 		mkdir -p boot_linux/extlinux
-		make rockchip_linux_defconfig
+        if [ ${DTB} == "toybrick-bq96board" ]; then
+            make rockchip_bq96board_linux_defconfig
+        else
+            make rockchip_linux_defconfig
+        fi
 		make ARCH=arm64 rk3399pro-${DTB}-linux.img -j${JOB}
 		cp -f arch/arm64/boot/dts/rockchip/rk3399pro-${DTB}-linux.dtb boot_linux/extlinux/rk3399pro.dtb
 		cp -f arch/arm64/boot/Image boot_linux/extlinux/

@@ -3,14 +3,61 @@
 #include "rk3399-linux.dtsi"
 
 /* Default camera: ov9750 */
-#include "rk3399pro-toybrick-ov9750.dtsi"
-//#include "rk3399pro-toybrick-imx258.dtsi"
+//#include "rk3399pro-toybrick-bq96board-ov9750.dtsi"
+#include "rk3399pro-toybrick-bq96board-imx258.dtsi"
+
 / {
-	compatible = "rockchip,rk3399pro-toybrick-prod-linux","rockchip,rk3399pro";
+	compatible = "rockchip,rk3399pro-toybrick-bq96board-linux","rockchip,rk3399pro";
 	extbrd: extbrd {
 		compatible = "prod-extboard";
 		io-channels = <&saradc 0>, <&saradc 1>;
 	};
+	
+	vcc_4g: vcc-4g-regulator {
+        status = "disabled";
+    };
+
+    sdio_pwrseq: sdio-pwrseq {
+        compatible = "mmc-pwrseq-simple";
+        clocks = <&rk809 1>;
+        clock-names = "ext_clock";
+        pinctrl-names = "default";
+        pinctrl-0 = <&wifi_enable_h>;
+
+        /*
+         * On the module itself this is one of these (depending
+         * on the actual card populated):
+         * - SDIO_RESET_L_WL_REG_ON
+         * - PDN (power down when low)
+         */
+        reset-gpios = <&gpio2 28 GPIO_ACTIVE_LOW>; /* GPIO2_D4 */
+    };
+
+    wireless-wlan {
+        compatible = "wlan-platdata";
+        rockchip,grf = <&grf>;
+        wifi_chip_type = "ap6255";
+        sdio_vref = <1800>;
+        WIFI,host_wake_irq = <&gpio2 26 GPIO_ACTIVE_HIGH>; /* GPIO2_D2 */
+        status = "okay";
+    };
+	
+	wireless-bluetooth {
+        compatible = "bluetooth-platdata";
+        clocks = <&rk809 1>;
+        clock-names = "ext_clock";
+        /* wifi-bt-power-toggle; */
+        uart_rts_gpios = <&gpio2 19 GPIO_ACTIVE_LOW>;
+        pinctrl-names = "default", "rts_gpio";
+        pinctrl-0 = <&uart0_rts>;
+        pinctrl-1 = <&uart0_gpios>;
+        /* BT,power_gpio  = <&gpio3 19 GPIO_ACTIVE_HIGH>; */
+        BT,reset_gpio    = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+        BT,wake_gpio     = <&gpio4 22 GPIO_ACTIVE_HIGH>;
+        BT,wake_host_irq = <&gpio0 9 GPIO_ACTIVE_HIGH>;
+        status = "okay";
+    };
+
 	fiq_debugger: fiq-debugger {
 		compatible = "rockchip,fiq-debugger";
 		rockchip,serial-id = <2>;
@@ -57,12 +104,36 @@
 			reg = <0x0 0x0 0x0 0x0>;
 		};
 	};
+};
 
-	wireless-wlan {
-		compatible = "wlan-platdata";
-		wifi_chip_type = "rtl8188eu";
-		status = "okay";
+&i2c0 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <180>;
+	i2c-scl-falling-time-ns = <30>;
+	clock-frequency = <400000>;
+
+	rk809: pmic@20 {
+		compatible = "rockchip,rk809";
+		pmic-reset-func = <1>;
 	};
+};
+
+&sdio0 {
+    clock-frequency = <50000000>;
+    clock-freq-min-max = <200000 50000000>;
+    supports-sdio;
+    bus-width = <4>;
+    disable-wp;
+    cap-sd-highspeed;
+    cap-sdio-irq;
+    keep-power-in-suspend;
+    mmc-pwrseq = <&sdio_pwrseq>;
+    non-removable;
+    num-slots = <1>;
+    pinctrl-names = "default";
+    pinctrl-0 = <&sdio0_bus4 &sdio0_cmd &sdio0_clk>;
+    sd-uhs-sdr104;
+    status = "okay";
 };
 
 &vopb {
@@ -169,7 +240,7 @@
 };
 
 &spi5 {
-	status = "okay";
+	status = "disabled";
 
 	flash@0 {
 		compatible = "gigadevice,w25q64", "jedec,spi-nor";
@@ -180,4 +251,28 @@
 		// The max SCLK of the flash 104/80 MHZ
 		spi-max-frequency = <50000000>;
 	};
+};
+
+&io_domains {
+    status = "okay";
+    bt656-supply = <&vcca_1v8>; /* APIO2_VDD */
+    audio-supply = <&vcca_1v8>; /* APIO5_VDD */
+    sdmmc-supply = <&vccio_sd>; /* SDMMC0_VDD */
+    gpio1830-supply = <&vcc_1v8>; /* APIO4_VDD */                                                                                                                                                   
+};
+
+&pinctrl {
+    sdio-pwrseq {
+        wifi_enable_h: wifi-enable-h {
+            rockchip,pins =
+                <2 28 RK_FUNC_GPIO &pcfg_pull_none>;
+        };
+    };
+
+    wireless-bluetooth {
+        uart0_gpios: uart0-gpios {
+            rockchip,pins =
+                <2 19 RK_FUNC_GPIO &pcfg_pull_none>;
+        };
+    };
 };
