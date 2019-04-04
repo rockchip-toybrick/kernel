@@ -1,0 +1,198 @@
+/dts-v1/;
+#include "rk3399pro-toybrick-prod.dtsi"
+#include "rk3399-android.dtsi"
+
+/ {
+        compatible = "rockchip,rk3399pro-toybrick-96ai-android","rockchip,rk3399pro";
+
+	chosen {
+		bootargs = "console=ttyFIQ0 androidboot.baseband=N/A androidboot.selinux=permissive androidboot.veritymode=enforcing androidboot.hardware=rk30board androidboot.console=ttyFIQ0 init=/init initrd=0x62000000,0x00800000 earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1";
+	};
+
+	vcc_4g: vcc-4g-regulator {
+		status = "disabled";
+	};
+
+	sdio_pwrseq: sdio-pwrseq {
+        compatible = "mmc-pwrseq-simple";
+        clocks = <&rk809 1>;
+        clock-names = "ext_clock";
+        pinctrl-names = "default";
+        pinctrl-0 = <&wifi_enable_h>;
+
+        /*
+         * On the module itself this is one of these (depending
+         * on the actual card populated):
+         * - SDIO_RESET_L_WL_REG_ON
+         * - PDN (power down when low)
+         */
+        reset-gpios = <&gpio2 28 GPIO_ACTIVE_LOW>; /* GPIO2_D4 */
+    };
+
+    wireless-wlan {
+        compatible = "wlan-platdata";
+        rockchip,grf = <&grf>;
+        wifi_chip_type = "ap6255";
+        sdio_vref = <1800>;
+        WIFI,host_wake_irq = <&gpio2 26 GPIO_ACTIVE_HIGH>; /* GPIO2_D2 */
+        status = "okay";
+    };
+
+    wireless-bluetooth {
+        compatible = "bluetooth-platdata";
+        clocks = <&rk809 1>;
+        clock-names = "ext_clock";
+        /* wifi-bt-power-toggle; */
+        uart_rts_gpios = <&gpio2 19 GPIO_ACTIVE_LOW>;
+        pinctrl-names = "default", "rts_gpio";
+        pinctrl-0 = <&uart0_rts>;
+        pinctrl-1 = <&uart0_gpios>;
+        /* BT,power_gpio  = <&gpio3 19 GPIO_ACTIVE_HIGH>; */
+        BT,reset_gpio    = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+        BT,wake_gpio     = <&gpio4 22 GPIO_ACTIVE_HIGH>;
+        BT,wake_host_irq = <&gpio0 9 GPIO_ACTIVE_HIGH>;
+        status = "okay";
+    };
+};
+
+&sdio0 {
+    clock-frequency = <50000000>;
+    clock-freq-min-max = <200000 50000000>;
+    supports-sdio;
+    bus-width = <4>;
+    disable-wp;
+    cap-sd-highspeed;
+    cap-sdio-irq;
+    keep-power-in-suspend;
+    mmc-pwrseq = <&sdio_pwrseq>;
+    non-removable;
+    num-slots = <1>;
+    pinctrl-names = "default";
+    pinctrl-0 = <&sdio0_bus4 &sdio0_cmd &sdio0_clk>;
+    sd-uhs-sdr104;
+    status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <180>;
+	i2c-scl-falling-time-ns = <30>;
+	clock-frequency = <400000>;
+
+	rk809: pmic@20 {
+		compatible = "rockchip,rk809";
+		pmic-reset-func = <1>;
+	};
+};
+
+&pcie_phy {
+	status = "okay";
+};
+
+&pcie0 {
+	ep-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;
+	num-lines = <4>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie_clkreqn_cpm &pcie_ep>;
+	status = "okay";
+};
+
+&fiq_debugger {
+	pinctrl-0 = <&uart2c_xfer>;
+};
+
+&firmware_android {
+	compatible = "android,firmware";
+	fstab {
+		compatible = "android,fstab";
+		system {
+			compatible = "android,system";
+			dev = "/dev/block/by-name/system";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait,verify";
+		};
+		vendor {
+			compatible = "android,vendor";
+			dev = "/dev/block/by-name/vendor";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait,verify";
+		};
+	};
+};
+
+&hdmi_dp_sound {
+	status = "okay";
+};
+
+&isp0 {
+	status = "okay";
+};
+
+&isp1 {
+	status = "okay";
+};
+
+&isp0_mmu {
+	status = "okay";
+};
+
+&isp1_mmu {
+	status = "okay";
+};
+
+&rk_key {
+	status = "okay";
+	io-channels = <&saradc 2>;
+	/delete-node/ power-key;
+};
+
+&uart4 {
+	status = "okay";
+};
+
+&spi1 {
+	status = "disabled";
+};
+
+&route_edp {
+	status = "okay";
+	connect = <&vopl_out_edp>;
+};
+
+&route_dsi {
+	status = "okay";
+	connect = <&vopl_out_dsi>;
+};
+
+&io_domains {
+    status = "okay";
+    bt656-supply = <&vcca_1v8>; /* APIO2_VDD */
+    audio-supply = <&vcca_1v8>; /* APIO5_VDD */
+    sdmmc-supply = <&vccio_sd>; /* SDMMC0_VDD */
+    gpio1830-supply = <&vcc_1v8>; /* APIO4_VDD */                                                                                                                                                   
+};
+
+&pinctrl {
+	pcie {
+		pcie_ep: pcie-ep {
+			rockchip,pins =
+				<0 12 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+	
+	sdio-pwrseq {
+        wifi_enable_h: wifi-enable-h {
+            rockchip,pins =
+                <2 28 RK_FUNC_GPIO &pcfg_pull_none>;
+        };
+    };
+
+    wireless-bluetooth {
+        uart0_gpios: uart0-gpios {
+            rockchip,pins =
+                <2 19 RK_FUNC_GPIO &pcfg_pull_none>;
+        };
+    };
+};

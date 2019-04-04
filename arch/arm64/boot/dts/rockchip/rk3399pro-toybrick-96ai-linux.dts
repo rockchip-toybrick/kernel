@@ -1,0 +1,278 @@
+/dts-v1/;
+#include "rk3399pro-toybrick-prod.dtsi"
+#include "rk3399-linux.dtsi"
+
+/* Default camera: ov9750 */
+//#include "rk3399pro-toybrick-96ai-ov9750.dtsi"
+#include "rk3399pro-toybrick-96ai-imx258.dtsi"
+
+/ {
+	compatible = "rockchip,rk3399pro-toybrick-96ai-linux","rockchip,rk3399pro";
+	extbrd: extbrd {
+		compatible = "prod-extboard";
+		io-channels = <&saradc 0>, <&saradc 1>;
+	};
+	
+	vcc_4g: vcc-4g-regulator {
+        status = "disabled";
+    };
+
+    sdio_pwrseq: sdio-pwrseq {
+        compatible = "mmc-pwrseq-simple";
+        clocks = <&rk809 1>;
+        clock-names = "ext_clock";
+        pinctrl-names = "default";
+        pinctrl-0 = <&wifi_enable_h>;
+
+        /*
+         * On the module itself this is one of these (depending
+         * on the actual card populated):
+         * - SDIO_RESET_L_WL_REG_ON
+         * - PDN (power down when low)
+         */
+        reset-gpios = <&gpio2 28 GPIO_ACTIVE_LOW>; /* GPIO2_D4 */
+    };
+
+    wireless-wlan {
+        compatible = "wlan-platdata";
+        rockchip,grf = <&grf>;
+        wifi_chip_type = "ap6255";
+        sdio_vref = <1800>;
+        WIFI,host_wake_irq = <&gpio2 26 GPIO_ACTIVE_HIGH>; /* GPIO2_D2 */
+        status = "okay";
+    };
+	
+	wireless-bluetooth {
+        compatible = "bluetooth-platdata";
+        clocks = <&rk809 1>;
+        clock-names = "ext_clock";
+        /* wifi-bt-power-toggle; */
+        uart_rts_gpios = <&gpio2 19 GPIO_ACTIVE_LOW>;
+        pinctrl-names = "default", "rts_gpio";
+        pinctrl-0 = <&uart0_rts>;
+        pinctrl-1 = <&uart0_gpios>;
+        /* BT,power_gpio  = <&gpio3 19 GPIO_ACTIVE_HIGH>; */
+        BT,reset_gpio    = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+        BT,wake_gpio     = <&gpio4 22 GPIO_ACTIVE_HIGH>;
+        BT,wake_host_irq = <&gpio0 9 GPIO_ACTIVE_HIGH>;
+        status = "okay";
+    };
+
+	fiq_debugger: fiq-debugger {
+		compatible = "rockchip,fiq-debugger";
+		rockchip,serial-id = <2>;
+		rockchip,wake-irq = <0>;
+		rockchip,irq-mode-enable = <0>;  /* If enable uart uses irq instead of fiq */
+		rockchip,baudrate = <1500000>;  /* Only 115200 and 1500000 */
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart2c_xfer>;
+		interrupts = <GIC_SPI 150 IRQ_TYPE_LEVEL_HIGH 0>;
+	};
+
+	rk_key: rockchip-key {
+		compatible = "rockchip,key";
+		status = "okay";
+
+		io-channels = <&saradc 2>;
+
+		/delete-node/ power-key;
+		vol-up-key {
+			linux,code = <115>;
+			label = "volume up";
+			rockchip,adc_value = <1>;
+		};
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		drm_logo: drm-logo@00000000 {
+			compatible = "rockchip,drm-logo";
+			reg = <0x0 0x0 0x0 0x0>;
+		};
+
+		secure_memory: secure-memory@20000000 {
+			compatible = "rockchip,secure-memory";
+			reg = <0x0 0x20000000 0x0 0x10000000>;
+			status = "disabled";
+		};
+
+		stb_devinfo: stb-devinfo@00000000 {
+			compatible = "rockchip,stb-devinfo";
+			reg = <0x0 0x0 0x0 0x0>;
+		};
+	};
+};
+
+&i2c0 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <180>;
+	i2c-scl-falling-time-ns = <30>;
+	clock-frequency = <400000>;
+
+	rk809: pmic@20 {
+		compatible = "rockchip,rk809";
+		pmic-reset-func = <1>;
+	};
+};
+
+&sdio0 {
+    clock-frequency = <50000000>;
+    clock-freq-min-max = <200000 50000000>;
+    supports-sdio;
+    bus-width = <4>;
+    disable-wp;
+    cap-sd-highspeed;
+    cap-sdio-irq;
+    keep-power-in-suspend;
+    mmc-pwrseq = <&sdio_pwrseq>;
+    non-removable;
+    num-slots = <1>;
+    pinctrl-names = "default";
+    pinctrl-0 = <&sdio0_bus4 &sdio0_cmd &sdio0_clk>;
+    sd-uhs-sdr104;
+    status = "okay";
+};
+
+&vopb {
+	status = "okay";
+};
+
+&vopb_mmu {
+	status = "okay";
+};
+
+&vopl {
+	status = "okay";
+};
+
+&vopl_mmu {
+	status = "okay";
+};
+
+&hdmi {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	#sound-dai-cells = <0>;
+	ddc-i2c-scl-high-time-ns = <9625>;
+	ddc-i2c-scl-low-time-ns = <10000>;
+	status = "okay";
+};
+
+
+&display_subsystem {
+	status = "okay";
+
+	ports = <&vopb_out>, <&vopl_out>;
+	logo-memory-region = <&drm_logo>;
+	secure-memory-region = <&secure_memory>;
+	route {
+		route_hdmi: route-hdmi {
+			status = "disabled";
+			logo,uboot = "logo.bmp";
+			logo,kernel = "logo_kernel.bmp";
+			logo,mode = "center";
+			charge_logo,mode = "center";
+			connect = <&vopb_out_hdmi>;
+		};
+
+		route_dsi: route-dsi {
+			status = "disabled";
+			logo,uboot = "logo.bmp";
+			logo,kernel = "logo_kernel.bmp";
+			logo,mode = "center";
+			charge_logo,mode = "center";
+			connect = <&vopb_out_dsi>;
+		};
+
+		route_dsi1: route-dsi1 {
+			status = "disabled";
+			logo,uboot = "logo.bmp";
+			logo,kernel = "logo_kernel.bmp";
+			logo,mode = "center";
+			charge_logo,mode = "center";
+			connect = <&vopl_out_dsi1>;
+		};
+
+		route_edp: route-edp {
+			status = "disabled";
+			logo,uboot = "logo.bmp";
+			logo,kernel = "logo_kernel.bmp";
+			logo,mode = "center";
+			charge_logo,mode = "center";
+			connect = <&vopl_out_edp>;
+		};
+	};
+};
+
+&uart4 {
+	status = "okay";
+};
+
+&spi1 {
+	status = "disabled";
+};
+
+&route_edp {
+	status = "okay";
+};
+
+&route_dsi {
+	status = "okay";
+};
+
+&hdmi_codec {
+	status = "okay";
+};
+
+&i2c6 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+	clock-frequency=<400000>;
+
+	ina219x47c6: ina219@47 {
+		compatible = "ina219";
+		reg = <0x47>;
+	};
+};
+
+&spi5 {
+	status = "disabled";
+
+	flash@0 {
+		compatible = "gigadevice,w25q64", "jedec,spi-nor";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0>;
+		m25p,fast-read;
+		// The max SCLK of the flash 104/80 MHZ
+		spi-max-frequency = <50000000>;
+	};
+};
+
+&io_domains {
+    status = "okay";
+    bt656-supply = <&vcca_1v8>; /* APIO2_VDD */
+    audio-supply = <&vcca_1v8>; /* APIO5_VDD */
+    sdmmc-supply = <&vccio_sd>; /* SDMMC0_VDD */
+    gpio1830-supply = <&vcc_1v8>; /* APIO4_VDD */                                                                                                                                                   
+};
+
+&pinctrl {
+    sdio-pwrseq {
+        wifi_enable_h: wifi-enable-h {
+            rockchip,pins =
+                <2 28 RK_FUNC_GPIO &pcfg_pull_none>;
+        };
+    };
+
+    wireless-bluetooth {
+        uart0_gpios: uart0-gpios {
+            rockchip,pins =
+                <2 19 RK_FUNC_GPIO &pcfg_pull_none>;
+        };
+    };
+};
