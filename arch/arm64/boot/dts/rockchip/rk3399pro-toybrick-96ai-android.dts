@@ -3,7 +3,7 @@
 #include "rk3399-android.dtsi"
 
 / {
-        compatible = "rockchip,rk3399pro-toybrick-bq96board-android","rockchip,rk3399pro";
+        compatible = "rockchip,rk3399pro-toybrick-96ai-android","rockchip,rk3399pro";
 
 	chosen {
 		bootargs = "console=ttyFIQ0 androidboot.baseband=N/A androidboot.selinux=permissive androidboot.veritymode=enforcing androidboot.hardware=rk30board androidboot.console=ttyFIQ0 init=/init initrd=0x62000000,0x00800000 earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1";

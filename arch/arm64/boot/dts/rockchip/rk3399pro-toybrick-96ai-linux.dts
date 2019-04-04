@@ -3,11 +3,11 @@
 #include "rk3399-linux.dtsi"
 
 /* Default camera: ov9750 */
-//#include "rk3399pro-toybrick-bq96board-ov9750.dtsi"
-#include "rk3399pro-toybrick-bq96board-imx258.dtsi"
+//#include "rk3399pro-toybrick-96ai-ov9750.dtsi"
+#include "rk3399pro-toybrick-96ai-imx258.dtsi"
 
 / {
-	compatible = "rockchip,rk3399pro-toybrick-bq96board-linux","rockchip,rk3399pro";
+	compatible = "rockchip,rk3399pro-toybrick-96ai-linux","rockchip,rk3399pro";
 	extbrd: extbrd {
 		compatible = "prod-extboard";
 		io-channels = <&saradc 0>, <&saradc 1>;
