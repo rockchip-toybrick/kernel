@@ -52,6 +52,9 @@
 		compatible = "operating-points-v2";
 		opp-shared;
 
+		nvmem-cells = <&cpu_leakage>;
+		nvmem-cell-names = "leakage";
+
 		opp-408000000 {
 			opp-hz = /bits/ 64 <408000000>;
 			opp-microvolt = <750000 750000 950000>;
@@ -85,6 +88,12 @@
 		interrupts = <GIC_SPI 228 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 229 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-affinity = <&cpu0>, <&cpu1>;
+	};
+
+	cpuinfo {
+		compatible = "rockchip,cpuinfo";
+		nvmem-cells = <&efuse_id>, <&efuse_cpu_version>;
+		nvmem-cell-names = "id", "cpu-version";
 	};
 
 	psci {
@@ -158,6 +167,13 @@
 		reg = <0x0 0xfe000000 0x0 0x1000>;
 		#address-cells = <1>;
 		#size-cells = <1>;
+
+		npu_pvtm: npu-pvtm {
+			compatible = "rockchip,rk1808-npu-pvtm";
+			clocks = <&cru SCLK_PVTM_NPU>;
+			clock-names = "npu";
+			status = "okay";
+		};
 	};
 
 	usb2phy_grf: syscon@fe010000 {
@@ -207,11 +223,32 @@
 		reg = <0x0 0xfe020000 0x0 0x1000>;
 		#address-cells = <1>;
 		#size-cells = <1>;
+
+		pmu_pvtm: pmu-pvtm {
+			compatible = "rockchip,rk1808-pmu-pvtm";
+			clocks = <&cru SCLK_PVTM_PMU>;
+			clock-names = "pmu";
+			status = "okay";
+		};
 	};
 
 	usb_pcie_grf: syscon@fe040000 {
 		compatible = "rockchip,usb-pcie-grf", "syscon";
 		reg = <0x0 0xfe040000 0x0 0x1000>;
+	};
+
+	coregrf: syscon@fe050000 {
+		compatible = "rockchip,rk1808-coregrf", "syscon", "simple-mfd";
+		reg = <0x0 0xfe050000 0x0 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		pvtm: pvtm {
+			compatible = "rockchip,rk1808-pvtm";
+			clocks = <&cru SCLK_PVTM_CORE>;
+			clock-names = "core";
+			status = "okay";
+		};
 	};
 
 	qos_npu: qos@fe850000 {
@@ -290,6 +327,36 @@
 			compatible = "arm,gic-v3-its";
 			msi-controller;
 			reg = <0x0 0xff120000 0x0 0x20000>;
+		};
+	};
+
+	efuse: efuse@ff260000 {
+		compatible = "rockchip,rk1808-efuse";
+		reg = <0x0 0xff3b0000 0x0 0x50>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		clocks = <&cru SCLK_EFUSE_NS>, <&cru PCLK_EFUSE>;
+		clock-names = "sclk_efuse", "pclk_efuse";
+		assigned-clocks = <&cru SCLK_EFUSE_NS>;
+		assigned-clock-rates = <24000000>;
+		rockchip,efuse-size = <0x20>;
+
+		/* Data cells */
+		efuse_id: id@7 {
+			reg = <0x07 0x10>;
+		};
+		cpu_leakage: cpu-leakage@17 {
+			reg = <0x17 0x1>;
+		};
+		logic_leakage: logic-leakage@18 {
+			reg = <0x18 0x1>;
+		};
+		npu_leakage: npu-leakage@19 {
+			reg = <0x19 0x1>;
+		};
+		efuse_cpu_version: cpu-version@1c {
+			reg = <0x1c 0x1>;
+			bits = <3 3>;
 		};
 	};
 
@@ -551,6 +618,27 @@
 	npu_opp_table: npu-opp-table {
 		compatible = "operating-points-v2";
 
+		rockchip,max-volt = <950000>;
+		rockchip,evb-irdrop = <37500>;
+
+		rockchip,pvtm-voltage-sel = <
+			0        69000   0
+			69001    74000   1
+			74001    99999   2
+		>;
+		rockchip,pvtm-freq = <200000>;
+		rockchip,pvtm-volt = <800000>;
+		rockchip,pvtm-ch = <0 0>;
+		rockchip,pvtm-sample-time = <1000>;
+		rockchip,pvtm-number = <10>;
+		rockchip,pvtm-error = <1000>;
+		rockchip,pvtm-ref-temp = <25>;
+		rockchip,pvtm-temp-prop = <(-20) (-26)>;
+		rockchip,thermal-zone = "soc-thermal";
+
+		nvmem-cells = <&npu_leakage>;
+		nvmem-cell-names = "leakage";
+
 		opp-200000000 {
 			opp-hz = /bits/ 64 <200000000>;
 			opp-microvolt = <750000 750000 950000>;
@@ -569,7 +657,10 @@
 		};
 		opp-792000000 {
 			opp-hz = /bits/ 64 <792000000>;
-			opp-microvolt = <750000 750000 950000>;
+			opp-microvolt = <825000 825000 950000>;
+			opp-microvolt-L0 = <825000 825000 950000>;
+			opp-microvolt-L1 = <800000 800000 950000>;
+			opp-microvolt-L2 = <775000 775000 950000>;
 		};
 	};
 

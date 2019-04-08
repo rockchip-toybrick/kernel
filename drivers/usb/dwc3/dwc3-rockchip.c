@@ -57,6 +57,7 @@ struct dwc3_rockchip {
 	struct dwc3		*dwc;
 	struct reset_control	*otg_rst;
 	struct extcon_dev	*edev;
+	struct usb_hcd		*hcd;
 	struct notifier_block	device_nb;
 	struct notifier_block	host_nb;
 	struct work_struct	otg_work;
@@ -127,7 +128,8 @@ static ssize_t dwc3_mode_store(struct device *device,
 	 * detection function in usb2 phy, this can help to trigger
 	 * the peripheral disconnect by software.
 	 */
-	if (dwc->dr_mode == USB_DR_MODE_PERIPHERAL)
+	if (dwc->dr_mode == USB_DR_MODE_PERIPHERAL ||
+	    dwc->dr_mode == USB_DR_MODE_OTG)
 		phy_set_mode(dwc->usb2_generic_phy, PHY_MODE_INVALID);
 
 	dwc->dr_mode = USB_DR_MODE_OTG;
@@ -642,7 +644,6 @@ static void dwc3_rockchip_async_probe(void *data, async_cookie_t cookie)
 	struct dwc3_rockchip	*rockchip = data;
 	struct device		*dev = rockchip->dev;
 	struct dwc3		*dwc = rockchip->dwc;
-	struct usb_hcd		*hcd = dev_get_drvdata(&dwc->xhci->dev);
 	int			ret;
 
 	mutex_lock(&rockchip->lock);
@@ -669,9 +670,9 @@ static void dwc3_rockchip_async_probe(void *data, async_cookie_t cookie)
 	}
 
 	if (rockchip->edev || rockchip->dwc->dr_mode == USB_DR_MODE_OTG) {
-		if (hcd && hcd->state != HC_STATE_HALT) {
-			usb_remove_hcd(hcd->shared_hcd);
-			usb_remove_hcd(hcd);
+		if (rockchip->hcd && rockchip->hcd->state != HC_STATE_HALT) {
+			usb_remove_hcd(rockchip->hcd->shared_hcd);
+			usb_remove_hcd(rockchip->hcd);
 		}
 
 		pm_runtime_set_autosuspend_delay(dwc->dev,
@@ -725,7 +726,6 @@ static int dwc3_rockchip_probe(struct platform_device *pdev)
 	struct device		*dev = &pdev->dev;
 	struct device_node	*np = dev->of_node, *child;
 	struct platform_device	*child_pdev;
-	struct usb_hcd		*hcd = NULL;
 
 	unsigned int		count;
 	int			ret;
@@ -820,8 +820,8 @@ static int dwc3_rockchip_probe(struct platform_device *pdev)
 
 	if (rockchip->dwc->dr_mode == USB_DR_MODE_HOST ||
 	    rockchip->dwc->dr_mode == USB_DR_MODE_OTG) {
-		hcd = dev_get_drvdata(&rockchip->dwc->xhci->dev);
-		if (!hcd) {
+		rockchip->hcd = dev_get_drvdata(&rockchip->dwc->xhci->dev);
+		if (!rockchip->hcd) {
 			dev_err(dev, "fail to get drvdata hcd\n");
 			ret = -EPROBE_DEFER;
 			goto err2;

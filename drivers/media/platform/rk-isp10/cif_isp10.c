@@ -6940,20 +6940,21 @@ int cif_isp10_mipi_isr(unsigned int mipi_mis, void *cntxt)
 
 	mipi_ris = cif_ioread32(dev->config.base_addr +	CIF_MIPI_RIS);
 	mipi_mis = cif_ioread32(dev->config.base_addr + CIF_MIPI_MIS);
-
+	/*
 	cif_isp10_pltfrm_rtrace_printf(dev->dev,
 		"MIPI_MIS %08x, MIPI_RIS %08x, MIPI_IMSC %08x\n",
 		mipi_mis,
 		mipi_ris,
 		cif_ioread32(dev->config.base_addr + CIF_MIPI_IMSC));
-
+	*/
 	cif_iowrite32(~0,
 		dev->config.base_addr + CIF_MIPI_ICR);
 
 	if (mipi_mis & CIF_MIPI_ERR_DPHY) {
+		/*
 		cif_isp10_pltfrm_pr_warn(dev->dev,
 			"CIF_MIPI_ERR_DPHY: 0x%x\n", mipi_mis);
-
+		*/
 		/*
 		 * Disable DPHY errctrl interrupt, because this dphy
 		 * erctrl signal is assert and until the next changes
@@ -6965,6 +6966,7 @@ int cif_isp10_mipi_isr(unsigned int mipi_mis, void *cntxt)
 				dev->config.base_addr + CIF_MIPI_IMSC);
 	}
 
+	/*
 	if (mipi_mis & CIF_MIPI_ERR_CSI) {
 		cif_isp10_pltfrm_pr_warn(dev->dev,
 			"CIF_MIPI_ERR_CSI: 0x%x\n", mipi_mis);
@@ -6974,7 +6976,7 @@ int cif_isp10_mipi_isr(unsigned int mipi_mis, void *cntxt)
 		cif_isp10_pltfrm_pr_warn(dev->dev,
 			"CIF_MIPI_SYNC_FIFO_OVFLW: 0x%x\n", mipi_mis);
 	}
-
+	*/
 	if (mipi_mis == CIF_MIPI_FRAME_END) {
 		/*
 		 * Enable DPHY errctrl interrupt again, if mipi have receive
@@ -6986,11 +6988,12 @@ int cif_isp10_mipi_isr(unsigned int mipi_mis, void *cntxt)
 
 	mipi_mis = cif_ioread32(dev->config.base_addr + CIF_MIPI_MIS);
 
+	/*
 	if (mipi_mis) {
 		cif_isp10_pltfrm_pr_err(dev->dev,
 			"mipi_mis icr err: 0x%x\n", mipi_mis);
 	}
-
+	*/
 	return 0;
 }
 

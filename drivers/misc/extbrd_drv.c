@@ -365,15 +365,7 @@ static int eai610_gpio_keys[] = {
 	RK_GPIO(4, 24),
 };
 
-static int prod_gpio_keys[] = {
-	RK_GPIO(1, 10), //GPIO1_B2
-	RK_GPIO(0, 6), //GPIO1_A6
-};
-static int prop_gpio_keys[] = {
-	RK_GPIO(1, 10), //GPIO1_B2
-	RK_GPIO(1, 7),  //GPIO1_A7
-};
-#define EXT_KEY_NUM  	ARR_SIZE(prod_gpio_keys)
+#define EXT_KEY_NUM  	ARR_SIZE(eai610_gpio_keys)
 #endif /* End of EXT_GPIO_KEYS */
 
 #ifdef EXT_ADC
@@ -523,7 +515,7 @@ static int extbrd_probe(struct platform_device *pdev)
 			EXTBRD_DEBUG("This is Prod extboard.\n");
 			board_type = BOARD_PROD;
 #ifdef EXT_GPIO_KEYS
-			gpio_keys = prod_gpio_keys;
+			gpio_keys = NULL;
 #endif
 #ifdef EXT_ADC
 			ext_gpio_leds = prod_ext_gpio_leds;
@@ -533,7 +525,7 @@ static int extbrd_probe(struct platform_device *pdev)
 			EXTBRD_DEBUG("This is Prop extboard.\n");
 			board_type = BOARD_PROP;
 #ifdef EXT_GPIO_KEYS
-			gpio_keys = prop_gpio_keys;
+			gpio_keys = NULL;
 #endif
 #ifdef EXT_ADC
 			ext_gpio_leds = prop_ext_gpio_leds;
@@ -663,7 +655,7 @@ static int extbrd_probe(struct platform_device *pdev)
 		if (!gpio_is_valid(ext_gpio_leds[i])) {
 			 EXTBRD_ERROR("Invalid Ext gpio leds Gpio : %d\n", ext_gpio_leds[i]);
 			 ret = -EINVAL;
-			 goto fail0;
+			 goto fail1;
 		}
 
 		ret = devm_gpio_request(dev, ext_gpio_leds[i], NULL);
@@ -671,7 +663,7 @@ static int extbrd_probe(struct platform_device *pdev)
 			EXTBRD_ERROR("gpio-keys: failed to request Ext Leds GPIO %d, error %d\n",
 				                          ext_gpio_leds[i], ret);
 			ret = -EIO;
-			goto fail0;
+			goto fail1;
 		}
 		gpio_direction_output(ext_gpio_leds[i], GPIO_HIGH);
 		gpio_export(ext_gpio_leds[i], true);
@@ -689,10 +681,11 @@ static int extbrd_probe(struct platform_device *pdev)
 	return ret;
 
 #ifdef EXT_ADC
-fail0:
+fail1:
 	device_remove_file(&pdev->dev, &measure0_attr);
 	device_remove_file(&pdev->dev, &measure1_attr);
 
+fail0:
 	iio_channel_release_all(adc_chan_map);
 #endif
 fail:
@@ -714,7 +707,7 @@ static int extbrd_remove(struct platform_device *pdev)
 	if (ddata->chan[0] && ddata->chan[1])
 		cancel_delayed_work_sync(&ddata->adc_poll_work);
 
-	for (i = 0; i < GPIO_LEDS_NUM; i++) {
+	for (i = 0; i < ext_gpio_leds_num; i++) {
 		devm_gpio_free(dev, ext_gpio_leds[i]);
 	}
 

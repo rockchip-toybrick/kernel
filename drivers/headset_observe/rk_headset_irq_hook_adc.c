@@ -200,7 +200,7 @@ static irqreturn_t headset_interrupt(int irq, void *dev_id)
 		else
 			irq_set_irq_type(headset_info->irq[HEADSET],IRQF_TRIGGER_RISING);
 		#ifdef CONFIG_SND_SOC_ES7243
-		es7243_standby();
+		//es7243_standby();
 		#endif
 	}
 	else if(headset_info->headset_status == HEADSET_OUT)
@@ -208,7 +208,7 @@ static irqreturn_t headset_interrupt(int irq, void *dev_id)
 		headset_info->cur_headset_status = HEADSET_OUT;
 		cancel_delayed_work(&headset_info->hook_work);
 		#ifdef CONFIG_SND_SOC_ES7243
-		es7243_start();
+		//es7243_start();
 		#endif
 		if(headset_info->isMic)
 		{
