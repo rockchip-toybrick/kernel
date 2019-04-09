@@ -1,5 +1,5 @@
 /dts-v1/;
-#include "rk3399pro-toybrick-prod.dtsi"
+#include "rk3399pro-toybrick-96ai.dtsi"
 #include "rk3399-linux.dtsi"
 
 /* Default camera: ov9750 */
