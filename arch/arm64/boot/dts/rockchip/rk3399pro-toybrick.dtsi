@@ -42,14 +42,6 @@
 			sound-dai = <&rk809_codec>;
 		};
 	};
-
-	rk_headset {
-		compatible = "rockchip_headset";
-		headset_gpio = <&gpio0 RK_PB5 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&hp_det>;
-		io-channels = <&saradc 3>;
-	};
 	
 	hdmi_codec: hdmi-codec {
 		status="disabled";
@@ -825,13 +817,6 @@
 			rockchip,pins =
 				<1 RK_PA2 0 &pcfg_pull_up>;
 			};
-	};
-
-	headphone {
-		hp_det: hp-det {
-			rockchip,pins =
-				<0 RK_PB5 0 &pcfg_pull_up>;
-		};
 	};
 
 	lcd_rst {

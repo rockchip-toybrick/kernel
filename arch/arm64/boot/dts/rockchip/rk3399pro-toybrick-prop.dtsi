@@ -45,6 +45,14 @@
 		enable-gpios = <&gpio1 RK_PB5 GPIO_ACTIVE_HIGH>;
 	};
 
+	rk_headset {
+		compatible = "rockchip_headset";
+		headset_gpio = <&gpio0 RK_PB5 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hp_det>;
+		io-channels = <&saradc 3>;
+	};
+
 	cif_isp0: cif_isp@ff910000 {
 		compatible = "rockchip,rk3399-cif-isp";
 		rockchip,grf = <&grf>;
@@ -182,9 +190,11 @@
 	};
 };
 
+/*
 &usbhub_reset {
     uhrst-gpio = <&gpio1 10 GPIO_ACTIVE_HIGH>;
 };
+*/
 
 &pwm3 {
 	status = "okay";
@@ -294,6 +304,13 @@
 		isp_prelight: isp-prelight {
 			/*ISP_PRELIGHTTRIG*/
 			rockchip,pins = <1 4 RK_FUNC_1 &pcfg_pull_none>;
+		};
+	};
+
+	headphone {
+		hp_det: hp-det {
+			rockchip,pins =
+				<0 RK_PB5 0 &pcfg_pull_up>;
 		};
 	};
 };

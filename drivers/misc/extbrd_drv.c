@@ -655,7 +655,7 @@ static int extbrd_probe(struct platform_device *pdev)
 		if (!gpio_is_valid(ext_gpio_leds[i])) {
 			 EXTBRD_ERROR("Invalid Ext gpio leds Gpio : %d\n", ext_gpio_leds[i]);
 			 ret = -EINVAL;
-			 goto fail0;
+			 goto fail1;
 		}
 
 		ret = devm_gpio_request(dev, ext_gpio_leds[i], NULL);
@@ -663,7 +663,7 @@ static int extbrd_probe(struct platform_device *pdev)
 			EXTBRD_ERROR("gpio-keys: failed to request Ext Leds GPIO %d, error %d\n",
 				                          ext_gpio_leds[i], ret);
 			ret = -EIO;
-			goto fail0;
+			goto fail1;
 		}
 		gpio_direction_output(ext_gpio_leds[i], GPIO_HIGH);
 		gpio_export(ext_gpio_leds[i], true);
@@ -681,10 +681,11 @@ static int extbrd_probe(struct platform_device *pdev)
 	return ret;
 
 #ifdef EXT_ADC
-fail0:
+fail1:
 	device_remove_file(&pdev->dev, &measure0_attr);
 	device_remove_file(&pdev->dev, &measure1_attr);
 
+fail0:
 	iio_channel_release_all(adc_chan_map);
 #endif
 fail:
@@ -706,7 +707,7 @@ static int extbrd_remove(struct platform_device *pdev)
 	if (ddata->chan[0] && ddata->chan[1])
 		cancel_delayed_work_sync(&ddata->adc_poll_work);
 
-	for (i = 0; i < GPIO_LEDS_NUM; i++) {
+	for (i = 0; i < ext_gpio_leds_num; i++) {
 		devm_gpio_free(dev, ext_gpio_leds[i]);
 	}
 
