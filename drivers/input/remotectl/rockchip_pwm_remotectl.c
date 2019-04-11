@@ -396,6 +396,12 @@ static ssize_t pwm_show(struct kobject *kobj, struct kobj_attribute *attr,
 
 }
 
+static ssize_t pwm_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	keycode = 0;
+	return count;
+}
+
 static struct kobject *pwm_kobj;
 struct pwm_attribute {
 
@@ -409,7 +415,7 @@ struct pwm_attribute {
 
 static struct pwm_attribute pwm_attrs[] = {
 	/*     node_name    permision       show_func   store_func */
-	__ATTR(pwm_pcba,  S_IRUGO | S_IWUSR,  pwm_show, NULL),
+	__ATTR(pwm_pcba,  S_IRUGO | S_IWUSR,  pwm_show, pwm_store),
 };
 #endif
 
