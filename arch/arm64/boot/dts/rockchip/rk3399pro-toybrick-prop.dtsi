@@ -299,6 +299,24 @@
 	};
 };
 
+&i2c4 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <345>;
+	i2c-scl-falling-time-ns = <11>;
+
+	gsl3673: gsl3673@40 {
+		compatible = "GSL,GSL3673";
+		reg = <0x40>;
+		screen_max_x = <1536>;
+		screen_max_y = <2048>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&touch_int_d>;
+		irq_gpio_number = <&gpio4 RK_PD0 IRQ_TYPE_LEVEL_LOW>;
+		rst_gpio_number = <&gpio4 RK_PC6 GPIO_ACTIVE_HIGH>;
+	};
+};
+
 &pinctrl {
 	isp {
 		isp_prelight: isp-prelight {
@@ -311,6 +329,12 @@
 		hp_det: hp-det {
 			rockchip,pins =
 				<0 RK_PB5 0 &pcfg_pull_up>;
+		};
+	};
+	touch {
+		touch_int_d: touch-int-d {
+			rockchip,pins =
+				<4 RK_PD0 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
