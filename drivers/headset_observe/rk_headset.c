@@ -377,6 +377,8 @@ int rk_headset_probe(struct platform_device *pdev,struct rk_headset_pdata *pdata
 {
 	int ret;
 	struct headset_priv *headset;
+	int level = 0;
+	unsigned int headset_status;
 
 	headset = kzalloc(sizeof(struct headset_priv), GFP_KERNEL);
 	if (headset == NULL) {
@@ -462,6 +464,21 @@ int rk_headset_probe(struct platform_device *pdev,struct rk_headset_pdata *pdata
 	}
 
 	schedule_delayed_work(&headset->h_delayed_work[HEADSET], msecs_to_jiffies(500));
+	level = read_gpio(pdata->headset_gpio);
+	if (pdata->headset_insert_type == HEADSET_IN_HIGH) {
+		headset_status = level?HEADSET_IN:HEADSET_OUT;
+	} else {
+		headset_status = level?HEADSET_OUT:HEADSET_IN; 
+	}
+	
+	if (headset_status == HEADSET_IN) {
+		printk(KERN_ERR "headset in at first\n");
+		rk3328_analog_output_set(1);
+	} else {
+		printk(KERN_ERR "speaker in at first\n");
+		rk3328_analog_output_set(0);
+	}
+	
 	return 0;
 
 failed_free_dev:
