@@ -141,7 +141,7 @@ static irqreturn_t hook_interrupt(int irq, void *dev_id)
 	schedule_delayed_work(&headset_info->h_delayed_work[HOOK], msecs_to_jiffies(100));
 	return IRQ_HANDLED;
 }
-
+extern void rk3328_analog_output_set(int mute);
 static void headsetobserve_work(struct work_struct *work)
 {
 	int level = 0;
@@ -178,6 +178,8 @@ static void headsetobserve_work(struct work_struct *work)
 	if(headset_info->headset_status == HEADSET_IN)
 	{
 		headset_info->cur_headset_status = BIT_HEADSET_NO_MIC;
+		printk(KERN_ERR "headset in\n");
+		rk3328_analog_output_set(1);
 		if(pdata->headset_insert_type == HEADSET_IN_HIGH)
 			irq_set_irq_type(headset_info->irq[HEADSET],IRQF_TRIGGER_FALLING);
 		else
@@ -192,6 +194,8 @@ static void headsetobserve_work(struct work_struct *work)
 	else if(headset_info->headset_status == HEADSET_OUT)
 	{	
 		headset_info->hook_status = HOOK_UP;
+		printk(KERN_ERR "headset out\n");
+		rk3328_analog_output_set(0);
 		if(headset_info->isHook_irq == enable)
 		{
 			DBG("disable headset_hook irq\n");
