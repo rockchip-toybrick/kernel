@@ -41,6 +41,7 @@
 #define RK3328_GRF_SOC_CON2	(0x0408)
 #define RK3328_GRF_SOC_CON10	(0x0428)
 #define INITIAL_FREQ	(11289600)
+struct rk3328_codec_priv *rk3328_tmp;
 
 struct rk3328_codec_priv {
 	struct regmap *regmap;
@@ -127,6 +128,14 @@ static void rk3328_analog_output(struct rk3328_codec_priv *rk3328, int mute)
 	regmap_write(rk3328->grf, RK3328_GRF_SOC_CON10,
 		     (BIT(1) << 16) | (mute << 1));
 }
+
+void rk3328_analog_output_set(int mute)
+{
+	regmap_write(rk3328_tmp->grf, RK3328_GRF_SOC_CON10,
+		     (BIT(1) << 16) | (mute << 1));
+}
+
+EXPORT_SYMBOL(rk3328_analog_output_set);
 
 static int rk3328_digital_mute(struct snd_soc_dai *dai, int mute)
 {
@@ -513,7 +522,7 @@ static int rk3328_platform_probe(struct platform_device *pdev)
 		return PTR_ERR(rk3328->regmap);
 
 	platform_set_drvdata(pdev, rk3328);
-
+	rk3328_tmp = rk3328;
 	return snd_soc_register_codec(&pdev->dev, &soc_codec_dev_rk3328,
 				      rk3328_dai, ARRAY_SIZE(rk3328_dai));
 }
