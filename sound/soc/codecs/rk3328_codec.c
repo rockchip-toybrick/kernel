@@ -122,12 +122,13 @@ static int rk3328_set_dai_fmt(struct snd_soc_dai *codec_dai,
 			   DAC_MODE_MASK, val);
 	return 0;
 }
-
+#if 0
 static void rk3328_analog_output(struct rk3328_codec_priv *rk3328, int mute)
 {
 	regmap_write(rk3328->grf, RK3328_GRF_SOC_CON10,
 		     (BIT(1) << 16) | (mute << 1));
 }
+#endif
 
 void rk3328_analog_output_set(int mute)
 {
@@ -234,7 +235,7 @@ static int rk3328_codec_open_playback(struct snd_soc_codec *codec)
 	}
 
 	msleep(rk3328->spk_depop_time);
-	rk3328_analog_output(rk3328, 1);
+	//rk3328_analog_output(rk3328, 1);
 
 	regmap_update_bits(rk3328->regmap, HPOUTL_GAIN_CTRL,
 			   HPOUTL_GAIN_MASK, OUT_VOLUME);
@@ -277,7 +278,7 @@ static int rk3328_codec_close_playback(struct snd_soc_codec *codec)
 	struct rk3328_codec_priv *rk3328 = snd_soc_codec_get_drvdata(codec);
 	int i = 0;
 
-	rk3328_analog_output(rk3328, 0);
+	//rk3328_analog_output(rk3328, 0);
 
 	regmap_update_bits(rk3328->regmap, HPOUTL_GAIN_CTRL,
 			   HPOUTL_GAIN_MASK, 0);
@@ -488,7 +489,7 @@ static int rk3328_platform_probe(struct platform_device *pdev)
 		rk3328->spk_depop_time = 100;
 	}
 
-	rk3328_analog_output(rk3328, 0);
+	//rk3328_analog_output(rk3328, 0);
 
 	rk3328->mclk = devm_clk_get(&pdev->dev, "mclk");
 	if (IS_ERR(rk3328->mclk))
