@@ -25,6 +25,7 @@
 #include <linux/module.h>
 #include <linux/of_gpio.h>
 #include <linux/of_device.h>
+#include <dt-bindings/gpio/gpio.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/delay.h>
@@ -70,6 +71,16 @@ struct rk_priv_data {
 
 	int tx_delay;
 	int rx_delay;
+
+	/* software control of fephyled */
+	int link_io;
+	int link_io_level;
+	int led_io;
+	int led_io_level;
+	spinlock_t led_lock;
+	struct delayed_work led_work;
+	int led_active;
+	unsigned long led_next_time;
 
 	struct regmap *grf;
 };
@@ -1411,6 +1422,7 @@ static struct rk_priv_data *rk_gmac_setup(struct platform_device *pdev,
 	int ret;
 	const char *strings = NULL;
 	int value;
+	enum of_gpio_flags flags;
 
 	bsp_priv = devm_kzalloc(dev, sizeof(*bsp_priv), GFP_KERNEL);
 	if (!bsp_priv)
@@ -1477,6 +1489,13 @@ static struct rk_priv_data *rk_gmac_setup(struct platform_device *pdev,
 	}
 	dev_info(dev, "integrated PHY? (%s).\n",
 		 bsp_priv->integrated_phy ? "yes" : "no");
+
+	bsp_priv->link_io =
+		of_get_named_gpio_flags(dev->of_node, "link-gpio", 0, &flags);
+	bsp_priv->link_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
+	bsp_priv->led_io =
+		of_get_named_gpio_flags(dev->of_node, "led-gpio", 0, &flags);
+	bsp_priv->led_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
 
 	bsp_priv->pdev = pdev;
 
@@ -1600,6 +1619,104 @@ out:
 				addr[3], addr[4], addr[5]);
 }
 
+void rk_adjust_link_cb(void *p)
+{
+	struct stmmac_priv *priv = (struct stmmac_priv *)p;
+	struct phy_device *phydev = priv->phydev;
+	struct rk_priv_data *bsp_priv = priv->plat->bsp_priv;
+
+	if (gpio_is_valid(bsp_priv->link_io) &&
+		phydev->link != priv->oldlink) {
+		if (phydev->link) {
+			gpio_direction_output(bsp_priv->link_io,
+						bsp_priv->link_io_level);
+		} else {
+			gpio_direction_output(bsp_priv->link_io,
+						!bsp_priv->link_io_level);
+		}
+	}
+}
+
+#define NET_FLASH_TIME                  (HZ/10) /* 100 ms */
+#define NET_FLASH_PAUSE                (HZ/10) /* 100 ms */
+
+static void
+rk_set_blinking_leds(struct rk_priv_data *bsp_priv, int active)
+{
+	if (gpio_is_valid(bsp_priv->led_io)) {
+		if (active) {
+			gpio_set_value(bsp_priv->led_io,
+					      bsp_priv->led_io_level);
+		} else {
+			gpio_set_value(bsp_priv->led_io,
+					      !bsp_priv->led_io_level);
+		}
+	}
+}
+
+static void rk_led_work(struct work_struct *work)
+{
+	struct rk_priv_data *bsp_priv =
+		container_of(work, struct rk_priv_data, led_work.work);
+	unsigned long flags;
+
+	spin_lock_irqsave(&bsp_priv->led_lock, flags);
+
+	if (bsp_priv->led_active &&
+	    time_after(jiffies, bsp_priv->led_next_time)) {
+		/* Set the earliest time we may set the LED */
+		bsp_priv->led_next_time = jiffies + NET_FLASH_PAUSE;
+		bsp_priv->led_active = 0;
+		spin_unlock_irqrestore(&bsp_priv->led_lock, flags);
+		rk_set_blinking_leds(bsp_priv, 0);
+	} else {
+		spin_unlock_irqrestore(&bsp_priv->led_lock, flags);
+	}
+}
+
+void rk_blinking_cb(void *p)
+{
+	struct stmmac_priv *priv = (struct stmmac_priv *)p;
+	struct rk_priv_data *bsp_priv = priv->plat->bsp_priv;
+	unsigned long flags;
+
+	if (gpio_is_valid(bsp_priv->led_io)) {
+		spin_lock_irqsave(&bsp_priv->led_lock, flags);
+		if (!bsp_priv->led_active &&
+		    time_after(jiffies, bsp_priv->led_next_time)) {
+			/* Set the earliest time we may clear the LED */
+			bsp_priv->led_next_time = jiffies + NET_FLASH_TIME;
+			bsp_priv->led_active = 1;
+			spin_unlock_irqrestore(&bsp_priv->led_lock, flags);
+
+			rk_set_blinking_leds(bsp_priv, 1);
+			schedule_delayed_work(&bsp_priv->led_work,
+					      NET_FLASH_TIME+1);
+		} else {
+			spin_unlock_irqrestore(&bsp_priv->led_lock, flags);
+		}
+	}
+}
+
+void rx_led_ctl_init(struct rk_priv_data *bsp_priv)
+{
+	if (gpio_is_valid(bsp_priv->led_io)) {
+		gpio_direction_output(bsp_priv->led_io,
+				!bsp_priv->led_io_level);
+	}
+	if (gpio_is_valid(bsp_priv->link_io)) {
+		gpio_direction_output(bsp_priv->link_io,
+				!bsp_priv->link_io_level);
+	}
+
+	INIT_DELAYED_WORK(&bsp_priv->led_work, rk_led_work);
+
+	/* Initialize next time the led can flash */
+	bsp_priv->led_next_time = jiffies;
+	bsp_priv->led_active = 0;
+	spin_lock_init(&bsp_priv->led_lock);
+}
+
 static int rk_gmac_probe(struct platform_device *pdev)
 {
 	struct plat_stmmacenet_data *plat_dat;
@@ -1624,6 +1741,8 @@ static int rk_gmac_probe(struct platform_device *pdev)
 	plat_dat->has_gmac = true;
 	plat_dat->fix_mac_speed = rk_fix_speed;
 	plat_dat->get_eth_addr = rk_get_eth_addr;
+	plat_dat->adjust_link_cb = rk_adjust_link_cb;
+	plat_dat->blinking_cb = rk_blinking_cb;
 
 	plat_dat->bsp_priv = rk_gmac_setup(pdev, plat_dat, data);
 	if (IS_ERR(plat_dat->bsp_priv))
@@ -1640,6 +1759,8 @@ static int rk_gmac_probe(struct platform_device *pdev)
 	ret = stmmac_dvr_probe(&pdev->dev, plat_dat, &stmmac_res);
 	if (ret)
 		goto err_gmac_powerdown;
+
+	rx_led_ctl_init(plat_dat->bsp_priv);
 
 	return 0;
 

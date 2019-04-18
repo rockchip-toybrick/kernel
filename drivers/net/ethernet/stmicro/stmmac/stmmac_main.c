@@ -702,6 +702,9 @@ static void stmmac_adjust_link(struct net_device *dev)
 	if (phydev == NULL)
 		return;
 
+	if (priv->plat->adjust_link_cb)
+		priv->plat->adjust_link_cb((void *)priv);
+
 	mutex_lock(&priv->lock);
 
 	if (phydev->link) {
@@ -1963,6 +1966,9 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 	unsigned int nopaged_len = skb_headlen(skb);
 	unsigned int enh_desc = priv->plat->enh_desc;
 
+	if (priv->plat->blinking_cb)
+		priv->plat->blinking_cb((void *)priv);
+
 	spin_lock(&priv->tx_lock);
 
 	if (unlikely(stmmac_tx_avail(priv) < nfrags + 1)) {
@@ -2185,6 +2191,9 @@ static int stmmac_rx(struct stmmac_priv *priv, int limit)
 	unsigned int next_entry;
 	unsigned int count = 0;
 	int coe = priv->hw->rx_csum;
+
+	if (priv->plat->blinking_cb)
+		priv->plat->blinking_cb((void *)priv);
 
 	if (netif_msg_rx_status(priv)) {
 		pr_debug("%s: descriptor ring:\n", __func__);
