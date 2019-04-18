@@ -204,6 +204,8 @@
 	assigned-clock-rate = <50000000>;
 	assigned-clocks = <&cru SCLK_MAC2PHY>;
 	assigned-clock-parents = <&cru SCLK_MAC2PHY_SRC>;
+	link-gpio = <&gpio2 RK_PC5 GPIO_ACTIVE_HIGH>;
+	led-gpio = <&gpio2 RK_PC6 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 };
 
