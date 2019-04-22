@@ -183,6 +183,10 @@
 	    status = "okay";
 };
 
+&vpu {
+	    status = "okay";
+};
+
 &vopl {
 
 	assigned-clocks = <&cru DCLK_VOP1_DIV>;
