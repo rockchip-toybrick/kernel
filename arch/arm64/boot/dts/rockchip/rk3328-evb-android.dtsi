@@ -699,3 +699,7 @@
 &vpu_service {
 	status = "okay";
 };
+
+&saradc {
+	status = "okay";
+};
