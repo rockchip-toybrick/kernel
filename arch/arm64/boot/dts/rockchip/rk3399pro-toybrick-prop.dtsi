@@ -4,6 +4,12 @@
 / {
 	compatible = "rockchip,rk3399pro-toybrick-prop","rockchip,rk3399pro";
 
+	wireless-wlan {
+		compatible = "wlan-platdata";
+		wifi_chip_type = "rtl8188eu";
+		status = "okay";
+	};
+
 	backlight: backlight {
 		compatible = "pwm-backlight";
 		pwms = <&pwm0 0 25000 0>;
@@ -188,6 +194,10 @@
 		iommus = <&isp1_mmu>;
 		status = "disabled";
 	};
+};
+
+&uart4 {
+	status = "disabled";
 };
 
 /*

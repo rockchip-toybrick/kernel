@@ -1,6 +1,5 @@
 /dts-v1/;
 #include "rk3399pro-toybrick-96ai.dtsi"
-#include "rk3399-android.dtsi"
 
 / {
         compatible = "rockchip,rk3399pro-toybrick-96ai-android","rockchip,rk3399pro";
@@ -27,15 +26,6 @@
          * - PDN (power down when low)
          */
         reset-gpios = <&gpio2 28 GPIO_ACTIVE_LOW>; /* GPIO2_D4 */
-    };
-
-    wireless-wlan {
-        compatible = "wlan-platdata";
-        rockchip,grf = <&grf>;
-        wifi_chip_type = "ap6255";
-        sdio_vref = <1800>;
-        WIFI,host_wake_irq = <&gpio2 26 GPIO_ACTIVE_HIGH>; /* GPIO2_D2 */
-        status = "okay";
     };
 
     wireless-bluetooth {
@@ -97,10 +87,6 @@
 	status = "okay";
 };
 
-&fiq_debugger {
-	pinctrl-0 = <&uart2c_xfer>;
-};
-
 &firmware_android {
 	compatible = "android,firmware";
 	fstab {
@@ -140,20 +126,6 @@
 
 &isp1_mmu {
 	status = "okay";
-};
-
-&rk_key {
-	status = "okay";
-	io-channels = <&saradc 2>;
-	/delete-node/ power-key;
-};
-
-&uart4 {
-	status = "okay";
-};
-
-&spi1 {
-	status = "disabled";
 };
 
 &route_edp {
