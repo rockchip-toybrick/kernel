@@ -10,6 +10,7 @@
 #include "rk3399pro.dtsi"
 #include "rk3399-opp.dtsi"
 #include "rk3399-vop-clk-set.dtsi"
+#include "rk3399-android.dtsi"
 //#include "lcd-edp-for-toybrick.dtsi"
 
 / {
@@ -179,12 +180,18 @@
 	};
 };
 
-&rkvdec {
-	    status = "okay";
+&fiq_debugger {
+	pinctrl-0 = <&uart2c_xfer>;
 };
 
-&vpu {
-	    status = "okay";
+&rk_key {
+	status = "okay";
+	io-channels = <&saradc 2>;
+	/delete-node/ power-key;
+};
+
+&uart4 {
+	status = "okay";
 };
 
 &vopl {
@@ -696,7 +703,7 @@
 };
 
 &spi1 {
-	status = "okay";
+	status = "disabled";
 	max-freq = <48000000>; /* spi internal clk, don't modify */
 	spi_dev@0 {
 		compatible = "rockchip,spidev";
@@ -787,16 +794,6 @@
 &usbdrd_dwc3_1 {
 	snps,dis-u3-autosuspend-quirk;
 	status = "okay";
-};
-
-&vopb {
-	assigned-clocks = <&cru DCLK_VOP0_DIV>;
-	assigned-clock-parents = <&cru PLL_CPLL>;
-};
-
-&vopl {
-	assigned-clocks = <&cru DCLK_VOP1_DIV>;
-	assigned-clock-parents = <&cru PLL_VPLL>;
 };
 
 &dmc {

@@ -1,17 +1,11 @@
 /dts-v1/;
 #include "rk3399pro-toybrick-prop.dtsi"
-#include "rk3399-android.dtsi"
 
 //#include "lcd-mipi2lvds-for-toybrick.dtsi"
 
 / {
 	compatible = "rockchip,rk3399pro-toybrick-prop-android","rockchip,rk3399pro";
 
-	wireless-wlan {
-		compatible = "wlan-platdata";
-		wifi_chip_type = "rtl8188eu";
-		status = "okay";
-	};
 	chosen {
 		bootargs = "console=ttyFIQ0 androidboot.baseband=N/A androidboot.selinux=permissive androidboot.veritymode=enforcing androidboot.hardware=rk30board androidboot.console=ttyFIQ0 init=/init initrd=0x62000000,0x00800000 earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1";
 	};
@@ -27,10 +21,6 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie_clkreqn_cpm &pcie_ep>;
 	status = "okay";
-};
-
-&fiq_debugger {
-	pinctrl-0 = <&uart2c_xfer>;
 };
 
 &firmware_android {
@@ -72,20 +62,6 @@
 
 &isp1_mmu {
 	status = "okay";
-};
-
-&rk_key {
-	status = "okay";
-	io-channels = <&saradc 2>;
-	/delete-node/ power-key;
-};
-
-&uart4 {
-	status = "okay";
-};
-
-&spi1 {
-	status = "disabled";
 };
 
 &route_edp {
