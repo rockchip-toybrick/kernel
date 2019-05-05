@@ -987,6 +987,7 @@ static void __dwc3_ep0_do_control_data(struct dwc3 *dwc,
 			dwc3_trace(trace_dwc3_ep0, "failed to map request");
 			return;
 		}
+		req->mapped = 1;
 
 		maxpacket = dep->endpoint.maxpacket;
 
@@ -1016,6 +1017,7 @@ static void __dwc3_ep0_do_control_data(struct dwc3 *dwc,
 			dwc3_trace(trace_dwc3_ep0, "failed to map request");
 			return;
 		}
+		req->mapped = 1;
 
 		dwc3_ep0_prepare_one_trb(dwc, dep->number, req->request.dma,
 				req->request.length, DWC3_TRBCTL_CONTROL_DATA,

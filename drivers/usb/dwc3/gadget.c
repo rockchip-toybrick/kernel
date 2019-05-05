@@ -200,8 +200,11 @@ void dwc3_gadget_giveback(struct dwc3_ep *dep, struct dwc3_request *req,
 		dwc->ep0_bounced = false;
 		unmap_after_complete = true;
 	} else {
-		usb_gadget_unmap_request(&dwc->gadget,
-				&req->request, req->direction);
+		if (req->mapped) {
+			usb_gadget_unmap_request(&dwc->gadget,
+						 &req->request, req->direction);
+			req->mapped = 0;
+		}
 	}
 
 	trace_dwc3_gadget_giveback(req);
@@ -210,9 +213,11 @@ void dwc3_gadget_giveback(struct dwc3_ep *dep, struct dwc3_request *req,
 	usb_gadget_giveback_request(&dep->endpoint, &req->request);
 	spin_lock(&dwc->lock);
 
-	if (unmap_after_complete)
+	if (unmap_after_complete && req->mapped) {
 		usb_gadget_unmap_request(&dwc->gadget,
 				&req->request, req->direction);
+		req->mapped = 0;
+	}
 
 	if (dep->number > 1)
 		pm_runtime_put(dwc->dev);
@@ -1042,8 +1047,11 @@ static int __dwc3_gadget_kick_transfer(struct dwc3_ep *dep, u16 cmd_param)
 		 * here and stop, unmap, free and del each of the linked
 		 * requests instead of what we do now.
 		 */
-		usb_gadget_unmap_request(&dwc->gadget, &req->request,
-				req->direction);
+		if (req->mapped) {
+			usb_gadget_unmap_request(&dwc->gadget, &req->request,
+						 req->direction);
+			req->mapped = 0;
+		}
 		list_del(&req->list);
 		return ret;
 	}
@@ -1143,6 +1151,7 @@ static int __dwc3_gadget_ep_queue(struct dwc3_ep *dep, struct dwc3_request *req)
 			dep->direction);
 	if (ret)
 		return ret;
+	req->mapped = 1;
 
 	list_add_tail(&req->list, &dep->pending_list);
 
