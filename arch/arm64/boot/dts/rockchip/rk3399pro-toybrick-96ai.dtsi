@@ -154,6 +154,12 @@
 	status = "okay";
 };
 
+&i2c8 { 
+        fusb0: fusb30x@22 {
+                vbus-5v-gpios = <&gpio1 RK_PA1 GPIO_ACTIVE_HIGH>;
+        };
+};
+
 &pinctrl {
 	isp {
 		isp_prelight: isp-prelight {
