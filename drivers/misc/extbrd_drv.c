@@ -60,6 +60,7 @@ static const struct of_device_id of_extbrd_match[] = {
 	{ .compatible = "eai610-extboard", },
 	{ .compatible = "prod-extboard", },
 	{ .compatible = "prop-extboard", },
+	{ .compatible = "eai310-extboard", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, of_extbrd_match);
@@ -69,6 +70,31 @@ struct extbrd_drvdata
 	int result[EXT_ADCCHAN_NUM];
 	struct delayed_work adc_poll_work;
 	struct iio_channel *chan[EXT_ADCCHAN_NUM];
+};
+
+static int eai310_extios[] = {
+	RK_GPIO(2, 24),	/* GPIO2_D0 (I2C0_SCL) */
+	RK_GPIO(2, 25), /* GPIO2_D1 (I2C0_SDA) */
+
+	RK_GPIO(2, 15), /* GPIO2_B7 */
+	RK_GPIO(0, 27), /* GPIO0_D3 */
+	RK_GPIO(2, 17), /* GPIO2_C1 */
+	RK_GPIO(2, 18), /* GPIO2_C2 */
+
+	RK_GPIO(3, 1),  /* GPIO3_A1 (SPI_TXD_M2) */
+	RK_GPIO(3, 2),  /* GPIO3_A2 (SPI_RXD_M2) */
+	RK_GPIO(3, 0),  /* GPIO3_A0 (SPI_CLK_M2) */
+	RK_GPIO(3, 8),  /* GPIO3_B0 (SPI_CS0N_M2) */
+	RK_GPIO(2, 12), /* GPIO2_B4 (SPI_CS1N_M0) */
+
+	RK_GPIO(3, 4),  /* GPIO3_A4 (UART1_TX) */
+	RK_GPIO(3, 6),  /* GPIO3_A6 (UART1_RX) */
+
+	RK_GPIO(2, 2),  /* GPIO2_A2 */
+	RK_GPIO(3, 5),  /* GPIO3_A5 */
+	RK_GPIO(2, 19), /* GPIO2_C3 */
+	RK_GPIO(3, 7),  /* GPIO3_A7 */
+	RK_GPIO(2, 20), /* GPIO2_C4 */
 };
 
 #ifdef EXT_DIGIT_GPIOS
@@ -541,6 +567,20 @@ static int extbrd_probe(struct platform_device *pdev)
 			ext_gpio_leds = eai610_ext_gpio_leds;
 			ext_gpio_leds_num = ARR_SIZE(eai610_ext_gpio_leds);
 #endif
+		} else if (of_device_is_compatible(np, "eai310-extboard")) {
+			EXTBRD_DEBUG("This is EAI310 extboard.\n");
+			for (i = 0; i < ARR_SIZE(eai310_extios); i++) {
+				ret = devm_gpio_request(dev, eai310_extios[i], "eai310-extio");
+				if (ret != 0) {
+					printk("Request gpio : %d fail\n", eai310_extios[i]);
+					goto fail;
+				}
+
+				gpio_direction_output(eai310_extios[i], GPIO_HIGH);
+				gpio_export(eai310_extios[i], true);
+			}
+			if (i == ARR_SIZE(eai310_extios))
+				goto success;
 		} else {
 			EXTBRD_ERROR("Unsupport extbord!\n");
 			ret = -EINVAL;
@@ -677,7 +717,7 @@ static int extbrd_probe(struct platform_device *pdev)
 	}
 #endif
 	/**************** Parst ADC End ****************/
-
+success:
 	return ret;
 
 #ifdef EXT_ADC
@@ -700,9 +740,19 @@ static int extbrd_remove(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	int i;
 #endif
+	struct device_node *np;
 
 	EXTBRD_DEBUG(" %s\n", __func__);
 
+	if (pdev->dev.of_node) {
+		np = pdev->dev.of_node;
+		if (of_device_is_compatible(np, "eai310-extboard")) {
+			for (i = 0; i < ARR_SIZE(eai310_extios); i++) {
+				devm_gpio_free(dev, eai310_extios[i]);
+			}
+			return 0;
+		}
+	}
 #ifdef EXT_ADC
 	if (ddata->chan[0] && ddata->chan[1])
 		cancel_delayed_work_sync(&ddata->adc_poll_work);
