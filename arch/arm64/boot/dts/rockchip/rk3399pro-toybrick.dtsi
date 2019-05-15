@@ -43,6 +43,28 @@
 			sound-dai = <&rk809_codec>;
 		};
 	};
+
+	dp_sound: dp-sound {
+		status = "disabled";
+		compatible = "rockchip,cdndp-sound";
+		rockchip,cpu = <&spdif>;
+		rockchip,codec = <&cdn_dp 1>;
+	};
+
+	hdmi_sound: hdmi-sound {
+		status = "disabled";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "rockchip,hdmi";
+
+		simple-audio-card,cpu {
+			sound-dai = <&i2s2>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&hdmi>;
+		};
+	};
 	
 	hdmi_codec: hdmi-codec {
 		status="disabled";
@@ -789,6 +811,8 @@
 
 &i2s2 {
     status = "okay";
+	dmas = <&dmac_bus 4>;
+	dma-names ="tx";
     #sound-dai-cells = <0>;
 };
 
