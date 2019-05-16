@@ -37,7 +37,7 @@
  * 31: 6dB
  * Step: 1.5dB
  */
-#define OUT_VOLUME	(0x18)
+#define OUT_VOLUME	(0x13)
 #define RK3328_GRF_SOC_CON2	(0x0408)
 #define RK3328_GRF_SOC_CON10	(0x0428)
 #define INITIAL_FREQ	(11289600)
