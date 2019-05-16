@@ -113,6 +113,7 @@ struct headset_priv {
 static struct headset_priv *headset_info;
 
 //1
+extern void rk3328_analog_output_set(int mute);
 static irqreturn_t headset_interrupt(int irq, void *dev_id)
 {
 	struct rk_headset_pdata *pdata = headset_info->pdata;
@@ -181,6 +182,8 @@ static irqreturn_t headset_interrupt(int irq, void *dev_id)
 
 	if(headset_info->headset_status == HEADSET_IN)
 	{
+		printk(KERN_ERR "headset in\n");
+		rk3328_analog_output_set(1);
 		if(pdata->chan != 0)
 		{
 			//detect Hook key
@@ -205,6 +208,8 @@ static irqreturn_t headset_interrupt(int irq, void *dev_id)
 	}
 	else if(headset_info->headset_status == HEADSET_OUT)
 	{
+		printk(KERN_ERR "headset out\n");
+		rk3328_analog_output_set(0);
 		headset_info->cur_headset_status = HEADSET_OUT;
 		cancel_delayed_work(&headset_info->hook_work);
 		#ifdef CONFIG_SND_SOC_ES7243
