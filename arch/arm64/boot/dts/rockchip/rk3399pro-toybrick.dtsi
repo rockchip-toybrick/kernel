@@ -66,22 +66,6 @@
 		};
 	};
 	
-	hdmi_codec: hdmi-codec {
-		status="disabled";
-		compatible = "simple-audio-card";
-		simple-audio-card,format = "i2s";
-		simple-audio-card,mclk-fs = <256>;
-		simple-audio-card,name = "HDMI-CODEC";
-
-		simple-audio-card,cpu {
-			sound-dai = <&i2s2>;
-		};
-
-		simple-audio-card,codec {
-			sound-dai = <&hdmi>;
-		};
-	};
-	
 	rockchip_msm261s4030h0_codec: rockchip-msm261s4030h0-codec {
 		status = "okay";
 		compatible = "rockchip-msm261s4030h0-codec";
