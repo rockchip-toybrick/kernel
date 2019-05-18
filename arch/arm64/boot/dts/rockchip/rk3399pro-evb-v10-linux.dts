@@ -169,6 +169,21 @@
 		};
 	};
 
+	hdmi_sound: hdmi-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "rockchip,hdmi";
+
+		simple-audio-card,cpu {
+			sound-dai = <&i2s2>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&hdmi>;
+		};
+	};
+
 	rk_headset {
 		compatible = "rockchip_headset";
 		headset_gpio = <&gpio0 RK_PB5 GPIO_ACTIVE_HIGH>;
@@ -223,7 +238,7 @@
 		clocks = <&rk809 1>;
 		clock-names = "ext_clock";
 		uart_rts_gpios = <&gpio2 RK_PC3 GPIO_ACTIVE_LOW>;
-		pinctrl-names = "default", "rts_gpio";
+		pinctrl-names = "default", "rts_gpio", <&bt_irq_gpio>;
 		pinctrl-0 = <&uart0_rts>;
 		pinctrl-1 = <&uart0_gpios>;
 		BT,reset_gpio    = <&gpio2 RK_PD4 GPIO_ACTIVE_HIGH>;
@@ -321,6 +336,7 @@
 
 &hdmi {
 	status = "okay";
+	#sound-dai-cells = <0>;
 	rockchip,phy-table =
 		<74250000  0x8009 0x0004 0x0272>,
 		<165000000 0x802b 0x0004 0x0209>,
@@ -1174,6 +1190,11 @@
 	};
 
 	wireless-bluetooth {
+		bt_irq_gpio: bt-irq-gpio {
+			rockchip,pins =
+				<0 RK_PA5 0 &pcfg_pull_down>;
+		};
+
 		uart0_gpios: uart0-gpios {
 			rockchip,pins =
 				<2 RK_PC3 0 &pcfg_pull_none>;

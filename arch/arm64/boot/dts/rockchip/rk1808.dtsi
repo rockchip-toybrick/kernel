@@ -101,6 +101,14 @@
 		compatible = "operating-points-v2";
 		opp-shared;
 
+		rockchip,temp-hysteresis = <5000>;
+		rockchip,low-temp = <0>;
+		rockchip,low-temp-min-volt = <800000>;
+		rockchip,low-temp-adjust-volt = <
+			/* MHz    MHz    uV */
+			   0      1608   50000
+		>;
+
 		rockchip,max-volt = <950000>;
 		rockchip,evb-irdrop = <25000>;
 		nvmem-cells = <&cpu_leakage>;
@@ -203,7 +211,7 @@
 		soc-bus0 {
 			bus-id = <0>;
 			timer-us = <20>;
-			enable-msk = <0x4077>;
+			enable-msk = <0x407f>;
 			status = "okay";
 		};
 		soc-bus1 {
@@ -215,7 +223,7 @@
 		soc-bus2 {
 			bus-id = <2>;
 			timer-us = <200>;
-			enable-msk = <0x4007>;
+			enable-msk = <0x4005>;
 			status = "okay";
 		};
 		soc-bus3 {
@@ -228,7 +236,7 @@
 			bus-id = <4>;
 			timer-us = <200>;
 			enable-msk = <0x4001>;
-			status = "okay";
+			status = "disabled";
 		};
 	};
 
@@ -1692,6 +1700,15 @@
 	npu_opp_table: npu-opp-table {
 		compatible = "operating-points-v2";
 
+		rockchip,thermal-zone = "soc-thermal";
+		rockchip,temp-hysteresis = <5000>;
+		rockchip,low-temp = <0>;
+		rockchip,low-temp-min-volt = <800000>;
+		rockchip,low-temp-adjust-volt = <
+			/* MHz    MHz    uV */
+			   0      792   50000
+		>;
+
 		rockchip,max-volt = <950000>;
 		rockchip,evb-irdrop = <37500>;
 		nvmem-cells = <&npu_leakage>;
@@ -1815,6 +1832,13 @@
 		reset-names = "stmmaceth";
 		/* power-domains = <&power RK1808_PD_GMAC>; */
 		status = "disabled";
+	};
+
+	rockchip_system_monitor: rockchip-system-monitor {
+		compatible = "rockchip,system-monitor";
+
+		rockchip,thermal-zone = "soc-thermal";
+		rockchip,polling-delay = <200>; /* milliseconds */
 	};
 
 	pinctrl: pinctrl {
@@ -2065,11 +2089,11 @@
 			rgmii_pins: rgmii-pins {
 				rockchip,pins =
 					/* rgmii_txen */
-					<2 RK_PA1 2 &pcfg_pull_none_8ma>,
+					<2 RK_PA1 2 &pcfg_pull_none_4ma>,
 					/* rgmii_txd1 */
-					<2 RK_PA2 2 &pcfg_pull_none_8ma>,
+					<2 RK_PA2 2 &pcfg_pull_none_4ma>,
 					/* rgmii_txd0 */
-					<2 RK_PA3 2 &pcfg_pull_none_8ma>,
+					<2 RK_PA3 2 &pcfg_pull_none_4ma>,
 					/* rgmii_rxd0 */
 					<2 RK_PA4 2 &pcfg_pull_none>,
 					/* rgmii_rxd1 */
@@ -2077,13 +2101,13 @@
 					/* rgmii_rxdv */
 					<2 RK_PA7 2 &pcfg_pull_none>,
 					/* rgmii_mdio */
-					<2 RK_PB0 2 &pcfg_pull_none>,
+					<2 RK_PB0 2 &pcfg_pull_none_2ma>,
 					/* rgmii_mdc */
-					<2 RK_PB2 2 &pcfg_pull_none>,
+					<2 RK_PB2 2 &pcfg_pull_none_2ma>,
 					/* rgmii_txd3 */
-					<2 RK_PB3 2 &pcfg_pull_none_8ma>,
+					<2 RK_PB3 2 &pcfg_pull_none_4ma>,
 					/* rgmii_txd2 */
-					<2 RK_PB4 2 &pcfg_pull_none_8ma>,
+					<2 RK_PB4 2 &pcfg_pull_none_4ma>,
 					/* rgmii_rxd2 */
 					<2 RK_PB5 2 &pcfg_pull_none>,
 					/* rgmii_rxd3 */
@@ -2091,7 +2115,7 @@
 					/* rgmii_clk */
 					<2 RK_PB7 2 &pcfg_pull_none>,
 					/* rgmii_txclk */
-					<2 RK_PC1 2 &pcfg_pull_none_8ma>,
+					<2 RK_PC1 2 &pcfg_pull_none_4ma>,
 					/* rgmii_rxclk */
 					<2 RK_PC2 2 &pcfg_pull_none>;
 			};
@@ -2099,11 +2123,11 @@
 			rmii_pins: rmii-pins {
 				rockchip,pins =
 					/* rmii_txen */
-					<2 RK_PA1 2 &pcfg_pull_none_8ma>,
+					<2 RK_PA1 2 &pcfg_pull_none_4ma>,
 					/* rmii_txd1 */
-					<2 RK_PA2 2 &pcfg_pull_none_8ma>,
+					<2 RK_PA2 2 &pcfg_pull_none_4ma>,
 					/* rmii_txd0 */
-					<2 RK_PA3 2 &pcfg_pull_none_8ma>,
+					<2 RK_PA3 2 &pcfg_pull_none_4ma>,
 					/* rmii_rxd0 */
 					<2 RK_PA4 2 &pcfg_pull_none>,
 					/* rmii_rxd1 */
@@ -2113,9 +2137,9 @@
 					/* rmii_rxdv */
 					<2 RK_PA7 2 &pcfg_pull_none>,
 					/* rmii_mdio */
-					<2 RK_PB0 2 &pcfg_pull_none>,
+					<2 RK_PB0 2 &pcfg_pull_none_2ma>,
 					/* rmii_mdc */
-					<2 RK_PB2 2 &pcfg_pull_none>,
+					<2 RK_PB2 2 &pcfg_pull_none_2ma>,
 					/* rmii_clk */
 					<2 RK_PB7 2 &pcfg_pull_none>;
 			};

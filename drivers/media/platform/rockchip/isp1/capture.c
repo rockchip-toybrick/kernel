@@ -86,7 +86,7 @@
  * @xsubs: horizontal color samples in a 4*4 matrix, for yuv
  * @ysubs: vertical color samples in a 4*4 matrix, for yuv
  */
-static int fcc_xysubs(u32 fcc, u32 *xsubs, u32 *ysubs)
+int fcc_xysubs(u32 fcc, u32 *xsubs, u32 *ysubs)
 {
 	switch (fcc) {
 	case V4L2_PIX_FMT_GREY:
@@ -283,7 +283,7 @@ static const struct capture_fmt mp_fmts[] = {
 		.mplanes = 1,
 		.write_format = MI_CTRL_MP_WRITE_YUV_PLA_OR_RAW8,
 	}, {
-		.fourcc = V4L2_PIX_FMT_SRGGB8,
+		.fourcc = V4L2_PIX_FMT_SRGGB10,
 		.fmt_type = FMT_BAYER,
 		.bpp = { 10 },
 		.mplanes = 1,
@@ -915,15 +915,12 @@ static int raw_config_mi(struct rkisp1_stream *stream)
 {
 	void __iomem *base = stream->ispdev->base_addr;
 	struct rkisp1_device *dev = stream->ispdev;
-	struct v4l2_mbus_framefmt *in_frm =
-		&dev->active_sensor->fmt.format;
+	struct v4l2_mbus_framefmt *in_frm;
 	u32 in_size;
 
-	v4l2_dbg(1, rkisp1_debug, &dev->v4l2_dev,
-		"stream:%d input %dx%d\n",
-		stream->id, in_frm->width, in_frm->height);
-
-	if (dev->active_sensor->mbus.type != V4L2_MBUS_CSI2) {
+	if (!dev->active_sensor ||
+	    (dev->active_sensor &&
+	     dev->active_sensor->mbus.type != V4L2_MBUS_CSI2)) {
 		if (stream->id == RKISP1_STREAM_RAW)
 			v4l2_err(&dev->v4l2_dev,
 				 "only mipi sensor support raw path\n");
@@ -932,6 +929,12 @@ static int raw_config_mi(struct rkisp1_stream *stream)
 
 	if (dev->stream[RKISP1_STREAM_RAW].streaming)
 		return 0;
+
+	in_frm = &dev->active_sensor->fmt.format;
+
+	v4l2_dbg(1, rkisp1_debug, &dev->v4l2_dev,
+		"stream:%d input %dx%d\n",
+		stream->id, in_frm->width, in_frm->height);
 
 	/* raw output size equal to sensor input size */
 	if (stream->id == RKISP1_STREAM_RAW) {
@@ -1183,7 +1186,8 @@ static void rkisp1_stream_stop(struct rkisp1_stream *stream)
 
 	stream->stopping = true;
 	stream->ops->stop_mi(stream);
-	if (dev->isp_state == ISP_START) {
+	if (dev->isp_state == ISP_START &&
+	    dev->isp_inp != INP_DMARX_ISP) {
 		ret = wait_event_timeout(stream->done,
 					 !stream->streaming,
 					 msecs_to_jiffies(1000));
@@ -1382,9 +1386,10 @@ static int rkisp1_create_dummy_buf(struct rkisp1_stream *stream)
 		stream->out_fmt.height,
 		stream->out_fmt.plane_fmt[1].sizeimage,
 		stream->out_fmt.plane_fmt[2].sizeimage);
-	if (dev->active_sensor->mbus.type == V4L2_MBUS_CSI2 &&
-		(dev->isp_ver == ISP_V12 ||
-		dev->isp_ver == ISP_V13)) {
+	if (dev->active_sensor &&
+	    dev->active_sensor->mbus.type == V4L2_MBUS_CSI2 &&
+	    (dev->isp_ver == ISP_V12 ||
+	     dev->isp_ver == ISP_V13)) {
 		u32 in_size;
 		struct rkisp1_stream *raw = &dev->stream[RKISP1_STREAM_RAW];
 
@@ -1504,7 +1509,8 @@ rkisp1_start_streaming(struct vb2_queue *queue, unsigned int count)
 	if (WARN_ON(stream->streaming))
 		return -EBUSY;
 
-	if (!dev->active_sensor) {
+	if (!dev->active_sensor &&
+		dev->isp_inp != INP_DMARX_ISP) {
 		ret = rkisp1_update_sensor_info(dev);
 		if (ret < 0) {
 			v4l2_err(v4l2_dev,
@@ -1705,60 +1711,44 @@ static int rkisp1_set_fmt(struct rkisp1_stream *stream,
 	return 0;
 }
 
-static int rkisp1_dma_attach_device(struct rkisp1_device *rkisp1_dev)
-{
-	struct iommu_domain *domain = rkisp1_dev->domain;
-	struct device *dev = rkisp1_dev->dev;
-	int ret;
-
-	ret = iommu_attach_device(domain, dev);
-	if (ret) {
-		dev_err(dev, "Failed to attach iommu device\n");
-		return ret;
-	}
-
-	if (!common_iommu_setup_dma_ops(dev, 0x10000000, SZ_2G, domain->ops)) {
-		dev_err(dev, "Failed to set dma_ops\n");
-		iommu_detach_device(domain, dev);
-		ret = -ENODEV;
-	}
-
-	return ret;
-}
-
-static void rkisp1_dma_detach_device(struct rkisp1_device *rkisp1_dev)
-{
-	struct iommu_domain *domain = rkisp1_dev->domain;
-	struct device *dev = rkisp1_dev->dev;
-
-	iommu_detach_device(domain, dev);
-}
-
-static int rkisp1_fh_open(struct file *filp)
+int rkisp1_fh_open(struct file *filp)
 {
 	struct rkisp1_stream *stream = video_drvdata(filp);
 	struct rkisp1_device *dev = stream->ispdev;
+	struct video_device *vdev = &stream->vnode.vdev;
 	int ret;
 
 	ret = v4l2_fh_open(filp);
 	if (!ret) {
 		if (atomic_inc_return(&dev->open_cnt) == 1)
 			rkisp1_dma_attach_device(dev);
+
+		ret = dev->pipe.pm_use(&vdev->entity, 1);
+		if (ret < 0)
+			v4l2_err(&dev->v4l2_dev,
+				"set pipeline power failed %d\n", ret);
 	}
 
 	return ret;
 }
 
-static int rkisp1_fop_release(struct file *file)
+int rkisp1_fop_release(struct file *file)
 {
 	struct rkisp1_stream *stream = video_drvdata(file);
 	struct rkisp1_device *dev = stream->ispdev;
+	struct video_device *vdev = &stream->vnode.vdev;
 	int ret;
 
 	ret = vb2_fop_release(file);
+	if (!ret) {
+		ret = dev->pipe.pm_use(&vdev->entity, 0);
+		if (ret < 0)
+			v4l2_err(&dev->v4l2_dev,
+				"set pipeline power failed %d\n", ret);
 
-	if (atomic_dec_return(&dev->open_cnt) == 0)
-		rkisp1_dma_detach_device(dev);
+		if (atomic_dec_return(&dev->open_cnt) == 0)
+			rkisp1_dma_detach_device(dev);
+	}
 
 	return ret;
 }
@@ -2126,11 +2116,43 @@ err:
 	return ret;
 }
 
+int rkisp1_dma_attach_device(struct rkisp1_device *rkisp1_dev)
+{
+	struct iommu_domain *domain = rkisp1_dev->domain;
+	struct device *dev = rkisp1_dev->dev;
+	int ret;
+
+	ret = iommu_attach_device(domain, dev);
+	if (ret) {
+		dev_err(dev, "Failed to attach iommu device\n");
+		return ret;
+	}
+
+	if (!common_iommu_setup_dma_ops(dev, 0x10000000, SZ_2G, domain->ops)) {
+		dev_err(dev, "Failed to set dma_ops\n");
+		iommu_detach_device(domain, dev);
+		ret = -ENODEV;
+	}
+
+	return ret;
+}
+
+void rkisp1_dma_detach_device(struct rkisp1_device *rkisp1_dev)
+{
+	struct iommu_domain *domain = rkisp1_dev->domain;
+	struct device *dev = rkisp1_dev->dev;
+
+	iommu_detach_device(domain, dev);
+}
+
 /****************  Interrupter Handler ****************/
 
 void rkisp1_mi_isr(u32 mis_val, struct rkisp1_device *dev)
 {
 	unsigned int i;
+
+	if (mis_val & CIF_MI_DMA_READY)
+		rkisp1_dmarx_isr(mis_val, dev);
 
 	for (i = 0; i < ARRAY_SIZE(dev->stream); ++i) {
 		struct rkisp1_stream *stream = &dev->stream[i];

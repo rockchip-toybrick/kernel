@@ -3,6 +3,8 @@
  * ov13850 driver
  *
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
+ *
+ * V0.0X01.0X01 add poweron function.
  */
 
 #include <linux/clk.h>
@@ -14,12 +16,16 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/slab.h>
+#include <linux/version.h>
 #include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
 #include <linux/pinctrl/consumer.h>
+
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -123,6 +129,7 @@ struct ov13850 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct ov13850_mode *cur_mode;
 	u32			module_index;
 	const char		*module_facing;
@@ -965,10 +972,6 @@ static int __ov13850_start_stream(struct ov13850 *ov13850)
 {
 	int ret;
 
-	ret = ov13850_write_array(ov13850->client, ov13850_global_regs);
-	if (ret)
-		return ret;
-
 	ret = ov13850_write_array(ov13850->client, ov13850->cur_mode->reg_list);
 	if (ret)
 		return ret;
@@ -1024,6 +1027,44 @@ static int ov13850_s_stream(struct v4l2_subdev *sd, int on)
 	}
 
 	ov13850->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&ov13850->mutex);
+
+	return ret;
+}
+
+static int ov13850_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct ov13850 *ov13850 = to_ov13850(sd);
+	struct i2c_client *client = ov13850->client;
+	int ret = 0;
+
+	mutex_lock(&ov13850->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (ov13850->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = ov13850_write_array(ov13850->client, ov13850_global_regs);
+		if (ret) {
+			v4l2_err(sd, "could not set init registers\n");
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ov13850->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		ov13850->power_on = false;
+	}
 
 unlock_and_return:
 	mutex_unlock(&ov13850->mutex);
@@ -1157,6 +1198,7 @@ static const struct v4l2_subdev_internal_ops ov13850_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops ov13850_core_ops = {
+	.s_power = ov13850_s_power,
 	.ioctl = ov13850_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = ov13850_compat_ioctl32,
@@ -1327,7 +1369,7 @@ static int ov13850_check_sensor_id(struct ov13850 *ov13850,
 			       OV13850_REG_VALUE_16BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
-		return ret;
+		return -ENODEV;
 	}
 
 	ret = ov13850_read_reg(client, OV13850_CHIP_REVISION_REG,
@@ -1367,6 +1409,11 @@ static int ov13850_probe(struct i2c_client *client,
 	struct v4l2_subdev *sd;
 	char facing[2];
 	int ret;
+
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
 
 	ov13850 = devm_kzalloc(dev, sizeof(*ov13850), GFP_KERNEL);
 	if (!ov13850)

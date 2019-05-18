@@ -4,6 +4,7 @@
 
 #include <linux/delay.h>
 #include <linux/kernel.h>
+#include <linux/slab.h>
 
 #include "flash.h"
 #include "flash_com.h"
@@ -315,8 +316,8 @@ static s32 get_bad_blk_list(u16 *table, u32 die)
 #define FLASH_SPARE_SIZE	8
 
 static u16 bad_blk_list[1024];
-static u32 pwrite[FLASH_PAGE_SIZE / 4];
-static u32 pread[FLASH_PAGE_SIZE / 4];
+static u32 *pwrite;
+static u32 *pread;
 static u32 pspare_write[FLASH_SPARE_SIZE / 4];
 static u32 pspare_read[FLASH_SPARE_SIZE / 4];
 static u32 bad_blk_num;
@@ -329,6 +330,9 @@ static void flash_test(void)
 	u32 pages_num = 64;
 	u32 blk_addr = 64;
 	u32 is_bad_blk = 0;
+
+	pwrite = kzalloc(FLASH_PAGE_SIZE, GFP_KERNEL | GFP_DMA);
+	pread = kzalloc(FLASH_PAGE_SIZE, GFP_KERNEL | GFP_DMA);
 
 	PRINT_NANDC_E("%s\n", __func__);
 	bad_blk_num = 0;
@@ -375,8 +379,12 @@ static void flash_test(void)
 				PRINT_NANDC_E("ERR:page %x, ret= %x\n",
 					      page_addr,
 					      ret);
-				PRINT_NANDC_HEX("data:", pread, 4, 8);
-				PRINT_NANDC_HEX("spare:", pspare_read, 4, 2);
+				PRINT_NANDC_HEX("w data:", pwrite, 4, 512);
+				PRINT_NANDC_HEX("w spare:", pspare_write, 4, 4);
+				PRINT_NANDC_HEX("r data:", pread, 4, 512);
+				PRINT_NANDC_HEX("r spare:", pspare_read, 4, 5);
+				while (1)
+					;
 			}
 		}
 		flash_erase_block(0, blk * blk_addr);
@@ -387,6 +395,8 @@ static void flash_test(void)
 		      bad_blk_num, bad_page_num);
 
 	PRINT_NANDC_E("Flash Test Finish!!!\n");
+	kfree(pwrite);
+	kfree(pread);
 	while (1)
 		;
 }
@@ -514,7 +524,8 @@ u32 nandc_flash_init(void __iomem *nandc_addr)
 			    id_byte[0][1] != 0xDA &&
 			    id_byte[0][1] != 0xD1 &&
 			    id_byte[0][1] != 0x95 &&
-			    id_byte[0][1] != 0xDC)
+			    id_byte[0][1] != 0xDC &&
+			    id_byte[0][1] != 0x48)
 
 				return FTL_UNSUPPORTED_FLASH;
 		}
@@ -538,6 +549,11 @@ u32 nandc_flash_init(void __iomem *nandc_addr)
 			nand_para.plane_per_die = 2;
 			nand_para.blk_per_plane = 2048;
 		}
+	} else if (id_byte[0][1] == 0x48) {
+		nand_para.sec_per_page = 8;
+		nand_para.page_per_blk = 128;
+		nand_para.plane_per_die = 2;
+		nand_para.blk_per_plane = 2048;
 	}
 	flash_die_info_init();
 	flash_bch_sel(nand_para.ecc_bits);
