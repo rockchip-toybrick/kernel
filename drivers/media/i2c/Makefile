@@ -5,6 +5,7 @@ obj-$(CONFIG_VIDEO_SMIAPP)	+= smiapp/
 obj-$(CONFIG_VIDEO_CX25840) += cx25840/
 obj-$(CONFIG_VIDEO_M5MOLS)	+= m5mols/
 obj-y				+= soc_camera/
+obj-$(CONFIG_VIDEO_NVP6324)	+= jaguar1_drv/
 
 obj-$(CONFIG_VIDEO_APTINA_PLL) += aptina-pll.o
 obj-$(CONFIG_VIDEO_TVAUDIO) += tvaudio.o
@@ -114,4 +115,5 @@ obj-$(CONFIG_VIDEO_BF3925)	+= bf3925.o
 obj-$(CONFIG_VIDEO_PREISP_DUMMY_SENSOR) += preisp-dummy.o
 obj-$(CONFIG_VIDEO_VM149C)	+= vm149c.o
 obj-$(CONFIG_VIDEO_DW9714)	+= dw9714.o
+obj-$(CONFIG_VIDEO_FP5510)	+= fp5510.o
 obj-$(CONFIG_VIDEO_VIRT_CAMERA) += virtual-camera.o
