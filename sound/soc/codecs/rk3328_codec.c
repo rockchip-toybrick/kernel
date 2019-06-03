@@ -28,6 +28,7 @@
 #include <linux/regmap.h>
 #include <sound/pcm_params.h>
 #include <sound/dmaengine_pcm.h>
+#include <sound/tlv.h>
 #include "rk3328_codec.h"
 
 /*
@@ -74,7 +75,6 @@ static int rk3328_codec_reset(struct snd_soc_codec *codec)
 	regmap_write(rk3328->regmap, CODEC_RESET, 0);
 	mdelay(10);
 	regmap_write(rk3328->regmap, CODEC_RESET, 0x03);
-
 	return 0;
 }
 
@@ -134,6 +134,7 @@ void rk3328_analog_output_set(int mute)
 {
 	regmap_write(rk3328_tmp->grf, RK3328_GRF_SOC_CON10,
 		     (BIT(1) << 16) | (mute << 1));
+
 }
 
 EXPORT_SYMBOL(rk3328_analog_output_set);
@@ -166,7 +167,6 @@ static int rk3328_codec_power_on(struct snd_soc_codec *codec, int wait_ms)
 			   DAC_CHARGE_CURRENT_ALL_ON);
 
 	mdelay(wait_ms);
-
 	return 0;
 }
 
@@ -221,6 +221,7 @@ static int rk3328_codec_open_playback(struct snd_soc_codec *codec)
 {
 	struct rk3328_codec_priv *rk3328 = snd_soc_codec_get_drvdata(codec);
 	int i = 0;
+	unsigned int val = 0, val1 = 0;
 
 	regmap_update_bits(rk3328->regmap, DAC_PRECHARGE_CTRL,
 			   DAC_CHARGE_CURRENT_ALL_MASK,
@@ -236,13 +237,25 @@ static int rk3328_codec_open_playback(struct snd_soc_codec *codec)
 
 	msleep(rk3328->spk_depop_time);
 	//rk3328_analog_output(rk3328, 1);
-
+#if 0
 	regmap_update_bits(rk3328->regmap, HPOUTL_GAIN_CTRL,
-			   HPOUTL_GAIN_MASK, OUT_VOLUME);
+		HPOUTL_GAIN_MASK, OUT_VOLUME);
 	regmap_update_bits(rk3328->regmap, HPOUTR_GAIN_CTRL,
-			   HPOUTR_GAIN_MASK, OUT_VOLUME);
+		HPOUTR_GAIN_MASK, OUT_VOLUME);
+#endif
+	val = snd_soc_read(codec, HPOUTL_GAIN_CTRL);
+	val1 = snd_soc_read(codec, HPOUTR_GAIN_CTRL);
+	printk(KERN_ERR "function is %s,HPOUTL_GAIN_CTRL is 0x%8x,HPOUTR_GAIN_CTRL is 0x%8x\n", __FUNCTION__, val, val1);
 	return 0;
 }
+
+static const DECLARE_TLV_DB_SCALE(out_vol_tlv, -3900, 150, 0);
+static const struct snd_kcontrol_new rk3328_codec_dapm_controls[] = {
+	SOC_SINGLE_TLV("ALPL Palyback Volume", HPOUTL_GAIN_CTRL,
+		0, 0x1f, 0, out_vol_tlv),
+	SOC_SINGLE_TLV("ALPR Palyback Volume", HPOUTR_GAIN_CTRL,
+		0, 0x1f, 0, out_vol_tlv),
+};
 
 static struct rk3328_reg_msk_val playback_close_list[] = {
 	{ HPMIX_CTRL, HPMIXL_INIT2_MASK | HPMIXR_INIT2_MASK,
@@ -279,12 +292,12 @@ static int rk3328_codec_close_playback(struct snd_soc_codec *codec)
 	int i = 0;
 
 	//rk3328_analog_output(rk3328, 0);
-
+#if 0
 	regmap_update_bits(rk3328->regmap, HPOUTL_GAIN_CTRL,
 			   HPOUTL_GAIN_MASK, 0);
 	regmap_update_bits(rk3328->regmap, HPOUTR_GAIN_CTRL,
 			   HPOUTR_GAIN_MASK, 0);
-
+#endif
 	for (i = 0; i < PLAYBACK_CLOSE_LIST_LEN; i++) {
 		regmap_update_bits(rk3328->regmap,
 				   playback_close_list[i].reg,
@@ -386,9 +399,14 @@ static struct snd_soc_dai_driver rk3328_dai[] = {
 
 static int rk3328_codec_probe(struct snd_soc_codec *codec)
 {
+	struct rk3328_codec_priv *rk3328 = snd_soc_codec_get_drvdata(codec);
+	unsigned int val = 0, val1 = 0;
 	rk3328_codec_reset(codec);
 	rk3328_codec_power_on(codec, 0);
-
+	regmap_update_bits(rk3328->regmap, HPOUTL_GAIN_CTRL,
+		HPOUTL_GAIN_MASK, 0x05);
+	regmap_update_bits(rk3328->regmap, HPOUTR_GAIN_CTRL,
+		HPOUTR_GAIN_MASK, 0x13);
 	return 0;
 }
 
@@ -403,6 +421,8 @@ static int rk3328_codec_remove(struct snd_soc_codec *codec)
 static struct snd_soc_codec_driver soc_codec_dev_rk3328 = {
 	.probe = rk3328_codec_probe,
 	.remove = rk3328_codec_remove,
+	.controls = rk3328_codec_dapm_controls,
+	.num_controls = ARRAY_SIZE(rk3328_codec_dapm_controls),
 };
 
 static bool rk3328_codec_write_read_reg(struct device *dev, unsigned int reg)
