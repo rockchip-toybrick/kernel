@@ -1305,7 +1305,7 @@
 		phy-mode = "rmii";
 		phy-is-integrated;
 		pinctrl-names = "default";
-		pinctrl-0 = <&fephyled_rxm1 &fephyled_linkm1>;
+	//	pinctrl-0 = <&fephyled_rxm1 &fephyled_linkm1>;
 		status = "disabled";
 	};
 
