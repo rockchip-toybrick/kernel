@@ -130,11 +130,15 @@ static void rk3328_analog_output(struct rk3328_codec_priv *rk3328, int mute)
 }
 #endif
 
+int times=0;
 void rk3328_analog_output_set(int mute)
 {
+	if (times == 0) {
+		mdelay(3000);
+		times++;
+	}
 	regmap_write(rk3328_tmp->grf, RK3328_GRF_SOC_CON10,
 		     (BIT(1) << 16) | (mute << 1));
-
 }
 
 EXPORT_SYMBOL(rk3328_analog_output_set);
@@ -400,13 +404,12 @@ static struct snd_soc_dai_driver rk3328_dai[] = {
 static int rk3328_codec_probe(struct snd_soc_codec *codec)
 {
 	struct rk3328_codec_priv *rk3328 = snd_soc_codec_get_drvdata(codec);
-	unsigned int val = 0, val1 = 0;
 	rk3328_codec_reset(codec);
 	rk3328_codec_power_on(codec, 0);
 	regmap_update_bits(rk3328->regmap, HPOUTL_GAIN_CTRL,
-		HPOUTL_GAIN_MASK, 0x05);
+		HPOUTL_GAIN_MASK, OUT_VOLUME);
 	regmap_update_bits(rk3328->regmap, HPOUTR_GAIN_CTRL,
-		HPOUTR_GAIN_MASK, 0x13);
+		HPOUTR_GAIN_MASK, OUT_VOLUME);
 	return 0;
 }
 
