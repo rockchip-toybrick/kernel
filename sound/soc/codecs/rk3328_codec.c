@@ -130,18 +130,20 @@ static void rk3328_analog_output(struct rk3328_codec_priv *rk3328, int mute)
 }
 #endif
 
-int times=0;
+static int output_status=0;
 void rk3328_analog_output_set(int mute)
 {
-	if (times == 0) {
-		mdelay(3000);
-		times++;
-	}
 	regmap_write(rk3328_tmp->grf, RK3328_GRF_SOC_CON10,
 		     (BIT(1) << 16) | (mute << 1));
 }
 
+void rk3328_analog_output_status(int mute)
+{
+	output_status=mute;
+}
+
 EXPORT_SYMBOL(rk3328_analog_output_set);
+EXPORT_SYMBOL(rk3328_analog_output_status);
 
 static int rk3328_digital_mute(struct snd_soc_dai *dai, int mute)
 {
@@ -241,6 +243,7 @@ static int rk3328_codec_open_playback(struct snd_soc_codec *codec)
 
 	msleep(rk3328->spk_depop_time);
 	//rk3328_analog_output(rk3328, 1);
+	rk3328_analog_output_set(output_status);
 #if 0
 	regmap_update_bits(rk3328->regmap, HPOUTL_GAIN_CTRL,
 		HPOUTL_GAIN_MASK, OUT_VOLUME);

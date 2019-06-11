@@ -142,6 +142,8 @@ static irqreturn_t hook_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 extern void rk3328_analog_output_set(int mute);
+extern void rk3328_analog_output_status(int mute);
+
 static void headsetobserve_work(struct work_struct *work)
 {
 	int level = 0;
@@ -195,7 +197,7 @@ static void headsetobserve_work(struct work_struct *work)
 	{	
 		headset_info->hook_status = HOOK_UP;
 		printk(KERN_ERR "headset out\n");
-		rk3328_analog_output_set(0);
+		rk3328_analog_output_status(0);
 		if(headset_info->isHook_irq == enable)
 		{
 			DBG("disable headset_hook irq\n");
@@ -473,10 +475,10 @@ int rk_headset_probe(struct platform_device *pdev,struct rk_headset_pdata *pdata
 	
 	if (headset_status == HEADSET_IN) {
 		printk(KERN_ERR "headset in at first\n");
-		rk3328_analog_output_set(1);
+		rk3328_analog_output_status(1);
 	} else {
 		printk(KERN_ERR "speaker in at first\n");
-		rk3328_analog_output_set(0);
+		rk3328_analog_output_status(0);
 	}
 	
 	return 0;
