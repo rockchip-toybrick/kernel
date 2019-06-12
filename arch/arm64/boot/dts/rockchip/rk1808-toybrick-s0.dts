@@ -36,3 +36,26 @@
 	};
 };
 
+&thermal_zones {
+	soc-thermal {
+		sustainable-power = <381>;
+
+		trips {
+			trip-point-0 {
+				temperature = <80000>;
+			};
+			trip-point-1 {
+				temperature = <85000>;
+			};
+		};
+		/delete-node/ cooling-maps;
+		cooling-maps {
+			map0 {
+				trip = <&target>;
+				cooling-device =
+					<&npu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+};
+
