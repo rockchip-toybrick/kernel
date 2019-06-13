@@ -131,6 +131,10 @@ static void rk3328_analog_output(struct rk3328_codec_priv *rk3328, int mute)
 #endif
 
 static int output_status=0;
+static int output_old_status=0;
+static struct mutex mutex;
+static int times=0;
+
 void rk3328_analog_output_set(int mute)
 {
 	regmap_write(rk3328_tmp->grf, RK3328_GRF_SOC_CON10,
@@ -139,7 +143,9 @@ void rk3328_analog_output_set(int mute)
 
 void rk3328_analog_output_status(int mute)
 {
+	mutex_lock(&mutex);
 	output_status=mute;
+	mutex_unlock(&mutex);
 }
 
 EXPORT_SYMBOL(rk3328_analog_output_set);
@@ -227,11 +233,10 @@ static int rk3328_codec_open_playback(struct snd_soc_codec *codec)
 {
 	struct rk3328_codec_priv *rk3328 = snd_soc_codec_get_drvdata(codec);
 	int i = 0;
-	unsigned int val = 0, val1 = 0;
-
 	regmap_update_bits(rk3328->regmap, DAC_PRECHARGE_CTRL,
 			   DAC_CHARGE_CURRENT_ALL_MASK,
 			   DAC_CHARGE_CURRENT_I);
+	
 
 	for (i = 0; i < PLAYBACK_OPEN_LIST_LEN; i++) {
 		regmap_update_bits(rk3328->regmap,
@@ -240,19 +245,23 @@ static int rk3328_codec_open_playback(struct snd_soc_codec *codec)
 				   playback_open_list[i].val);
 		mdelay(1);
 	}
-
+	
 	msleep(rk3328->spk_depop_time);
 	//rk3328_analog_output(rk3328, 1);
-	rk3328_analog_output_set(output_status);
+	if ((times == 0) || (output_old_status !=output_status)){
+		mutex_lock(&mutex);
+		rk3328_analog_output_set(output_status);
+		mutex_unlock(&mutex);
+		times++;
+		printk(KERN_ERR "output_status is %d,output_old_status is %d\n",output_status,output_old_status);
+	}
+	output_old_status=output_status;
 #if 0
 	regmap_update_bits(rk3328->regmap, HPOUTL_GAIN_CTRL,
 		HPOUTL_GAIN_MASK, OUT_VOLUME);
 	regmap_update_bits(rk3328->regmap, HPOUTR_GAIN_CTRL,
 		HPOUTR_GAIN_MASK, OUT_VOLUME);
 #endif
-	val = snd_soc_read(codec, HPOUTL_GAIN_CTRL);
-	val1 = snd_soc_read(codec, HPOUTR_GAIN_CTRL);
-	printk(KERN_ERR "function is %s,HPOUTL_GAIN_CTRL is 0x%8x,HPOUTR_GAIN_CTRL is 0x%8x\n", __FUNCTION__, val, val1);
 	return 0;
 }
 
@@ -492,7 +501,7 @@ static int rk3328_platform_probe(struct platform_device *pdev)
 	struct regmap *grf;
 	void __iomem *base;
 	int ret = 0;
-
+	mutex_init(&mutex);
 	rk3328 = devm_kzalloc(&pdev->dev, sizeof(*rk3328), GFP_KERNEL);
 	if (!rk3328)
 		return -ENOMEM;
@@ -557,6 +566,7 @@ static int rk3328_platform_probe(struct platform_device *pdev)
 static int rk3328_platform_remove(struct platform_device *pdev)
 {
 	snd_soc_unregister_codec(&pdev->dev);
+	mutex_destroy(mutex);
 	return 0;
 }
 
