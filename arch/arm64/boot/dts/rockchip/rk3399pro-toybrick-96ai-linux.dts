@@ -1,6 +1,7 @@
 /dts-v1/;
 #include "rk3399pro-toybrick-96ai.dtsi"
 
+#include "rk3399-android.dtsi"
 /* Default camera: ov9750 */
 //#include "rk3399pro-toybrick-96ai-ov9750.dtsi"
 #include "rk3399pro-toybrick-96ai-imx258.dtsi"
