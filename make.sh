@@ -34,6 +34,18 @@ case $1 in
 		genext2fs -b 32768 -B $((32 * 1024 * 1024 / 32768)) -d boot_linux -i 8192 -U boot_linux.img
 		rm -rf boot_linux
 		;;
+	factory)
+		mkdir -p boot_linux-ft/extlinux
+		make rockchip_linux_defconfig
+		make ARCH=arm64 rk3328-${DTB}-linux.img -j${JOB}
+		cp -f arch/arm64/boot/dts/rockchip/rk3328-${DTB}-linux.dtb boot_linux-ft/extlinux/rk3328.dtb.orig
+		make ARCH=arm64 rk3328-${DTB}-factory.img -j${JOB}
+		cp -f arch/arm64/boot/dts/rockchip/rk3328-${DTB}-factory.dtb boot_linux-ft/extlinux/rk3328.dtb
+		cp -f arch/arm64/boot/Image boot_linux-ft/extlinux/
+		cp -f extlinux.conf boot_linux-ft/extlinux/
+		genext2fs -b 32768 -B $((32 * 1024 * 1024 / 32768)) -d boot_linux-ft -i 8192 -U boot_linux-ft.img
+		rm -rf boot_linux-ft
+		;;
 	*)
 		help
 		exit 1
