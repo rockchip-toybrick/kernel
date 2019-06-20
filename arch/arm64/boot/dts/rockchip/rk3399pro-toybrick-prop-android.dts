@@ -24,6 +24,16 @@
 	status = "okay";
 };
 
+&fiq_debugger {
+	pinctrl-0 = <&uart2c_xfer>;
+};
+
+&rk_key {
+	status = "okay";
+	io-channels = <&saradc 2>;
+	/delete-node/ power-key;
+};
+
 &firmware_android {
 	compatible = "android,firmware";
 	fstab {
