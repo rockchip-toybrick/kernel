@@ -13,6 +13,18 @@
 	chosen {
 		bootargs = "earlycon=uart8250,mmio32,0xff550000 console=ttyFIQ0 swiotlb=1 coherent_pool=1m swiotlb=1 kpti=0";
 	};
+
+	leds: gpio-leds {
+                compatible = "gpio-leds";
+                pinctrl-names = "default";
+                pinctrl-0 =<&leds_gpio>;
+
+                led@1 {
+                        gpios = <&gpio0 11 GPIO_ACTIVE_HIGH>;
+                        label = "system_led";
+                        retain-state-suspended;
+                };
+	};
 };
 
 &cpu0_opp_table {
@@ -61,5 +73,16 @@
 
 &tsadc {
        status = "okay";
+};
+
+&pinctrl {
+        pinctrl-names = "default";
+
+	gpio-leds {
+                leds_gpio: leds-gpio {
+                        rockchip,pins =
+                                <0 11 RK_FUNC_GPIO &pcfg_pull_up>;
+                };
+        };
 };
 
