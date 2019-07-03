@@ -1,7 +1,7 @@
 #!/bin/bash
 
 JOB=`sed -n "N;/processor/p" /proc/cpuinfo|wc -l`
-DTB=evb
+DTB=eaidk
 
 function help()
 {
@@ -22,13 +22,13 @@ fi
 case $1 in
 	android)
 		make rockchip_defconfig
-		make ARCH=arm64 rk3328-${DTB}-android.img -j${JOB}
+		make ARCH=arm64 rk3228h-${DTB}-android.img -j${JOB}
 		;;
 	linux)
 		mkdir -p boot_linux/extlinux
 		make rockchip_linux_defconfig
-		make ARCH=arm64 rk3328-${DTB}-linux.img -j${JOB}
-		cp -f arch/arm64/boot/dts/rockchip/rk3328-${DTB}-linux.dtb boot_linux/extlinux/rk3328.dtb
+		make ARCH=arm64 rk3228h-${DTB}-linux.img -j${JOB}
+		cp -f arch/arm64/boot/dts/rockchip/rk3228h-${DTB}-linux.dtb boot_linux/extlinux/rk3228h.dtb
 		cp -f arch/arm64/boot/Image boot_linux/extlinux/
 		cp -f extlinux.conf boot_linux/extlinux/
 		genext2fs -b 32768 -B $((32 * 1024 * 1024 / 32768)) -d boot_linux -i 8192 -U boot_linux.img
@@ -37,10 +37,10 @@ case $1 in
 	factory)
 		mkdir -p boot_linux-ft/extlinux
 		make rockchip_linux_defconfig
-		make ARCH=arm64 rk3328-${DTB}-linux.img -j${JOB}
-		cp -f arch/arm64/boot/dts/rockchip/rk3328-${DTB}-linux.dtb boot_linux-ft/extlinux/rk3328.dtb.orig
-		make ARCH=arm64 rk3328-${DTB}-factory.img -j${JOB}
-		cp -f arch/arm64/boot/dts/rockchip/rk3328-${DTB}-factory.dtb boot_linux-ft/extlinux/rk3328.dtb
+		make ARCH=arm64 rk3228h-${DTB}-linux.img -j${JOB}
+		cp -f arch/arm64/boot/dts/rockchip/rk3228h-${DTB}-linux.dtb boot_linux-ft/extlinux/rk3228h.dtb.orig
+		make ARCH=arm64 rk3228h-${DTB}-factory.img -j${JOB}
+		cp -f arch/arm64/boot/dts/rockchip/rk3228h-${DTB}-factory.dtb boot_linux-ft/extlinux/rk3228h.dtb
 		cp -f arch/arm64/boot/Image boot_linux-ft/extlinux/
 		cp -f extlinux.conf boot_linux-ft/extlinux/
 		genext2fs -b 32768 -B $((32 * 1024 * 1024 / 32768)) -d boot_linux-ft -i 8192 -U boot_linux-ft.img
