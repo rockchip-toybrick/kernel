@@ -236,6 +236,7 @@
 
 &usbdrd_dwc3 {
 	dr_mode = "peripheral";
+	snps,tx-fifo-resize;
 	status = "okay";
 };
 
