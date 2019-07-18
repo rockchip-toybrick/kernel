@@ -59,7 +59,8 @@ case $1 in
 		cp -f arch/arm64/boot/dts/rockchip/${DTB}.dtb boot_linux/extlinux/toybrick.dtb
 		cp -f arch/arm64/boot/Image boot_linux/extlinux/
 		cp -f extlinux.conf boot_linux/extlinux/
-		genext2fs -b 32768 -B $((32 * 1024 * 1024 / 32768)) -d boot_linux -i 8192 -U boot_linux.img
+		cp -f initramfs-4.4-1.rockchip.fc28.aarch64.img boot_linux/
+		genext2fs -b 32768 -B $((64 * 1024 * 1024 / 32768)) -d boot_linux -i 8192 -U boot_linux.img
 		rm -rf boot_linux
 		;;
 	*)
