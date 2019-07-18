@@ -113,7 +113,7 @@
         clock-frequency=<100000>;	
 	ds2482: ds2482 {
 		compatible = "ds2482";
-		reg = <0x30>;
+		reg = <0x18>;
 	};
 };
 
