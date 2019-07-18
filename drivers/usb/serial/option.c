@@ -382,6 +382,11 @@ static void option_instat_callback(struct urb *urb);
  */
 #define LONGCHEER_VENDOR_ID			0x1c9e
 
+/*******ADD for LongSung U9300 LTE *************/
+#define LONGSUNG_VENDOR_ID			0x1c9e
+#define LONGSUNG_U9300_PRODUCT_ID		0x9b3c
+/***********************************************/
+
 /* 4G Systems products */
 /* This is the 4G XS Stick W14 a.k.a. Mobilcom Debitel Surf-Stick *
  * It seems to contain a Qualcomm QSC6240/6290 chipset            */
@@ -564,6 +569,13 @@ static void option_instat_callback(struct urb *urb);
 /* Interface is reserved */
 #define RSVD(ifnum)	((BIT(ifnum) & 0xff) << 0)
 
+/********************ADD for Longsung U9300 LTE modem****************/
+/*
+static const struct option_blacklist_info longssung_u9300_blacklist = {
+	.reserved = BIT(4),
+};
+*/
+/********************************************************************/
 
 static const struct usb_device_id option_ids[] = {
 	{ USB_DEVICE(OPTION_VENDOR_ID, OPTION_PRODUCT_COLT) },
@@ -598,6 +610,9 @@ static const struct usb_device_id option_ids[] = {
 	{ USB_DEVICE(QUANTA_VENDOR_ID, QUANTA_PRODUCT_GLE) },
 	{ USB_DEVICE(QUANTA_VENDOR_ID, 0xea42),
 	  .driver_info = RSVD(4) },
+	/**************************Add for Longsung U9300 LTE modem***********************/
+	{ USB_DEVICE(LONGSUNG_VENDOR_ID,LONGSUNG_U9300_PRODUCT_ID) },
+	/*********************************************************************************/
 	{ USB_DEVICE_AND_INTERFACE_INFO(HUAWEI_VENDOR_ID, 0x1c05, USB_CLASS_COMM, 0x02, 0xff) },
 	{ USB_DEVICE_AND_INTERFACE_INFO(HUAWEI_VENDOR_ID, 0x1c1f, USB_CLASS_COMM, 0x02, 0xff) },
 	{ USB_DEVICE_AND_INTERFACE_INFO(HUAWEI_VENDOR_ID, 0x1c23, USB_CLASS_COMM, 0x02, 0xff) },
@@ -2012,6 +2027,22 @@ static int option_probe(struct usb_serial *serial,
 	    dev_desc->idProduct == cpu_to_le16(SAMSUNG_PRODUCT_GT_B3730) &&
 	    iface_desc->bInterfaceClass != USB_CLASS_CDC_DATA)
 		return -ENODEV;
+
+        /*********** Add for LongSung U9300 LTE modem ************/
+        if (serial->dev->descriptor.idVendor == cpu_to_le16(LONGSUNG_VENDOR_ID) &&
+            serial->dev->descriptor.idProduct == cpu_to_le16(LONGSUNG_U9300_PRODUCT_ID) &&
+            serial->interface->cur_altsetting->desc.bInterfaceNumber == 4){
+            printk(KERN_INFO"Discover the 4th interface for U9300 NDIS\n");
+            return -ENODEV;
+        }
+   
+        if (serial->dev->descriptor.idVendor == 0x1c9e &&
+            serial->dev->descriptor.idProduct == 0x9b3c &&
+            serial->interface->cur_altsetting->desc.bInterfaceNumber == 0){
+            printk("GZZ Discover the 0th interface for 9300 ndis\n");
+            return -ENODEV;
+        }
+        /*********************************************************/
 
 	/* Store the device flags so we can use them during attach. */
 	usb_set_serial_data(serial, (void *)device_flags);
