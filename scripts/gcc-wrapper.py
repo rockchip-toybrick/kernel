@@ -53,6 +53,9 @@ allowed_warnings = set([
     "sched.h:1211", # include/linux/sched.h:1211:1: warning: type qualifiers ignored on function return type
     "halphyrf_8188e_ce.c:2208", # drivers/net/wireless/rockchip_wlan/rtl8189es/hal/phydm/rtl8188e/halphyrf_8188e_ce.c:2208:1: warning: the frame size of 1056 bytes is larger than 1024 bytes
     "halphyrf_8723b_ce.c:2879", # drivers/net/wireless/rockchip_wlan/rtl8723bu/hal/phydm/rtl8723b/halphyrf_8723b_ce.c:2879:1: warning: the frame size of 1056 bytes is larger than 1024 bytes
+    "vdso.c:119", # arch/arm64/kernel/vdso.c:119:6: warning: 'memcmp' reading 4 bytes from a region of size 1 [-Wstringop-overflow=]
+    "dhd_linux.c:6965", # drivers/net/wireless/rockchip_wlan/rkwifi/bcmdhd/dhd_linux.c:6965:39: warning: argument to 'sizeof' in 'strncpy' call is the same expression as the source; did you mean to use the size of the destination? [-Wsizeof-pointer-memaccess]
+    "dhd_linux.c:9447", # drivers/net/wireless/rockchip_wlan/rkwifi/bcmdhd/dhd_linux.c:9447:4: warning: 'strncat' specified bound 2 equals source length [-Wstringop-overflow=]
  ])
 
 # Capture the name of the object file, can find it.
