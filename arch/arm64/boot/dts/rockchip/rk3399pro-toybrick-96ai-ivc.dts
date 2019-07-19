@@ -127,6 +127,19 @@
 		compatible = "ina219";
 		reg = <0x47>;
 	};
+
+	sensor@19 {
+		status = "okay";
+		compatible = "gs_lis3dh";
+		reg = <0x19>;
+		type = <SENSOR_TYPE_ACCEL>;
+		irq-gpio = <&gpio4 21 IRQ_TYPE_LEVEL_LOW>;
+		irq_enable = <0>;
+		poll_delay_ms = <30>;
+		layout = <6>;
+		reprobe_en = <1>;
+	};
+
 };
 
 &spi5 {
