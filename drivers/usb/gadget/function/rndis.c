@@ -1145,7 +1145,7 @@ int rndis_rm_hdr(struct gether *port,
 			return -ENOMEM;
 		}
 
-		skb_pull(skb, msg_len - sizeof *hdr);
+		skb_pull(skb, data_len);
 		skb_trim(skb2, data_len);
 		skb_queue_tail(list, skb2);
 
