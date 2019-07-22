@@ -14,8 +14,14 @@
 	};
 	
 	vcc_4g: vcc-4g-regulator {
-        status = "disabled";
-    };
+        	status = "disabled";
+    	};
+	
+	pwm-gpio {
+                compatible = "pwm-gpio";
+                #pwm-cells = <3>;
+                pwm-gpio = <&gpio4 22 GPIO_ACTIVE_HIGH>;
+        };
 
     sdio_pwrseq: sdio-pwrseq {
         compatible = "mmc-pwrseq-simple";
