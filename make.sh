@@ -33,21 +33,18 @@ case $1 in
 	linux)
 		DTB=""
 		mkdir -p boot_linux/extlinux
+		make rockchip_linux_defconfig
 		case $2 in
 			prod)
-				make rockchip_linux_defconfig
 				DTB=rk3399pro-toybrick-prod-linux
 				;;
 			prop)
-				make rockchip_linux_defconfig
 				DTB=rk3399pro-toybrick-prop-linux
 				;;
 			96ai)
-				make rockchip_96ai_linux_defconfig
 				DTB=rk3399pro-toybrick-96ai-linux
 				;;
 			ivc)
-				make rockchip_96ai_linux_defconfig
 				DTB=rk3399pro-toybrick-96ai-ivc
 				;;
 			*)
