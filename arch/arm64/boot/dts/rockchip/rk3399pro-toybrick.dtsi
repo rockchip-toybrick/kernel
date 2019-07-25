@@ -119,17 +119,6 @@
 		regulator-max-microvolt = <900000>;
 	};
 
-       vcc_pcie: vcc-pcie-regulator {
-               compatible = "regulator-fixed";
-               enable-active-high;
-               gpio = <&gpio2 6 GPIO_ACTIVE_HIGH>;
-               pinctrl-names = "default";
-               pinctrl-0 = <&vcc_pcie_drv>;
-               regulator-name = "vcc_pcie";
-               regulator-always-on;
-               regulator-boot-on;
-       };
-
 	vcc_4g: vcc-4g-regulator {
 		compatible = "regulator-fixed";
 		enable-active-high;
@@ -1010,13 +999,6 @@
 				<2 5 RK_FUNC_GPIO &pcfg_pull_up>,
 				<2 4 RK_FUNC_GPIO &pcfg_pull_up>,
 				<2 3 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-	};
-
-	pcie {
-		vcc_pcie_drv: vcc-pcie-drv {
-			rockchip,pins =
-				<2 6 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 
