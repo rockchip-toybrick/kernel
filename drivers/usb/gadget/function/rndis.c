@@ -1146,6 +1146,8 @@ int rndis_rm_hdr(struct gether *port,
 		}
 
 		skb_pull(skb, data_len);
+		if ((data_offset + data_len + 8) < msg_len)
+			skb_pull(skb, 1);
 		skb_trim(skb2, data_len);
 		skb_queue_tail(list, skb2);
 
