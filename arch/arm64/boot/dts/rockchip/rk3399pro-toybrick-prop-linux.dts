@@ -10,6 +10,10 @@
 	extbrd: extbrd {
 		compatible = "prop-extboard";
 		io-channels = <&saradc 0>, <&saradc 1>;
+		ext-leds = <&gpio1 8 GPIO_ACTIVE_HIGH>,  	/* GPIO1_B0 */
+					<&gpio1 9 GPIO_ACTIVE_HIGH>,	/* GPIO1_B1 */
+					<&gpio1 10 GPIO_ACTIVE_HIGH>,	/* GPIO1_B2 */
+					<&gpio1 7 GPIO_ACTIVE_HIGH>;  	/* GPIO1_A7 */
 	};
 };
 
