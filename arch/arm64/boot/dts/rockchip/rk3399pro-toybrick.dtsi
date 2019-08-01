@@ -130,42 +130,6 @@
 		regulator-boot-on;
 	};
 
-	leds: gpio-leds {
-		compatible = "gpio-leds";
-		pinctrl-names = "default";
-		pinctrl-0 =<&leds_gpio>;
-
-		led@1 {
-			gpios = <&gpio2 5 GPIO_ACTIVE_HIGH>;
-			label = "system_work_led1";
-			retain-state-suspended;
-		};
-
-		led@2 {
-			gpios = <&gpio2 4 GPIO_ACTIVE_HIGH>;
-			label = "system_work_led2";
-			retain-state-suspended;
-		};
-
-		led@3 {
-			gpios = <&gpio2 3 GPIO_ACTIVE_HIGH>;
-			label = "system_work_led3";
-			retain-state-suspended;
-		};
-	};
-
-	mini-pcie {
-		compatible = "mini-pcie";
-		pinctrl-names = "default";
-		pinctrl-0 = <&mini_pcie_pins>;
-		status = "okay";
-	};
-
-	usbhub_reset: usbhub-reset {
-		compatible = "usbhub-reset";
-		uhrst-gpio = <&gpio4 21 GPIO_ACTIVE_HIGH>;
-	};
-
 	cif_isp0: cif_isp@ff910000 {
 		compatible = "rockchip,rk3399-cif-isp";
 		rockchip,grf = <&grf>;
@@ -990,28 +954,6 @@
 		tp_irq_gpio: tp-irq-gpio {
 			rockchip,pins =
 				<3 RK_PB0 0 &pcfg_pull_up>;
-		};
-	};
-
-    gpio-leds {
-		leds_gpio: leds-gpio {
-			rockchip,pins =
-				<2 5 RK_FUNC_GPIO &pcfg_pull_up>,
-				<2 4 RK_FUNC_GPIO &pcfg_pull_up>,
-				<2 3 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-	};
-
-	mini-pcie-gpio {
-		vcc_4g_drv: vcc-4g-drv {
-			rockchip,pins =
-				<2 28 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-
-		mini_pcie_pins: mini-pcie-pins {
-			rockchip,pins =
-				<2 26 RK_FUNC_GPIO &pcfg_output_low>,
-				<2 27 RK_FUNC_GPIO &pcfg_output_low>;
 		};
 	};
 };
