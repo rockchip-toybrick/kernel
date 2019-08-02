@@ -54,9 +54,7 @@
 #define EXT_ITEM_MAX_NUM 	9
 
 static const struct of_device_id of_extbrd_match[] = {
-	{ .compatible = "eai610-extboard", },
-	{ .compatible = "prod-extboard", },
-	{ .compatible = "prop-extboard", },
+	{ .compatible = "toybrick-extboard", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, of_extbrd_match);
