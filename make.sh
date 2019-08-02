@@ -37,6 +37,10 @@ case $1 in
 		case $2 in
 			prod)
 				DTB=rk3399pro-toybrick-prod-linux
+				make ARCH=arm64 ${DTB}-edp.img -j${JOB}
+				make ARCH=arm64 ${DTB}-mipi.img -j${JOB}
+				cp -f arch/arm64/boot/dts/rockchip/${DTB}-edp.dtb boot_linux/extlinux/toybrick-edp.dtb
+				cp -f arch/arm64/boot/dts/rockchip/${DTB}-mipi.dtb boot_linux/extlinux/toybrick-mipi.dtb
 				;;
 			prop)
 				DTB=rk3399pro-toybrick-prop-linux
@@ -54,6 +58,7 @@ case $1 in
 		esac
 		make ARCH=arm64 ${DTB}.img -j${JOB}
 		cp -f arch/arm64/boot/dts/rockchip/${DTB}.dtb boot_linux/extlinux/toybrick.dtb
+		cp -f arch/arm64/boot/dts/rockchip/${DTB}.dtb boot_linux/extlinux/toybrick-default.dtb
 		cp -f arch/arm64/boot/Image boot_linux/extlinux/
 		cp -f extlinux.conf boot_linux/extlinux/
 		cp -f initramfs-4.4-1.rockchip.fc28.aarch64.img boot_linux/
