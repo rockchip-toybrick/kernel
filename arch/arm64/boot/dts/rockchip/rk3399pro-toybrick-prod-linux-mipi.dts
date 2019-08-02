@@ -41,22 +41,23 @@
  */
 
 /dts-v1/;
-#include "rk3399pro-toybrick-prop.dtsi"
+#include "rk3399pro-toybrick-prod.dtsi"
 #include "rk3399-android.dtsi"
+#include "rk3399pro-toybrick-mipi.dtsi"
 #include "rk3399pro-toybrick-extboard.dtsi"
 //#include "rk3399pro-toybrick-ov9750.dtsi"
 
 / {
-	compatible = "rockchip,rk3399pro-toybrick-prop-linux","rockchip,rk3399pro";
+	compatible = "rockchip,rk3399pro-toybrick-prod-linux","rockchip,rk3399pro";
 };
 
 &extbrd {
 	status = "okay";
 	io-channels = <&saradc 0>, <&saradc 1>;
-	ext-leds = <&gpio1 RK_PB0 GPIO_ACTIVE_HIGH>,    /* GPIO1_B0 */
+	ext-leds = <&gpio0 RK_PA5 GPIO_ACTIVE_HIGH>,    /* GPIO0_A5 */
 		   <&gpio1 RK_PB1 GPIO_ACTIVE_HIGH>,    /* GPIO1_B1 */
 		   <&gpio1 RK_PB2 GPIO_ACTIVE_HIGH>,    /* GPIO1_B2 */
-		   <&gpio1 RK_PA7 GPIO_ACTIVE_HIGH>;    /* GPIO1_A7 */
+		   <&gpio0 RK_PA6 GPIO_ACTIVE_HIGH>;    /* GPIO0_A6 */
 };
 
 &route_hdmi {
@@ -91,8 +92,4 @@
         status = "okay";
         io-channels = <&saradc 2>;
         /delete-node/ power-key;
-};
-
-&backlight {
-	enable-gpios = <&gpio1 RK_PB5 GPIO_ACTIVE_HIGH>;
 };

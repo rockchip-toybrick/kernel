@@ -40,59 +40,49 @@
  *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
-/dts-v1/;
-#include "rk3399pro-toybrick-prop.dtsi"
-#include "rk3399-android.dtsi"
-#include "rk3399pro-toybrick-extboard.dtsi"
-//#include "rk3399pro-toybrick-ov9750.dtsi"
-
 / {
-	compatible = "rockchip,rk3399pro-toybrick-prop-linux","rockchip,rk3399pro";
+        compatible = "rockchip,rk3399pro-toybrick-extboard","rockchip,rk3399pro";
+	
+	extbrd: extbrd {
+		status = "disabled";
+		compatible = "toybrick-extboard";
+	};
 };
 
-&extbrd {
+&i2c6 {
 	status = "okay";
-	io-channels = <&saradc 0>, <&saradc 1>;
-	ext-leds = <&gpio1 RK_PB0 GPIO_ACTIVE_HIGH>,    /* GPIO1_B0 */
-		   <&gpio1 RK_PB1 GPIO_ACTIVE_HIGH>,    /* GPIO1_B1 */
-		   <&gpio1 RK_PB2 GPIO_ACTIVE_HIGH>,    /* GPIO1_B2 */
-		   <&gpio1 RK_PA7 GPIO_ACTIVE_HIGH>;    /* GPIO1_A7 */
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+	clock-frequency=<400000>;
+
+	ina219x47c6: ina219@47 {
+	        compatible = "ina219";
+	        reg = <0x47>;
+	};
 };
 
-&route_hdmi {
-        status = "okay";
+&i2c7 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <345>;
+	i2c-scl-falling-time-ns = <11>;
+	clock-frequency = <400000>;
+	es7243: es7243@13 {
+		status = "okay";
+		compatible = "everest,es7243";
+		reg = <0x13>;
+	};
 };
 
-&route_dsi {
-        status = "okay";
-};
+&spi5 {
+	status = "okay";
 
-&route_edp {
-        status = "okay";
-};
-
-&dp_sound {
-        status = "okay";
-};
-
-&hdmi_dp_sound {
-        status = "disabled";
-};
-
-&hdmi_sound {
-        status = "okay";
-};
-
-&fiq_debugger {
-        pinctrl-0 = <&uart2c_xfer>;
-};
-
-&rk_key {
-        status = "okay";
-        io-channels = <&saradc 2>;
-        /delete-node/ power-key;
-};
-
-&backlight {
-	enable-gpios = <&gpio1 RK_PB5 GPIO_ACTIVE_HIGH>;
+	flash@0 {
+		compatible = "gigadevice,w25q64", "jedec,spi-nor";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0>;
+		m25p,fast-read;
+		// The max SCLK of the flash 104/80 MHZ
+		spi-max-frequency = <50000000>;
+	};
 };
