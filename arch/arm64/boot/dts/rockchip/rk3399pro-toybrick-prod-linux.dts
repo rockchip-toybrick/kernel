@@ -8,7 +8,7 @@
 / {
 	compatible = "rockchip,rk3399pro-toybrick-prod-linux","rockchip,rk3399pro";
 	extbrd: extbrd {
-		compatible = "prod-extboard";
+		compatible = "toybrick-extboard";
 		io-channels = <&saradc 0>, <&saradc 1>;
 		ext-leds = <&gpio0 5 GPIO_ACTIVE_HIGH>,  	/* GPIO0_A5 */
 					<&gpio1 9 GPIO_ACTIVE_HIGH>,	/* GPIO1_B1 */
