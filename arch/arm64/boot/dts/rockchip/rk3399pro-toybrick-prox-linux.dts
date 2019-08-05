@@ -1,77 +1,92 @@
+/*
+ * Copyright (c) 2019 Fuzhou Rockchip Electronics Co., Ltd
+ *
+ * This file is dual-licensed: you can use it either under the terms
+ * of the GPL or the X11 license, at your option. Note that this dual
+ * licensing only applies to this file, and not this project as a
+ * whole.
+ *
+ *  a) This file is free software; you can redistribute it and/or
+ *     modify it under the terms of the GNU General Public License as
+ *     published by the Free Software Foundation; either version 2 of the
+ *     License, or (at your option) any later version.
+ *
+ *     This file is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ * Or, alternatively,
+ *
+ *  b) Permission is hereby granted, free of charge, to any person
+ *     obtaining a copy of this software and associated documentation
+ *     files (the "Software"), to deal in the Software without
+ *     restriction, including without limitation the rights to use,
+ *     copy, modify, merge, publish, distribute, sublicense, and/or
+ *     sell copies of the Software, and to permit persons to whom the
+ *     Software is furnished to do so, subject to the following
+ *     conditions:
+ *
+ *     The above copyright notice and this permission notice shall be
+ *     included in all copies or substantial portions of the Software.
+ *
+ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ *     OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 /dts-v1/;
 #include "rk3399pro-toybrick-prox.dtsi"
-
 #include "rk3399-android.dtsi"
-/* Default camera: ov9750 */
+#include "rk3399pro-toybrick-extboard.dtsi"
 //#include "rk3399pro-toybrick-ov9750.dtsi"
-//#include "rk3399pro-toybrick-imx258.dtsi"
+
 / {
 	compatible = "rockchip,rk3399pro-toybrick-prox-linux","rockchip,rk3399pro";
-	extbrd: extbrd {
-		compatible = "prod-extboard";
-		io-channels = <&saradc 1>, <&saradc 5>;
-		ext-leds = <&gpio4 25 GPIO_ACTIVE_HIGH>,  	/* GPIO4_D1 */
-					<&gpio4 26 GPIO_ACTIVE_HIGH>,	/* GPIO4_D2 */
-	};
 };
 
-&route_edp {
+&extbrd {
 	status = "okay";
+	io-channels = <&saradc 1>, <&saradc 5>;
+	ext-leds = <&gpio4 RK_PD1 GPIO_ACTIVE_HIGH>,    /* GPIO4_D1 */
+		   <&gpio4 RK_PD2 GPIO_ACTIVE_HIGH>;    /* GPIO4_D2 */
+};
+
+&route_hdmi {
+        status = "okay";
 };
 
 &route_dsi {
-	status = "okay";
+        status = "okay";
 };
 
-&spdif {
-	status = "okay";
+&route_edp {
+        status = "okay";
 };
 
 &dp_sound {
-	status = "okay";
+        status = "okay";
 };
 
 &hdmi_dp_sound {
-	status = "disabled";
+        status = "disabled";
 };
 
 &hdmi_sound {
-	status = "okay";
+        status = "okay";
 };
 
 &fiq_debugger {
-	pinctrl-0 = <&uart2c_xfer>;
+        pinctrl-0 = <&uart2c_xfer>;
 };
 
 &rk_key {
-	status = "okay";
-	io-channels = <&saradc 2>;
-	/delete-node/ power-key;
+        status = "okay";
+        io-channels = <&saradc 2>;
+        /delete-node/ power-key;
 };
-
-&i2c6 {
-	status = "okay";
-	i2c-scl-rising-time-ns = <300>;
-	i2c-scl-falling-time-ns = <15>;
-	clock-frequency=<400000>;
-
-	ina219x47c6: ina219@47 {
-		compatible = "ina219";
-		reg = <0x47>;
-	};
-};
-/*
-&spi5 {
-	status = "okay";
-
-	flash@0 {
-		compatible = "gigadevice,w25q64", "jedec,spi-nor";
-		#address-cells = <1>;
-		#size-cells = <1>;
-		reg = <0>;
-		m25p,fast-read;
-		// The max SCLK of the flash 104/80 MHZ
-		spi-max-frequency = <50000000>;
-	};
-};
-*/
