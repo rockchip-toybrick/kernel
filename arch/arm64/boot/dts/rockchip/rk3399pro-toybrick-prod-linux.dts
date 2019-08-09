@@ -72,7 +72,7 @@
 };
 
 &dp_sound {
-        status = "okay";
+        status = "disabled";
 };
 
 &hdmi_dp_sound {
