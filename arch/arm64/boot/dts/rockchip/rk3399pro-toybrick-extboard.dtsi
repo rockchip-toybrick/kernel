@@ -83,6 +83,10 @@
 		reg = <0>;
 		m25p,fast-read;
 		// The max SCLK of the flash 104/80 MHZ
-		spi-max-frequency = <50000000>;
+		spi-max-frequency = <24000000>;
 	};
+};
+
+&sdio0 {
+	status = "disabled";
 };
