@@ -38,17 +38,16 @@
 
 #define JAX_DEBUG 0
 #if JAX_DEBUG
-#define EXTBRD_DEBUG(s, ...) printk("### jaxx " s, ##__VA_ARGS__)
+#define EXTBRD_DEBUG(s, ...) printk("### " s, ##__VA_ARGS__)
 #else
 #define EXTBRD_DEBUG(s, ...) do {} while(0)
 #endif
-#define EXTBRD_ERROR(s, ...) printk("*** jaxx " s, ##__VA_ARGS__)
+#define EXTBRD_ERROR(s, ...) printk("*** " s, ##__VA_ARGS__)
 
 /* Board Resource definition */
-#define BOARD_UNKNOWN	0x0
-#define BOARD_EAI610 	0x1
-#define BOARD_PROD		0x2
-#define BOARD_PROP		0x4
+#define BOARD_UNKNOWN		0x0
+#define BOARD_TOYBRICK		0x1
+#define BOARD_EAI610 		0x2
 
 #define DIGIT_TUBE_NUM		8
 #define EXT_ITEM_MAX_NUM 	9
@@ -269,12 +268,12 @@ static void adc_key_poll(struct work_struct *work)
 				//EXTBRD_DEBUG("Chan[%d] : %d\n", i, result);
 				if (result >= ADC_VALUE_LOW && result < DRIFT_DEFAULT_ADVALUE) {
 					gpio_set_value(ext_leds[i], GPIO_LOW);
-					if (board_type == BOARD_PROD || board_type == BOARD_PROP) {
+					if (board_type == BOARD_TOYBRICK) {
 						gpio_set_value(ext_leds[2 + i], GPIO_LOW);
 					}
 				} else {
 					gpio_set_value(ext_leds[i], GPIO_HIGH);
-					if (board_type == BOARD_PROD || board_type == BOARD_PROP) {
+					if (board_type == BOARD_TOYBRICK) {
 						gpio_set_value(ext_leds[2 + i], GPIO_HIGH);
 					}
 				}
@@ -447,17 +446,14 @@ static int get_board_type(struct platform_device *pdev)
 
 	if (pdev->dev.of_node) {
 		np = pdev->dev.of_node;
-		if (of_device_is_compatible(np, "prod-extboard")) {
-			EXTBRD_DEBUG("This is Prod extboard.\n");
-			board_type = BOARD_PROD;
-		} else if (of_device_is_compatible(np, "prop-extboard")) {
-			EXTBRD_DEBUG("This is Prop extboard.\n");
-			board_type = BOARD_PROP;
+		if (of_device_is_compatible(np, "toybrick-extboard")) {
+			EXTBRD_DEBUG("This is Prod / Prop extboard.\n");
+			board_type = BOARD_TOYBRICK;
 		} else if (of_device_is_compatible(np, "eai610-extboard")) {
 			EXTBRD_DEBUG("This is EAI610 extboard.\n");
 			board_type = BOARD_EAI610;
 		} else {
-			EXTBRD_ERROR("Unsupport extbord!\n");
+			EXTBRD_ERROR("This is Unsupport extbord!\n");
 			board_type = BOARD_UNKNOWN;
 		}
 	}
@@ -490,7 +486,6 @@ static int extbrd_probe(struct platform_device *pdev)
 
 	board_type = get_board_type(pdev);
 	if (board_type <= 0) {
-		EXTBRD_ERROR("Unknown Board.\n");
 		ret = -EINVAL;
 		return ret;
 	}
@@ -520,7 +515,7 @@ static int extbrd_probe(struct platform_device *pdev)
 			gpio_export(ext_gpios[i], true);
 		}
 
-		if (board_type == BOARD_EAI610 && ddata->gpio_num == 8) {
+		if (board_type == BOARD_EAI610 && ddata->gpio_num == DIGIT_TUBE_NUM) {
 			if(device_create_file(&pdev->dev, &digit_tube_attrs)) {
 				EXTBRD_ERROR("Device Create digit_tube_attrs file fail.\n");
 				ret = -EEXIST;
@@ -534,7 +529,7 @@ static int extbrd_probe(struct platform_device *pdev)
 	if (ddata->has_extkeys) {
 		ext_keys = ddata->ext_keys;
 		for (i = 0; i < ddata->key_num; i++) {
-			if (board_type == BOARD_PROP || board_type == BOARD_PROD)
+			if (board_type == BOARD_TOYBRICK)
 				break;
 			if (!gpio_is_valid(ext_keys[i])) {
 				EXTBRD_ERROR("Invalid gpio : %d\n", ext_keys[i]);
