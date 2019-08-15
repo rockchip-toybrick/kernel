@@ -112,7 +112,7 @@
 };
 
 &route_hdmi {
-	status = "okay";
+	status = "disabled";
 };
 
 &route_dsi {
