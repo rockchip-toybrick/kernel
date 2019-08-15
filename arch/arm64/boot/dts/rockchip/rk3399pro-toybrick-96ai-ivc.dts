@@ -96,7 +96,7 @@
 };
 
 &route_hdmi {
-        status = "okay";
+        status = "disabled";
 };
 
 &dp_sound {
