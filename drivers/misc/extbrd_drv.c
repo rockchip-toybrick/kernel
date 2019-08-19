@@ -38,28 +38,22 @@
 
 #define JAX_DEBUG 0
 #if JAX_DEBUG
-#define EXTBRD_DEBUG(s, ...) printk("### jaxx " s, ##__VA_ARGS__)
+#define EXTBRD_DEBUG(s, ...) printk("### " s, ##__VA_ARGS__)
 #else
 #define EXTBRD_DEBUG(s, ...) do {} while(0)
 #endif
-#define EXTBRD_ERROR(s, ...) printk("*** jaxx " s, ##__VA_ARGS__)
-
-#define ARR_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#define EXTBRD_ERROR(s, ...) printk("*** " s, ##__VA_ARGS__)
 
 /* Board Resource definition */
-static int board_type;
-#define BOARD_EAI610 	0x1
-#define BOARD_PROD		0x2
-#define BOARD_PROP		0x4
+#define BOARD_UNKNOWN		0x0
+#define BOARD_TOYBRICK		0x1
+#define BOARD_EAI610 		0x2
 
-#define EXT_DIGIT_GPIOS
-#define EXT_GPIO_KEYS
-#define EXT_ADC
+#define DIGIT_TUBE_NUM		8
+#define EXT_ITEM_MAX_NUM 	9
 
 static const struct of_device_id of_extbrd_match[] = {
-	{ .compatible = "eai610-extboard", },
-	{ .compatible = "prod-extboard", },
-	{ .compatible = "prop-extboard", },
+	{ .compatible = "toybrick-extboard", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, of_extbrd_match);
@@ -69,264 +63,147 @@ struct extbrd_drvdata
 	int result[EXT_ADCCHAN_NUM];
 	struct delayed_work adc_poll_work;
 	struct iio_channel *chan[EXT_ADCCHAN_NUM];
+
+	int *ext_gpios;
+	int *ext_keys;
+	int *ext_leds;
+
+	int has_extgpios;
+	int has_extkeys;
+	int has_extleds;
+	int has_adckeys;
+	int gpio_num;
+	int key_num;
+	int led_num;
+
+	int board_type;
 };
 
-#ifdef EXT_DIGIT_GPIOS
-struct extgpio_desc
+static int tube_0[] = {
+	GPIO_LOW, GPIO_LOW, GPIO_LOW, GPIO_LOW,
+	GPIO_LOW, GPIO_LOW, GPIO_HIGH, GPIO_HIGH,
+};
+
+static int tube_1[] = {
+	GPIO_HIGH, GPIO_LOW, GPIO_LOW, GPIO_HIGH,
+	GPIO_HIGH, GPIO_HIGH, GPIO_HIGH, GPIO_HIGH,
+};
+
+static int tube_2[] = {
+	GPIO_LOW, GPIO_LOW, GPIO_HIGH, GPIO_LOW,
+	GPIO_HIGH, GPIO_LOW, GPIO_LOW, GPIO_HIGH,
+};
+
+static int tube_3[] = {
+	GPIO_LOW, GPIO_LOW, GPIO_LOW, GPIO_LOW,
+	GPIO_HIGH, GPIO_HIGH, GPIO_LOW, GPIO_HIGH,
+};
+
+static int tube_4[] = {
+	GPIO_HIGH, GPIO_LOW, GPIO_LOW, GPIO_HIGH,
+	GPIO_HIGH, GPIO_LOW, GPIO_LOW, GPIO_HIGH,
+};
+
+static int tube_5[] = {
+	GPIO_LOW, GPIO_HIGH, GPIO_LOW, GPIO_LOW,
+	GPIO_HIGH, GPIO_LOW, GPIO_LOW, GPIO_HIGH,
+};
+
+static int tube_6[] = {
+	GPIO_LOW, GPIO_HIGH, GPIO_LOW, GPIO_LOW,
+	GPIO_LOW, GPIO_LOW, GPIO_LOW, GPIO_HIGH,
+};
+
+static int tube_7[] = {
+	GPIO_LOW, GPIO_LOW, GPIO_LOW, GPIO_HIGH,
+	GPIO_HIGH, GPIO_HIGH, GPIO_HIGH, GPIO_HIGH,
+};
+
+static int tube_8[] = {
+	GPIO_LOW, GPIO_LOW, GPIO_LOW, GPIO_LOW,
+	GPIO_LOW, GPIO_LOW, GPIO_LOW, GPIO_HIGH,
+};
+
+static int tube_9[] = {
+	GPIO_LOW, GPIO_LOW, GPIO_LOW, GPIO_LOW,
+	GPIO_HIGH, GPIO_LOW, GPIO_LOW, GPIO_HIGH,
+};
+
+static int tube_e[] = {
+	GPIO_LOW, GPIO_LOW, GPIO_HIGH, GPIO_LOW,
+	GPIO_LOW, GPIO_LOW, GPIO_LOW, GPIO_HIGH,
+};
+
+static int tube_o[] = {
+	GPIO_LOW, GPIO_LOW, GPIO_HIGH, GPIO_HIGH,
+	GPIO_HIGH, GPIO_LOW, GPIO_LOW, GPIO_HIGH,
+};
+
+static int tube_set_gpio(struct device *dev, int *values)
 {
-	int gpio;
-	char tubename[12];
-};
-
-static struct extgpio_desc digit_gpios[] = {
-	{RK_GPIO(2, 2), "TUBE_A"},	//GPIO2_A2
-	{RK_GPIO(2, 3), "TUBE_B"},	//GPIO2_A3
-	{RK_GPIO(2, 4), "TUBE_C"},	//GPIO2_A4
-	{RK_GPIO(2, 5), "TUBE_D"},	//GPIO2_A5
-	{RK_GPIO(2, 6), "TUBE_E"},	//GPIO2_A6
-	{RK_GPIO(1, 23), "TUBE_F"},	//GPIO1_C7
-	{RK_GPIO(1, 22), "TUBE_G"},	//GPIO1_C6
-	{RK_GPIO(1, 24), "TUBE_DP"},//GPIO1_D0
-};
-
-#define EXT_GPIO_NUM  	ARR_SIZE(digit_gpios)
-static int tube_set_gpio(const char *name, int value)
-{
+	struct extbrd_drvdata *ddata = dev_get_drvdata(dev);
 	int i;
 
-	for (i = 0; i < EXT_GPIO_NUM; i++) {
-		if (!strcmp(digit_gpios[i].tubename, name)) {
-			gpio_set_value(digit_gpios[i].gpio, value);
-			break;
-		}
+	BUG_ON(ddata->gpio_num != DIGIT_TUBE_NUM);
+
+	for (i = 0; i < ddata->gpio_num; i++) {
+		gpio_set_value(ddata->ext_gpios[i], values[i]);
 	}
 
 	return 0;
 }
 
-static int display_digit_tube(const char ch)
+static int display_digit_tube(struct device *dev, const char ch)
 {
 	switch (ch) {
 		case '0':
-			tube_set_gpio("TUBE_A", GPIO_LOW);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_LOW);
-			tube_set_gpio("TUBE_D", GPIO_LOW);
-			tube_set_gpio("TUBE_E", GPIO_LOW);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_HIGH);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
+			tube_set_gpio(dev, tube_0);
 			EXTBRD_DEBUG("show digit 0\n");
 			break;
 		case '1':
-			tube_set_gpio("TUBE_A", GPIO_HIGH);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_LOW);
-			tube_set_gpio("TUBE_D", GPIO_HIGH);
-			tube_set_gpio("TUBE_E", GPIO_HIGH);
-			tube_set_gpio("TUBE_F", GPIO_HIGH);
-			tube_set_gpio("TUBE_G", GPIO_HIGH);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
+			tube_set_gpio(dev, tube_1);
 			EXTBRD_DEBUG("show digit 1\n");
 			break;
 		case '2':
-			tube_set_gpio("TUBE_A", GPIO_LOW);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_HIGH);
-			tube_set_gpio("TUBE_D", GPIO_LOW);
-			tube_set_gpio("TUBE_E", GPIO_LOW);
-			tube_set_gpio("TUBE_F", GPIO_HIGH);
-			tube_set_gpio("TUBE_G", GPIO_LOW);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
+			tube_set_gpio(dev, tube_2);
 			EXTBRD_DEBUG("show digit 2\n");
 			break;
 		case '3':
-			tube_set_gpio("TUBE_A", GPIO_LOW);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_LOW);
-			tube_set_gpio("TUBE_D", GPIO_LOW);
-			tube_set_gpio("TUBE_E", GPIO_HIGH);
-			tube_set_gpio("TUBE_F", GPIO_HIGH);
-			tube_set_gpio("TUBE_G", GPIO_LOW);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
+			tube_set_gpio(dev, tube_3);
 			EXTBRD_DEBUG("show digit 3\n");
 			break;
 		case '4':
-			tube_set_gpio("TUBE_A", GPIO_HIGH);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_LOW);
-			tube_set_gpio("TUBE_D", GPIO_HIGH);
-			tube_set_gpio("TUBE_E", GPIO_HIGH);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_LOW);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
+			tube_set_gpio(dev, tube_4);
 			EXTBRD_DEBUG("show digit 4\n");
 			break;
 		case '5':
-			tube_set_gpio("TUBE_A", GPIO_LOW);
-			tube_set_gpio("TUBE_B", GPIO_HIGH);
-			tube_set_gpio("TUBE_C", GPIO_LOW);
-			tube_set_gpio("TUBE_D", GPIO_LOW);
-			tube_set_gpio("TUBE_E", GPIO_HIGH);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_LOW);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
+			tube_set_gpio(dev, tube_5);
 			EXTBRD_DEBUG("show digit 5\n");
 			break;
 		case '6':
-			tube_set_gpio("TUBE_A", GPIO_LOW);
-			tube_set_gpio("TUBE_B", GPIO_HIGH);
-			tube_set_gpio("TUBE_C", GPIO_LOW);
-			tube_set_gpio("TUBE_D", GPIO_LOW);
-			tube_set_gpio("TUBE_E", GPIO_LOW);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_LOW);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
+			tube_set_gpio(dev, tube_6);
 			EXTBRD_DEBUG("show digit 6\n");
 			break;
 		case '7':
-			tube_set_gpio("TUBE_A", GPIO_LOW);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_LOW);
-			tube_set_gpio("TUBE_D", GPIO_HIGH);
-			tube_set_gpio("TUBE_E", GPIO_HIGH);
-			tube_set_gpio("TUBE_F", GPIO_HIGH);
-			tube_set_gpio("TUBE_G", GPIO_HIGH);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
+			tube_set_gpio(dev, tube_7);
 			EXTBRD_DEBUG("show digit 7\n");
 			break;
 		case '8':
-			tube_set_gpio("TUBE_A", GPIO_LOW);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_LOW);
-			tube_set_gpio("TUBE_D", GPIO_LOW);
-			tube_set_gpio("TUBE_E", GPIO_LOW);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_LOW);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
+			tube_set_gpio(dev, tube_8);
 			EXTBRD_DEBUG("show digit 8\n");
 			break;
 		case '9':
-			tube_set_gpio("TUBE_A", GPIO_LOW);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_LOW);
-			tube_set_gpio("TUBE_D", GPIO_LOW);
-			tube_set_gpio("TUBE_E", GPIO_HIGH);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_LOW);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
+			tube_set_gpio(dev, tube_9);
 			EXTBRD_DEBUG("show digit 9\n");
 			break;
-		case '.':
-			tube_set_gpio("TUBE_A", GPIO_HIGH);
-			tube_set_gpio("TUBE_B", GPIO_HIGH);
-			tube_set_gpio("TUBE_C", GPIO_HIGH);
-			tube_set_gpio("TUBE_D", GPIO_HIGH);
-			tube_set_gpio("TUBE_E", GPIO_HIGH);
-			tube_set_gpio("TUBE_F", GPIO_HIGH);
-			tube_set_gpio("TUBE_G", GPIO_HIGH);
-			tube_set_gpio("TUBE_DP", GPIO_LOW);
-			EXTBRD_DEBUG("show DP !\n");
-			break;
-		case 'e':
-			tube_set_gpio("TUBE_A", GPIO_LOW);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_HIGH);
-			tube_set_gpio("TUBE_D", GPIO_LOW);
-			tube_set_gpio("TUBE_E", GPIO_LOW);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_LOW);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
-			EXTBRD_DEBUG("show 'E'!\n");
-			break;
-		case 'E':
-			tube_set_gpio("TUBE_A", GPIO_LOW);
-			tube_set_gpio("TUBE_B", GPIO_HIGH);
-			tube_set_gpio("TUBE_C", GPIO_HIGH);
-			tube_set_gpio("TUBE_D", GPIO_LOW);
-			tube_set_gpio("TUBE_E", GPIO_LOW);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_LOW);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
-			EXTBRD_DEBUG("show 'E'!\n");
-			break;
-		case 'f':
-			tube_set_gpio("TUBE_A", GPIO_LOW);
-			tube_set_gpio("TUBE_B", GPIO_HIGH);
-			tube_set_gpio("TUBE_C", GPIO_HIGH);
-			tube_set_gpio("TUBE_D", GPIO_HIGH);
-			tube_set_gpio("TUBE_E", GPIO_LOW);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_LOW);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
-			EXTBRD_DEBUG("show 'F'!\n");
-			break;
 		case 'o':
-			tube_set_gpio("TUBE_A", GPIO_LOW);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_HIGH);
-			tube_set_gpio("TUBE_D", GPIO_HIGH);
-			tube_set_gpio("TUBE_E", GPIO_HIGH);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_LOW);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
+			tube_set_gpio(dev, tube_o);
 			EXTBRD_DEBUG("show 'o' !\n");
 			break;
-		case 'n':
-			tube_set_gpio("TUBE_A", GPIO_LOW);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_HIGH);
-			tube_set_gpio("TUBE_D", GPIO_HIGH);
-			tube_set_gpio("TUBE_E", GPIO_HIGH);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_HIGH);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
-			EXTBRD_DEBUG("show 'n' !\n");
-			break;
-		case 'u':
-			tube_set_gpio("TUBE_A", GPIO_HIGH);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_HIGH);
-			tube_set_gpio("TUBE_D", GPIO_HIGH);
-			tube_set_gpio("TUBE_E", GPIO_HIGH);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_LOW);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
-			EXTBRD_DEBUG("show 'u' !\n");
-			break;
-		case 'U':
-			tube_set_gpio("TUBE_A", GPIO_HIGH);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_LOW);
-			tube_set_gpio("TUBE_D", GPIO_LOW);
-			tube_set_gpio("TUBE_E", GPIO_LOW);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_HIGH);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
-			EXTBRD_DEBUG("show 'U' !\n");
-			break;
-		case '-':
-			tube_set_gpio("TUBE_A", GPIO_HIGH);
-			tube_set_gpio("TUBE_B", GPIO_HIGH);
-			tube_set_gpio("TUBE_C", GPIO_HIGH);
-			tube_set_gpio("TUBE_D", GPIO_HIGH);
-			tube_set_gpio("TUBE_E", GPIO_HIGH);
-			tube_set_gpio("TUBE_F", GPIO_HIGH);
-			tube_set_gpio("TUBE_G", GPIO_HIGH);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
-			EXTBRD_DEBUG("show no digit !\n");
-			break;
-		case 'h':
+		case 'e':
 		default:
-			tube_set_gpio("TUBE_A", GPIO_HIGH);
-			tube_set_gpio("TUBE_B", GPIO_LOW);
-			tube_set_gpio("TUBE_C", GPIO_LOW);
-			tube_set_gpio("TUBE_D", GPIO_HIGH);
-			tube_set_gpio("TUBE_E", GPIO_LOW);
-			tube_set_gpio("TUBE_F", GPIO_LOW);
-			tube_set_gpio("TUBE_G", GPIO_LOW);
-			tube_set_gpio("TUBE_DP", GPIO_HIGH);
-			EXTBRD_DEBUG("Not suppored Character !\n");
+			tube_set_gpio(dev, tube_e);
+			EXTBRD_ERROR("Not suppored Character !\n");
 			break;
 	}
 
@@ -342,7 +219,7 @@ static ssize_t show_digit_tube(struct device *dev,
 static ssize_t store_digit_tube(struct device *dev,
  	struct device_attribute *attr, const char *buf, size_t count)
 {
-	display_digit_tube(buf[0]);
+	display_digit_tube(dev, buf[0]);
 
 	return count;
 }
@@ -355,44 +232,9 @@ const struct device_attribute digit_tube_attrs = {
 	.show = show_digit_tube,
 	.store = store_digit_tube,
 };
-#endif /* End of EXT_DIGIT_GPIOS */
 
-#ifdef EXT_GPIO_KEYS
-static int *gpio_keys;
-
-static int eai610_gpio_keys[] = {
-	RK_GPIO(2, 12),
-	RK_GPIO(4, 24),
-};
-
-#define EXT_KEY_NUM  	ARR_SIZE(eai610_gpio_keys)
-#endif /* End of EXT_GPIO_KEYS */
-
-#ifdef EXT_ADC
 #define ADC_VALUE_LOW		0
 static struct iio_channel *adc_chan_map;
-
-static int *ext_gpio_leds;
-static int ext_gpio_leds_num;
-
-static int eai610_ext_gpio_leds[] = {
-	RK_GPIO(4, 29), //GPIO4_D5
-	RK_GPIO(4, 26), //GPIO4_D2
-};
-
-static int prod_ext_gpio_leds[] = {
-	RK_GPIO(0, 5), //GPIO0_A5
-	RK_GPIO(1, 9), //GPIO1_B1
-	RK_GPIO(1, 10), //GPIO1_B2
-	RK_GPIO(0, 6), //GPIO1_A6
-};
-static int prop_ext_gpio_leds[] = {
-	RK_GPIO(1, 8), //GPIO1_B0
-	RK_GPIO(1, 9), //GPIO1_B1
-	RK_GPIO(1, 10), //GPIO1_B2
-	RK_GPIO(1, 7),  //GPIO1_A7
-};
-#define GPIO_LEDS_NUM  ARR_SIZE(prod_ext_gpio_leds)
 
 static int ext_keys_adc_iio_read(struct extbrd_drvdata *data, struct iio_channel *channel)
 {
@@ -412,8 +254,12 @@ static void adc_key_poll(struct work_struct *work)
 {
 	struct extbrd_drvdata *ddata;
 	int i, result = -1;
+	int board_type;
+	int *ext_leds;
 
 	ddata = container_of(work, struct extbrd_drvdata, adc_poll_work.work);
+	board_type = ddata->board_type;
+	ext_leds = ddata->ext_leds;
 
 	for (i = 0; i < EXT_ADCCHAN_NUM; i++) {
 		result = ext_keys_adc_iio_read(ddata, ddata->chan[i]);
@@ -421,14 +267,14 @@ static void adc_key_poll(struct work_struct *work)
 			if (ddata->result[i] != result) {
 				//EXTBRD_DEBUG("Chan[%d] : %d\n", i, result);
 				if (result >= ADC_VALUE_LOW && result < DRIFT_DEFAULT_ADVALUE) {
-					gpio_set_value(ext_gpio_leds[i], GPIO_LOW);
-					if (board_type == BOARD_PROD || board_type == BOARD_PROP) {
-						gpio_set_value(ext_gpio_leds[2 + i], GPIO_LOW);
+					gpio_set_value(ext_leds[i], GPIO_LOW);
+					if (board_type == BOARD_TOYBRICK) {
+						gpio_set_value(ext_leds[2 + i], GPIO_LOW);
 					}
 				} else {
-					gpio_set_value(ext_gpio_leds[i], GPIO_HIGH);
-					if (board_type == BOARD_PROD || board_type == BOARD_PROP) {
-						gpio_set_value(ext_gpio_leds[2 + i], GPIO_HIGH);
+					gpio_set_value(ext_leds[i], GPIO_HIGH);
+					if (board_type == BOARD_TOYBRICK) {
+						gpio_set_value(ext_leds[2 + i], GPIO_HIGH);
 					}
 				}
 			}
@@ -462,91 +308,173 @@ static ssize_t show_chan1_measure(struct device *dev, struct device_attribute *a
 }
 
 static struct device_attribute measure1_attr =__ATTR(extadckey1, S_IRUGO, show_chan1_measure, NULL);
-#endif /* End of EXT_ADC */
 
 /*
  ********************* DTS **********************
 	extbrd: extbrd {
-		compatible = "eaidk-extboard";
-		io-channels = <&saradc 0>, <&saradc 3>;
+		compatible = "xxx-extboard";
+		io-channels = <&saradc x>, <&saradc x>;
 
-		ext_gpios {
-			pinctrl-names = "default";
-			ext_gpioA = <&gpio1 0 GPIO_ACTIVE_HIGH>;
-			ext_gpioB = <&gpio1 1 GPIO_ACTIVE_HIGH>;
-			// ...
-		};
+		ext-gpios = <&gpioX X GPIO_ACTIVE_HIGH>,
+					<&gpioX X GPIO_ACTIVE_HIGH>,
+					...
+					<&gpioX X GPIO_ACTIVE_HIGH>;
 
-		ext_keys {
-			power-key {
-				gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
-				linux,code = <116>;
-				label = "power";
-			};
+		ext-keys = <&gpioX X GPIO_ACTIVE_HIGH>,
+					<&gpioX X GPIO_ACTIVE_HIGH>;
 
-			menu-key {
-				linux,code = <59>;
-				label = "menu";
-				rockchip,adc_value = <746>;
-			};
-			// ...
-		};
+		ext-leds = <&gpioX X GPIO_ACTIVE_HIGH>,
+					<&gpioX X GPIO_ACTIVE_HIGH>;
 	};
  */
+
+static int extbrd_parse_dt(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct extbrd_drvdata *ddata = NULL;
+	struct device_node *node = pdev->dev.of_node;
+	enum of_gpio_flags flag;
+	int ret = 0;
+	int n, i;
+	int *ext_gpios;
+	int *ext_keys;
+	int *ext_leds;
+
+	ddata = platform_get_drvdata(pdev);
+	if (!ddata) {
+		EXTBRD_ERROR("No drvdata\n");
+		return -ENOMEM;
+	}
+
+	/* Get ExtGpio Property */
+	n = of_gpio_named_count(node, "ext-gpios");
+	if (n > 0 && n < EXT_ITEM_MAX_NUM) {
+		ddata->ext_gpios = devm_kzalloc(dev, n * sizeof(int), GFP_KERNEL);
+		if (!ddata) {
+			EXTBRD_ERROR("fail to alloc.\n");
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ext_gpios = ddata->ext_gpios;
+		for (i = 0; i < n; i++) {
+            ext_gpios[i] = of_get_named_gpio_flags(node, "ext-gpios", i,
+                                 &flag);
+            if (!gpio_is_valid(ext_gpios[i])) {
+            	EXTBRD_ERROR("EXT GPIO(%d) is invalid\n", ext_gpios[i]);
+                ret = -EINVAL;
+                return ret;
+            }
+        }
+	}
+
+	ddata->gpio_num = n;
+	if (ddata->gpio_num <= 0) {
+		EXTBRD_ERROR("no ext gpio defined\n");
+		ddata->has_extgpios = 0;
+	} else {
+		ddata->has_extgpios = 1;
+	}
+
+	/* Get ExtKey Property */
+	n = of_gpio_named_count(node, "ext-keys");
+	if (n > 0 && n < EXT_ITEM_MAX_NUM) {
+		ddata->ext_keys = devm_kzalloc(dev, n * sizeof(int), GFP_KERNEL);
+		if (!ddata) {
+			EXTBRD_ERROR("fail to alloc.\n");
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ext_keys = ddata->ext_keys;
+		for (i = 0; i < n; i++) {
+            ext_keys[i] = of_get_named_gpio_flags(node, "ext-keys", i,
+                                 &flag);
+            if (!gpio_is_valid(ext_keys[i])) {
+                EXTBRD_ERROR("EXT Key(%d) is invalid\n", ext_keys[i]);
+                ret = -EINVAL;
+                return ret;
+            }
+        }
+	}
+
+	ddata->key_num = n;
+	if (ddata->key_num <= 0) {
+		EXTBRD_ERROR("no ext key defined\n");
+		ddata->has_extkeys = 0;
+	} else {
+		ddata->has_extkeys = 1;
+	}
+
+	/* Get ExtLeds Property */
+	n = of_gpio_named_count(node, "ext-leds");
+	if (n > 0 && n < EXT_ITEM_MAX_NUM) {
+		ddata->ext_leds = devm_kzalloc(dev, n * sizeof(int), GFP_KERNEL);
+		if (!ddata) {
+			EXTBRD_ERROR("fail to alloc.\n");
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ext_leds = ddata->ext_leds;
+		for (i = 0; i < n; i++) {
+            ext_leds[i] = of_get_named_gpio_flags(node, "ext-leds", i,
+                                 &flag);
+            if (!gpio_is_valid(ext_leds[i])) {
+                EXTBRD_ERROR("EXT Led(%d) is invalid\n", ext_leds[i]);
+                ret = -EINVAL;
+                return ret;
+            }
+        }
+	}
+
+	ddata->led_num = n;
+	if (ddata->led_num <= 0) {
+		EXTBRD_ERROR("no ext led defined\n");
+		ddata->has_extleds = 0;
+	} else {
+		ddata->has_extleds = 1;
+	}
+
+	return ret;
+}
+
+static int get_board_type(struct platform_device *pdev)
+{
+	struct device_node *np;
+	int board_type;
+
+	if (pdev->dev.of_node) {
+		np = pdev->dev.of_node;
+		if (of_device_is_compatible(np, "toybrick-extboard")) {
+			EXTBRD_DEBUG("This is Prod / Prop extboard.\n");
+			board_type = BOARD_TOYBRICK;
+		} else if (of_device_is_compatible(np, "eai610-extboard")) {
+			EXTBRD_DEBUG("This is EAI610 extboard.\n");
+			board_type = BOARD_EAI610;
+		} else {
+			EXTBRD_ERROR("This is Unsupport extbord!\n");
+			board_type = BOARD_UNKNOWN;
+		}
+	}
+
+	return board_type;
+}
 
 static int extbrd_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	int ret = 0;
 	int i;
-#ifdef EXT_GPIO_KEYS
 	char gpiokey_name[16];
 	int irq;
-#endif
 	struct extbrd_drvdata *ddata = NULL;
-	//u32 val;
-	struct device_node *np;
+	int *ext_gpios;
+	int *ext_keys;
+	int *ext_leds;
+	int board_type;
 
 	EXTBRD_DEBUG("%s\n", __func__);
-
-	if (pdev->dev.of_node) {
-		np = pdev->dev.of_node;
-		if (of_device_is_compatible(np, "prod-extboard")) {
-			EXTBRD_DEBUG("This is Prod extboard.\n");
-			board_type = BOARD_PROD;
-#ifdef EXT_GPIO_KEYS
-			gpio_keys = NULL;
-#endif
-#ifdef EXT_ADC
-			ext_gpio_leds = prod_ext_gpio_leds;
-			ext_gpio_leds_num = ARR_SIZE(prod_ext_gpio_leds);
-#endif
-		} else if (of_device_is_compatible(np, "prop-extboard")) {
-			EXTBRD_DEBUG("This is Prop extboard.\n");
-			board_type = BOARD_PROP;
-#ifdef EXT_GPIO_KEYS
-			gpio_keys = NULL;
-#endif
-#ifdef EXT_ADC
-			ext_gpio_leds = prop_ext_gpio_leds;
-			ext_gpio_leds_num = ARR_SIZE(prop_ext_gpio_leds);
-#endif
-		} else if (of_device_is_compatible(np, "eai610-extboard")) {
-			EXTBRD_DEBUG("This is EAI610 extboard.\n");
-			board_type = BOARD_EAI610;
-#ifdef EXT_GPIO_KEYS
-			gpio_keys = eai610_gpio_keys;
-#endif
-#ifdef EXT_ADC
-			ext_gpio_leds = eai610_ext_gpio_leds;
-			ext_gpio_leds_num = ARR_SIZE(eai610_ext_gpio_leds);
-#endif
-		} else {
-			EXTBRD_ERROR("Unsupport extbord!\n");
-			ret = -EINVAL;
-			goto fail;
-		}
-	}
 
 	ddata = devm_kzalloc(dev, sizeof(struct extbrd_drvdata), GFP_KERNEL);
 	if (!ddata) {
@@ -556,166 +484,165 @@ static int extbrd_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, ddata);
 	dev_set_drvdata(&pdev->dev, ddata);
 
-	/**************** Parst ExtGPIO Begin ****************/
-#ifdef EXT_DIGIT_GPIOS
-	if (board_type == BOARD_EAI610) {
-		for (i = 0; i < EXT_GPIO_NUM; i++) {
-			if (!gpio_is_valid(digit_gpios[i].gpio)) {
-				EXTBRD_ERROR("Invalid gpio : %d\n", digit_gpios[i].gpio);
-				ret = -EINVAL;
-				return ret;
-			}
+	board_type = get_board_type(pdev);
+	if (board_type <= 0) {
+		ret = -EINVAL;
+		return ret;
+	}
 
-			ret = devm_gpio_request(dev, digit_gpios[i].gpio, digit_gpios[i].tubename);
+	ret = extbrd_parse_dt(pdev);
+	if (ret < 0) {
+		EXTBRD_ERROR("Extbrd parse dt error\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	EXTBRD_DEBUG("Num of GPIO: %d, KEY: %d, LED: %d\n", ddata->gpio_num,
+		ddata->key_num, ddata->led_num);
+
+	if (ddata->has_extgpios) {
+		ext_gpios = ddata->ext_gpios;
+		for (i = 0; i < ddata->gpio_num; i++) {
+			ret = devm_gpio_request(dev, ext_gpios[i], NULL);
 			if (ret != 0) {
-				EXTBRD_ERROR("Request gpio : %d fail\n", digit_gpios[i].gpio);
+				EXTBRD_ERROR("Request gpio : %d fail\n", ext_gpios[i]);
 				ret = -EIO;
 				return ret;
 			}
 
 			//low : light on, high: light off
-			gpio_direction_output(digit_gpios[i].gpio, GPIO_HIGH);
+			gpio_direction_output(ext_gpios[i], GPIO_HIGH);
+			gpio_export(ext_gpios[i], true);
 		}
-		if(device_create_file(&pdev->dev, &digit_tube_attrs)) {
-			EXTBRD_ERROR("Device Create digit_tube_attrs file fail.\n");
-			ret = -EEXIST;
-			return ret;
+
+		if (board_type == BOARD_EAI610 && ddata->gpio_num == DIGIT_TUBE_NUM) {
+			if(device_create_file(&pdev->dev, &digit_tube_attrs)) {
+				EXTBRD_ERROR("Device Create digit_tube_attrs file fail.\n");
+				ret = -EEXIST;
+				return ret;
+			}
 		}
+	} else {
+		EXTBRD_ERROR("Have No Ext Gpios.\n");
 	}
-#endif /* End of EXT_DIGIT_GPIOS */
 
-	/**************** Parst ExtGPIO End ****************/
-
-	/**************** Parst ExtKEY Begin ****************/
-#ifdef EXT_GPIO_KEYS
-	EXTBRD_DEBUG("%s %d\n", __func__, __LINE__);
-	if (gpio_keys != NULL) {
-		for (i = 0; i < EXT_KEY_NUM; i++) {
-			if (board_type == BOARD_PROP || board_type == BOARD_PROD)
+	if (ddata->has_extkeys) {
+		ext_keys = ddata->ext_keys;
+		for (i = 0; i < ddata->key_num; i++) {
+			if (board_type == BOARD_TOYBRICK)
 				break;
-			if (!gpio_is_valid(gpio_keys[i])) {
-				EXTBRD_ERROR("Invalid gpio : %d\n", gpio_keys[i]);
+			if (!gpio_is_valid(ext_keys[i])) {
+				EXTBRD_ERROR("Invalid gpio : %d\n", ext_keys[i]);
 				ret = -EINVAL;
 				return ret;
 			}
 
 			snprintf(gpiokey_name, 16, "extkey%d", i);
-			ret = devm_gpio_request(dev, gpio_keys[i], gpiokey_name);
+			ret = devm_gpio_request(dev, ext_keys[i], gpiokey_name);
 			if (ret != 0) {
 				EXTBRD_ERROR("gpio-keys: failed to request GPIO %d, error %d\n",
-											  gpio_keys[i], ret);
+											  ext_keys[i], ret);
 				ret = -EIO;
 				return ret;
 			}
 
-			ret = gpio_direction_input(gpio_keys[i]);
+			ret = gpio_direction_input(ext_keys[i]);
 			if (ret < 0) {
 				EXTBRD_ERROR("gpio-keys: failed to configure input direction for GPIO %d, error %d\n",
-					gpio_keys[i], ret);
+					ext_keys[i], ret);
 				return ret;
 			}
 
-			irq = gpio_to_irq(gpio_keys[i]);
+			irq = gpio_to_irq(ext_keys[i]);
 			if (irq < 0) {
 				ret = irq;
 				EXTBRD_ERROR("gpio-keys: Unable to get irq number for GPIO %d, error %d\n",
-						gpio_keys[i], ret);
+						ext_keys[i], ret);
 				return ret;
 			}
 
-			gpio_export(gpio_keys[i], true);
+			gpio_export(ext_keys[i], true);
 		}
+	} else {
+		EXTBRD_ERROR("Have No Ext Key.\n");
 	}
-#endif
 
-	/**************** Parst ExtKEY End ****************/
-
-	/**************** Parst ADC Begin ****************/
-#ifdef EXT_ADC
 	adc_chan_map = iio_channel_get_all(&pdev->dev);
 	if (IS_ERR(adc_chan_map)) {
-		dev_info(&pdev->dev, "no io-channels defined\n");
+		EXTBRD_ERROR("no io-channels defined\n");
 		adc_chan_map = NULL;
 		return -EIO;
+	} else {
+		ddata->has_adckeys = 1;
 	}
 
-	ddata->chan[0] = &adc_chan_map[0];  //saradc channel 0
-	ddata->chan[1] = &adc_chan_map[1];  //saradc channel 3
+	if (ddata->has_adckeys == 1 && ddata->has_extleds == 1) {
+		ddata->chan[0] = &adc_chan_map[0];  //saradc channel 0
+		ddata->chan[1] = &adc_chan_map[1];  //saradc channel 3
 
-	if (device_create_file(&pdev->dev, &measure0_attr)) {
-		EXTBRD_ERROR(" device create chan0 file failed\n");
-		goto fail0;
-	}
-	if (device_create_file(&pdev->dev, &measure1_attr)) {
-		EXTBRD_ERROR(" device create chan1 file failed\n");
-		goto fail0;
-	}
-
-	for (i = 0; i < ext_gpio_leds_num; i++) {
-		if (!gpio_is_valid(ext_gpio_leds[i])) {
-			 EXTBRD_ERROR("Invalid Ext gpio leds Gpio : %d\n", ext_gpio_leds[i]);
-			 ret = -EINVAL;
-			 goto fail1;
+		if (device_create_file(&pdev->dev, &measure0_attr)) {
+			EXTBRD_ERROR(" device create chan0 file failed\n");
+			goto fail0;
+		}
+		if (device_create_file(&pdev->dev, &measure1_attr)) {
+			EXTBRD_ERROR(" device create chan1 file failed\n");
+			goto fail0;
 		}
 
-		ret = devm_gpio_request(dev, ext_gpio_leds[i], NULL);
-		if (ret != 0) {
-			EXTBRD_ERROR("gpio-keys: failed to request Ext Leds GPIO %d, error %d\n",
-				                          ext_gpio_leds[i], ret);
-			ret = -EIO;
-			goto fail1;
-		}
-		gpio_direction_output(ext_gpio_leds[i], GPIO_HIGH);
-		gpio_export(ext_gpio_leds[i], true);
-	}
+		ext_leds = ddata->ext_leds;
+		for (i = 0; i < ddata->led_num; i++) {
+			if (!gpio_is_valid(ext_leds[i])) {
+			 	EXTBRD_ERROR("Invalid Ext gpio leds Gpio : %d\n", ext_leds[i]);
+			 	ret = -EINVAL;
+			 	goto fail1;
+			}
 
-	/* adc polling work */
-	if (ddata->chan[0] && ddata->chan[1]) {
-		INIT_DELAYED_WORK(&ddata->adc_poll_work, adc_key_poll);
-		schedule_delayed_work(&ddata->adc_poll_work,
+			ret = devm_gpio_request(dev, ext_leds[i], NULL);
+			if (ret != 0) {
+				EXTBRD_ERROR("gpio-keys: failed to request Ext Leds GPIO %d, error %d\n",
+							ext_leds[i], ret);
+				ret = -EIO;
+				goto fail1;
+			}
+			gpio_direction_output(ext_leds[i], GPIO_HIGH);
+			gpio_export(ext_leds[i], true);
+		}
+
+		/* adc polling work */
+		if (ddata->chan[0] && ddata->chan[1]) {
+			INIT_DELAYED_WORK(&ddata->adc_poll_work, adc_key_poll);
+			schedule_delayed_work(&ddata->adc_poll_work,
 				      ADC_SAMPLE_JIFFIES);
+		}
+	} else {
+		EXTBRD_ERROR("Have No Ext adc and No leds\n");
 	}
-#endif
-	/**************** Parst ADC End ****************/
 
 	return ret;
-
-#ifdef EXT_ADC
 fail1:
 	device_remove_file(&pdev->dev, &measure0_attr);
-	device_remove_file(&pdev->dev, &measure1_attr);
+		device_remove_file(&pdev->dev, &measure1_attr);
 
 fail0:
 	iio_channel_release_all(adc_chan_map);
-#endif
-fail:
 
 	return ret;
 }
 
 static int extbrd_remove(struct platform_device *pdev)
 {
-#ifdef EXT_ADC
 	struct extbrd_drvdata *ddata = platform_get_drvdata(pdev);
-	struct device *dev = &pdev->dev;
-	int i;
-#endif
 
 	EXTBRD_DEBUG(" %s\n", __func__);
 
-#ifdef EXT_ADC
 	if (ddata->chan[0] && ddata->chan[1])
 		cancel_delayed_work_sync(&ddata->adc_poll_work);
-
-	for (i = 0; i < ext_gpio_leds_num; i++) {
-		devm_gpio_free(dev, ext_gpio_leds[i]);
-	}
 
 	device_remove_file(&pdev->dev, &measure0_attr);
 	device_remove_file(&pdev->dev, &measure1_attr);
 
 	iio_channel_release_all(adc_chan_map);
-#endif
+
 	return 0;
 }
 

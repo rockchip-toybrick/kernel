@@ -1,165 +1,75 @@
+/*
+ * Copyright (c) 2019 Fuzhou Rockchip Electronics Co., Ltd
+ *
+ * This file is dual-licensed: you can use it either under the terms
+ * of the GPL or the X11 license, at your option. Note that this dual
+ * licensing only applies to this file, and not this project as a
+ * whole.
+ *
+ *  a) This file is free software; you can redistribute it and/or
+ *     modify it under the terms of the GNU General Public License as
+ *     published by the Free Software Foundation; either version 2 of the
+ *     License, or (at your option) any later version.
+ *
+ *     This file is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ * Or, alternatively,
+ *
+ *  b) Permission is hereby granted, free of charge, to any person
+ *     obtaining a copy of this software and associated documentation
+ *     files (the "Software"), to deal in the Software without
+ *     restriction, including without limitation the rights to use,
+ *     copy, modify, merge, publish, distribute, sublicense, and/or
+ *     sell copies of the Software, and to permit persons to whom the
+ *     Software is furnished to do so, subject to the following
+ *     conditions:
+ *
+ *     The above copyright notice and this permission notice shall be
+ *     included in all copies or substantial portions of the Software.
+ *
+ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ *     OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 /dts-v1/;
 #include "rk3399pro-toybrick-96ai.dtsi"
-
 #include "rk3399-android.dtsi"
-/* Default camera: ov9750 */
-//#include "rk3399pro-toybrick-96ai-ov9750.dtsi"
-#include "rk3399pro-toybrick-96ai-imx258.dtsi"
 
 / {
 	compatible = "rockchip,rk3399pro-toybrick-96ai-linux","rockchip,rk3399pro";
-	extbrd: extbrd {
-		compatible = "prod-extboard";
-		io-channels = <&saradc 0>, <&saradc 1>;
-	};
-	
-	vcc_4g: vcc-4g-regulator {
+};
+
+&route_hdmi {
         status = "disabled";
-    };
-
-    sdio_pwrseq: sdio-pwrseq {
-        compatible = "mmc-pwrseq-simple";
-        clocks = <&rk809 1>;
-        clock-names = "ext_clock";
-        pinctrl-names = "default";
-        pinctrl-0 = <&wifi_enable_h>;
-
-        /*
-         * On the module itself this is one of these (depending
-         * on the actual card populated):
-         * - SDIO_RESET_L_WL_REG_ON
-         * - PDN (power down when low)
-         */
-        reset-gpios = <&gpio2 28 GPIO_ACTIVE_LOW>; /* GPIO2_D4 */
-    };
-	
-	wireless-bluetooth {
-        compatible = "bluetooth-platdata";
-        clocks = <&rk809 1>;
-        clock-names = "ext_clock";
-        /* wifi-bt-power-toggle; */
-        uart_rts_gpios = <&gpio2 19 GPIO_ACTIVE_LOW>;
-        pinctrl-names = "default", "rts_gpio";
-        pinctrl-0 = <&uart0_rts>;
-        pinctrl-1 = <&uart0_gpios>;
-        /* BT,power_gpio  = <&gpio3 19 GPIO_ACTIVE_HIGH>; */
-        BT,reset_gpio    = <&gpio0 6 GPIO_ACTIVE_HIGH>;
-        BT,wake_gpio     = <&gpio4 22 GPIO_ACTIVE_HIGH>;
-        BT,wake_host_irq = <&gpio0 9 GPIO_ACTIVE_HIGH>;
-        status = "okay";
-    };
-};
-
-&i2c0 {
-	status = "okay";
-	i2c-scl-rising-time-ns = <180>;
-	i2c-scl-falling-time-ns = <30>;
-	clock-frequency = <400000>;
-
-	rk809: pmic@20 {
-		compatible = "rockchip,rk809";
-		pmic-reset-func = <1>;
-	};
-};
-
-&sdio0 {
-    clock-frequency = <50000000>;
-    clock-freq-min-max = <200000 50000000>;
-    supports-sdio;
-    bus-width = <4>;
-    disable-wp;
-    cap-sd-highspeed;
-    cap-sdio-irq;
-    keep-power-in-suspend;
-    mmc-pwrseq = <&sdio_pwrseq>;
-    non-removable;
-    num-slots = <1>;
-    pinctrl-names = "default";
-    pinctrl-0 = <&sdio0_bus4 &sdio0_cmd &sdio0_clk>;
-    sd-uhs-sdr104;
-    status = "okay";
-};
-
-&route_edp {
-	status = "okay";
-};
-
-&route_dsi {
-	status = "okay";
-};
-
-&spdif {
-	status = "okay";
 };
 
 &dp_sound {
-	status = "okay";
+        status = "okay";
 };
 
 &hdmi_dp_sound {
-	status = "disabled";
+        status = "disabled";
 };
 
 &hdmi_sound {
-	status = "okay";
+        status = "okay";
 };
 
 &fiq_debugger {
-	pinctrl-0 = <&uart2c_xfer>;
+        pinctrl-0 = <&uart2c_xfer>;
 };
 
 &rk_key {
-	status = "okay";
-	io-channels = <&saradc 2>;
-	/delete-node/ power-key;
-};
-
-&i2c6 {
-	status = "okay";
-	i2c-scl-rising-time-ns = <300>;
-	i2c-scl-falling-time-ns = <15>;
-	clock-frequency=<400000>;
-
-	ina219x47c6: ina219@47 {
-		compatible = "ina219";
-		reg = <0x47>;
-	};
-};
-
-&spi5 {
-	status = "disabled";
-
-	flash@0 {
-		compatible = "gigadevice,w25q64", "jedec,spi-nor";
-		#address-cells = <1>;
-		#size-cells = <1>;
-		reg = <0>;
-		m25p,fast-read;
-		// The max SCLK of the flash 104/80 MHZ
-		spi-max-frequency = <50000000>;
-	};
-};
-
-&io_domains {
-    status = "okay";
-    bt656-supply = <&vcca_1v8>; /* APIO2_VDD */
-    audio-supply = <&vcca_1v8>; /* APIO5_VDD */
-    sdmmc-supply = <&vccio_sd>; /* SDMMC0_VDD */
-    gpio1830-supply = <&vcc_1v8>; /* APIO4_VDD */                                                                                                                                                   
-};
-
-&pinctrl {
-    sdio-pwrseq {
-        wifi_enable_h: wifi-enable-h {
-            rockchip,pins =
-                <2 28 RK_FUNC_GPIO &pcfg_pull_none>;
-        };
-    };
-
-    wireless-bluetooth {
-        uart0_gpios: uart0-gpios {
-            rockchip,pins =
-                <2 19 RK_FUNC_GPIO &pcfg_pull_none>;
-        };
-    };
+        status = "okay";
+        io-channels = <&saradc 2>;
+        /delete-node/ power-key;
 };

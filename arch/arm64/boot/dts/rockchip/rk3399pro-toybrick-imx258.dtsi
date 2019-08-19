@@ -76,6 +76,9 @@
 
 &i2c1 {
 	status = "okay";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+	clock-frequency=<400000>;
 
 	afc0: af-controller@0 {
 		status = "okay";
@@ -98,7 +101,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&cam_default_pins>;
 
-		rockchip,pd-gpio = <&gpio4 RK_PD0 GPIO_ACTIVE_LOW>;
+		rockchip,pd-gpio = <&gpio4 RK_PD1 GPIO_ACTIVE_LOW>;
 		rockchip,rst-gpio = <&gpio4 RK_PD2 GPIO_ACTIVE_LOW>;
 
 		rockchip,camera-module-mclk-name = "clk_cif_out";
@@ -125,6 +128,9 @@
 
 &i2c2 {
 	status = "okay";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+	clock-frequency=<400000>;
 
 	afc1: af-controller@0 {
 		status = "okay";
@@ -147,8 +153,8 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&cam_default_pins>;
 
-		rockchip,pd-gpio = <&gpio4 RK_PD0 GPIO_ACTIVE_LOW>;
-		rockchip,rst-gpio = <&gpio4 RK_PD2 GPIO_ACTIVE_LOW>;
+		rockchip,pd-gpio = <&gpio3 RK_PD2 GPIO_ACTIVE_LOW>;
+		rockchip,rst-gpio = <&gpio3 RK_PD7 GPIO_ACTIVE_LOW>;
 
 		rockchip,camera-module-mclk-name = "clk_cif_out";
 		rockchip,camera-module-facing = "back";

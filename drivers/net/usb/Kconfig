@@ -607,4 +607,14 @@ config USB_NET_CH9200
 	  To compile this driver as a module, choose M here: the
 	  module will be called ch9200.
 
+config LSH_USB_GOBINET
+	tristate "Gobi USB NET driver for longsung module"
+	default y
+	help
+	    Support LongSung module
+ 	    A modem manager with support for GobiNet is recommended.
+	    
+	    To compile this driver as a module,choose M here: the
+	    module will be called GobiNet.
+
 endif # USB_NET_DRIVERS
