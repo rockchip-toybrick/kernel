@@ -13,7 +13,8 @@
 #define SFC_NAND_ECC_REFRESH		NAND_STS_REFRESH
 #define SFC_NAND_ECC_OK			NAND_STS_OK
 
-#define SFC_NAND_PAGE_MAX_SIZE		2112
+#define SFC_NAND_PAGE_MAX_SIZE		4224
+#define SFC_NAND_SECTOR_FULL_SIZE	528
 
 #define FEA_READ_STATUE_MASK    (0x3 << 0)
 #define FEA_STATUE_MODE1        0
@@ -123,6 +124,7 @@ u32 sfc_nand_init(void);
 void sfc_nand_deinit(void);
 int sfc_nand_read_id(u8 *buf);
 u32 sfc_nand_ecc_status_sp1(void);
+u32 sfc_nand_ecc_status_sp2(void);
 u32 sfc_nand_ecc_status_sp3(void);
 u32 sfc_nand_ecc_status_sp4(void);
 u32 sfc_nand_ecc_status_sp5(void);

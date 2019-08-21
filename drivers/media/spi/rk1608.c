@@ -17,6 +17,7 @@
 #include <linux/of_gpio.h>
 #include <linux/of_platform.h>
 #include <linux/regulator/consumer.h>
+#include <linux/completion.h>
 #include <linux/rk-preisp.h>
 #include <linux/rk-camera-module.h>
 #include <media/v4l2-ctrls.h>
@@ -26,6 +27,12 @@
 
 #define ENABLE_DMA_BUFFER 1
 #define SPI_BUFSIZ  max(32, SMP_CACHE_BYTES)
+
+struct rk1608_power_work {
+	struct work_struct wk;
+	struct rk1608_state *pdata;
+	struct completion work_fin;
+};
 
 /**
  * Rk1608 is used as the Pre-ISP to link on Soc, which mainly has two
@@ -63,7 +70,7 @@ static inline struct rk1608_state *to_state(struct v4l2_subdev *sd)
  *
  * It returns zero on success, else a negative error code.
  */
-static int rk1608_operation_query(struct spi_device *spi, s32 *state)
+int rk1608_operation_query(struct spi_device *spi, s32 *state)
 {
 	s32 query_cmd = RK1608_CMD_QUERY;
 	struct spi_transfer query_cmd_packet = {
@@ -84,8 +91,39 @@ static int rk1608_operation_query(struct spi_device *spi, s32 *state)
 	return ((*state & RK1608_STATE_ID_MASK) == RK1608_STATE_ID) ? 0 : -1;
 }
 
-static int rk1608_write(struct spi_device *spi,
-			s32 addr, const s32 *data, size_t data_len)
+/**
+ * rk1608_state_query - RK1608 system state query
+ *
+ * @spi: spi device
+ * @state: system state [out]
+ * Context: can sleep
+ *
+ * It returns zero on success, else a negative error code.
+ */
+int rk1608_state_query(struct spi_device *spi, int32_t *state)
+{
+	int ret = 0;
+	s32 query_cmd = RK1608_CMD_QUERY_REG2;
+	struct spi_transfer query_cmd_packet = {
+		.tx_buf = &query_cmd,
+		.len    = sizeof(query_cmd),
+	};
+	struct spi_transfer state_packet = {
+		.rx_buf = state,
+		.len    = sizeof(*state),
+	};
+	struct spi_message  m;
+
+	spi_message_init(&m);
+	spi_message_add_tail(&query_cmd_packet, &m);
+	spi_message_add_tail(&state_packet, &m);
+	ret = spi_sync(spi, &m);
+
+	return ret;
+}
+
+int rk1608_write(struct spi_device *spi,
+		 s32 addr, const s32 *data, size_t data_len)
 {
 	u8 *local_buf = NULL;
 	int ret = 0;
@@ -140,17 +178,19 @@ static int rk1608_write(struct spi_device *spi,
  *
  * It returns zero on success, else a negative error code.
  */
-static int _rk1608_safe_write(struct spi_device *spi, s32 addr,
-			      const s32 *data, size_t data_len)
+static int _rk1608_safe_write(struct rk1608_state *rk1608, struct spi_device *spi,
+			      s32 addr, const s32 *data, size_t data_len)
 {
 	int ret = 0;
 	s32 state = 0;
 	s32 try = 0;
 
 	do {
+		mutex_lock(&rk1608->spi2apb_lock);
 		ret = rk1608_write(spi, addr, data, data_len);
 		if (ret == 0)
 			ret = rk1608_operation_query(spi, &state);
+		mutex_unlock(&rk1608->spi2apb_lock);
 
 		if (ret != 0)
 			return ret;
@@ -165,8 +205,8 @@ static int _rk1608_safe_write(struct spi_device *spi, s32 addr,
 	return (state & RK1608_STATE_MASK);
 }
 
-static int rk1608_safe_write(struct spi_device *spi,
-			     s32 addr, const s32 *data, size_t data_len)
+int rk1608_safe_write(struct rk1608_state *rk1608, struct spi_device *spi,
+		      s32 addr, const s32 *data, size_t data_len)
 {
 	int ret = 0;
 	size_t max_op_size = (size_t)RK1608_MAX_OP_BYTES;
@@ -174,7 +214,7 @@ static int rk1608_safe_write(struct spi_device *spi,
 	while (data_len > 0) {
 		size_t slen = ALIGN(MIN(data_len, max_op_size), 4);
 
-		ret = _rk1608_safe_write(spi, addr, data, slen);
+		ret = _rk1608_safe_write(rk1608, spi, addr, data, slen);
 		if (ret == -ENOMEM) {
 			max_op_size = slen / 2;
 			continue;
@@ -190,18 +230,18 @@ static int rk1608_safe_write(struct spi_device *spi,
 	return ret;
 }
 
-static void rk1608_hw_init(struct spi_device *spi)
+static void rk1608_hw_init(struct rk1608_state *rk1608, struct spi_device *spi)
 {
 	s32 write_data = SPI0_PLL_SEL_APLL;
 
 	/* modify rk1608 spi slave clk to 300M */
-	rk1608_safe_write(spi, CRUPMU_CLKSEL14_CON, &write_data, 4);
+	rk1608_safe_write(rk1608, spi, CRUPMU_CLKSEL14_CON, &write_data, 4);
 
 	/* modify rk1608 spi io driver strength to 8mA */
 	write_data = BIT7_6_SEL_8MA;
-	rk1608_safe_write(spi, PMUGRF_GPIO1A_E, &write_data, 4);
+	rk1608_safe_write(rk1608, spi, PMUGRF_GPIO1A_E, &write_data, 4);
 	write_data = BIT1_0_SEL_8MA;
-	rk1608_safe_write(spi, PMUGRF_GPIO1B_E, &write_data, 4);
+	rk1608_safe_write(rk1608, spi, PMUGRF_GPIO1B_E, &write_data, 4);
 }
 
 /**
@@ -215,8 +255,8 @@ static void rk1608_hw_init(struct spi_device *spi)
  *
  * It returns zero on success, else a negative error code.
  */
-static int rk1608_read(struct spi_device *spi,
-		       s32 addr, s32 *data, size_t data_len)
+int rk1608_read(struct spi_device *spi,
+		s32 addr, s32 *data, size_t data_len)
 {
 	u8 *local_buf = NULL;
 	int ret;
@@ -287,16 +327,20 @@ static int rk1608_read(struct spi_device *spi,
  *
  * It returns zero on success, else a negative error code.
  */
-static int rk1608_safe_read(struct spi_device *spi,
-			    s32 addr, s32 *data, size_t data_len)
+int rk1608_safe_read(struct rk1608_state *rk1608, struct spi_device *spi,
+		     s32 addr, s32 *data, size_t data_len)
 {
 	s32 state = 0;
 	s32 retry = 0;
 
 	do {
+		mutex_lock(&rk1608->spi2apb_lock);
 		rk1608_read(spi, addr, data, data_len);
-		if (rk1608_operation_query(spi, &state) != 0)
+		if (rk1608_operation_query(spi, &state) != 0) {
+			mutex_unlock(&rk1608->spi2apb_lock);
 			return -EPERM;
+		}
+		mutex_unlock(&rk1608->spi2apb_lock);
 		if ((state & RK1608_STATE_MASK) == 0)
 			break;
 		udelay(RK1608_OP_TRY_DELAY);
@@ -305,7 +349,7 @@ static int rk1608_safe_read(struct spi_device *spi,
 	return -(state & RK1608_STATE_MASK);
 }
 
-static int rk1608_read_wait(struct spi_device *spi,
+static int rk1608_read_wait(struct rk1608_state *rk1608, struct spi_device *spi,
 			    const struct rk1608_section *sec)
 {
 	s32 value = 0;
@@ -313,7 +357,7 @@ static int rk1608_read_wait(struct spi_device *spi,
 	int ret = 0;
 
 	do {
-		ret = rk1608_safe_read(spi, sec->wait_addr, &value, 4);
+		ret = rk1608_safe_read(rk1608, spi, sec->wait_addr, &value, 4);
 		if (!ret && value == sec->wait_value)
 			break;
 
@@ -329,7 +373,8 @@ static int rk1608_read_wait(struct spi_device *spi,
 	return ret;
 }
 
-static int rk1608_boot_request(struct spi_device *spi,
+static int rk1608_boot_request(struct rk1608_state *rk1608,
+			       struct spi_device *spi,
 			       const struct rk1608_section *sec)
 {
 	struct rk1608_boot_req boot_req;
@@ -343,7 +388,7 @@ static int rk1608_boot_request(struct spi_device *spi,
 	boot_req.status = 1;
 	boot_req.cmd = 2;
 
-	ret = rk1608_safe_write(spi, BOOT_REQUEST_ADDR,
+	ret = rk1608_safe_write(rk1608, spi, BOOT_REQUEST_ADDR,
 				(s32 *)&boot_req, sizeof(boot_req));
 	if (ret)
 		return ret;
@@ -351,7 +396,7 @@ static int rk1608_boot_request(struct spi_device *spi,
 	if (sec->flag & BOOT_FLAG_READ_WAIT) {
 		/* Waitting for rk1608 init ddr done */
 		do {
-			ret = rk1608_safe_read(spi, BOOT_REQUEST_ADDR,
+			ret = rk1608_safe_read(rk1608, spi, BOOT_REQUEST_ADDR,
 					       (s32 *)&boot_req,
 					       sizeof(boot_req));
 
@@ -370,7 +415,8 @@ static int rk1608_boot_request(struct spi_device *spi,
 	return ret;
 }
 
-static int rk1608_download_section(struct spi_device *spi, const u8 *data,
+static int rk1608_download_section(struct rk1608_state *rk1608,
+				   struct spi_device *spi, const u8 *data,
 				   const struct rk1608_section *sec)
 {
 	int ret = 0;
@@ -382,7 +428,7 @@ static int rk1608_download_section(struct spi_device *spi, const u8 *data,
 		 sec->timeout, sec->crc_16, sec->flag, sec->type);
 
 	if (sec->size > 0) {
-		ret = rk1608_safe_write(spi, sec->load_addr,
+		ret = rk1608_safe_write(rk1608, spi, sec->load_addr,
 					(s32 *)(data + sec->offset),
 					sec->size);
 		if (ret) {
@@ -392,9 +438,9 @@ static int rk1608_download_section(struct spi_device *spi, const u8 *data,
 	}
 
 	if (sec->flag & BOOT_FLAG_BOOT_REQUEST)
-		ret = rk1608_boot_request(spi, sec);
+		ret = rk1608_boot_request(rk1608, spi, sec);
 	else if (sec->flag & BOOT_FLAG_READ_WAIT)
-		ret = rk1608_read_wait(spi, sec);
+		ret = rk1608_read_wait(rk1608, spi, sec);
 
 	return ret;
 }
@@ -408,7 +454,8 @@ static int rk1608_download_section(struct spi_device *spi, const u8 *data,
  *
  * It returns zero on success, else a negative error code.
  */
-static int rk1608_download_fw(struct spi_device *spi, const char *fw_name)
+int rk1608_download_fw(struct rk1608_state *rk1608, struct spi_device *spi,
+		       const char *fw_name)
 {
 	const struct rk1608_header *head;
 	const struct firmware *fw;
@@ -431,7 +478,7 @@ static int rk1608_download_fw(struct spi_device *spi, const char *fw_name)
 		 fw_name, head->version);
 
 	for (i = 0; i < head->section_count; i++) {
-		ret = rk1608_download_section(spi, fw->data,
+		ret = rk1608_download_section(rk1608, spi, fw->data,
 					      &head->sections[i]);
 		if (ret)
 			break;
@@ -472,13 +519,15 @@ static int rk1608_lsb_w32(struct spi_device *spi, s32 addr, s32 data)
 static int rk1608_msg_init_sensor(struct rk1608_state *pdata,
 				  struct msg_init *msg, int id)
 {
+	u32 idx = pdata->dphy[id]->fmt_inf_idx;
+
 	msg->msg_head.size = sizeof(struct msg_init);
 	msg->msg_head.type = id_msg_init_sensor_t;
 	msg->msg_head.id.camera_id = id;
 	msg->msg_head.mux.sync = 1;
 	msg->in_mipi_phy = pdata->dphy[id]->in_mipi;
 	msg->out_mipi_phy = pdata->dphy[id]->out_mipi;
-	msg->mipi_lane = pdata->dphy[id]->mipi_lane;
+	msg->mipi_lane = pdata->dphy[id]->fmt_inf[idx].mipi_lane;
 	msg->bayer = 0;
 	memcpy(msg->sensor_name, pdata->dphy[id]->sensor_name,
 	       sizeof(msg->sensor_name));
@@ -494,17 +543,19 @@ static int rk1608_msg_set_input_size(struct rk1608_state *pdata,
 {
 	u32 i;
 	u32 msg_size = sizeof(struct msg);
+	u32 idx = pdata->dphy[id]->fmt_inf_idx;
+	struct rk1608_fmt_inf *fmt_inf = &pdata->dphy[id]->fmt_inf[idx];
 
 	for (i = 0; i < 4; i++) {
-		if (pdata->dphy[id]->in_ch[i].width == 0)
+		if (fmt_inf->in_ch[i].width == 0)
 			break;
 
-		msg->channel[i].width = pdata->dphy[id]->in_ch[i].width;
-		msg->channel[i].height = pdata->dphy[id]->in_ch[i].height;
-		msg->channel[i].data_id = pdata->dphy[id]->in_ch[i].data_id;
+		msg->channel[i].width = fmt_inf->in_ch[i].width;
+		msg->channel[i].height = fmt_inf->in_ch[i].height;
+		msg->channel[i].data_id = fmt_inf->in_ch[i].data_id;
 		msg->channel[i].decode_format =
-			pdata->dphy[id]->in_ch[i].decode_format;
-		msg->channel[i].flag = pdata->dphy[id]->in_ch[i].flag;
+			fmt_inf->in_ch[i].decode_format;
+		msg->channel[i].flag = fmt_inf->in_ch[i].flag;
 		msg_size += sizeof(struct preisp_vc_cfg);
 	}
 
@@ -521,17 +572,19 @@ static int rk1608_msg_set_output_size(struct rk1608_state *pdata,
 {
 	u32 i;
 	u32 msg_size = sizeof(struct msg_out_size_head);
+	u32 idx = pdata->dphy[id]->fmt_inf_idx;
+	struct rk1608_fmt_inf *fmt_inf = &pdata->dphy[id]->fmt_inf[idx];
 
 	for (i = 0; i < 4; i++) {
-		if (pdata->dphy[id]->out_ch[i].width == 0)
+		if (fmt_inf->out_ch[i].width == 0)
 			break;
 
-		msg->channel[i].width = pdata->dphy[id]->out_ch[i].width;
-		msg->channel[i].height = pdata->dphy[id]->out_ch[i].height;
-		msg->channel[i].data_id = pdata->dphy[id]->out_ch[i].data_id;
+		msg->channel[i].width = fmt_inf->out_ch[i].width;
+		msg->channel[i].height = fmt_inf->out_ch[i].height;
+		msg->channel[i].data_id = fmt_inf->out_ch[i].data_id;
 		msg->channel[i].decode_format =
-			pdata->dphy[id]->out_ch[i].decode_format;
-		msg->channel[i].flag = pdata->dphy[id]->out_ch[i].flag;
+			fmt_inf->out_ch[i].decode_format;
+		msg->channel[i].flag = fmt_inf->out_ch[i].flag;
 		msg_size += sizeof(struct preisp_vc_cfg);
 	}
 
@@ -539,12 +592,12 @@ static int rk1608_msg_set_output_size(struct rk1608_state *pdata,
 	msg->head.msg_head.type = id_msg_set_output_size_t;
 	msg->head.msg_head.id.camera_id = id;
 	msg->head.msg_head.mux.sync = 1;
-	msg->head.width = pdata->dphy[id]->mf.width;
-	msg->head.height = pdata->dphy[id]->mf.height;
-	msg->head.mipi_clk = pdata->dphy[id]->link_freqs;
-	msg->head.line_length_pclk = pdata->dphy[id]->htotal;
-	msg->head.frame_length_lines = pdata->dphy[id]->vtotal;
-	msg->head.mipi_lane = pdata->dphy[id]->mipi_lane;
+	msg->head.width = fmt_inf->hactive;
+	msg->head.height = fmt_inf->vactive;
+	msg->head.mipi_clk = 2 * pdata->dphy[id]->link_freqs;
+	msg->head.line_length_pclk = fmt_inf->htotal;
+	msg->head.frame_length_lines = fmt_inf->vtotal;
+	msg->head.mipi_lane = fmt_inf->mipi_lane;
 
 	return rk1608_send_msg_to_dsp(pdata, &msg->head.msg_head);
 }
@@ -593,14 +646,22 @@ static int rk1608_msg_set_stream_out_off(struct rk1608_state *pdata,
 	return rk1608_send_msg_to_dsp(pdata, msg);
 }
 
-static int rk1608_set_log_level(struct rk1608_state *pdata,
-				struct msg *msg, int level)
+int rk1608_set_log_level(struct rk1608_state *pdata, int level)
 {
+	struct msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	int ret = 0;
+
+	if (!msg)
+		return -ENOMEM;
+
 	msg->size = sizeof(struct msg);
 	msg->type = id_msg_set_log_level_t;
 	msg->mux.log_level = level;
 
-	return rk1608_send_msg_to_dsp(pdata, msg);
+	ret = rk1608_send_msg_to_dsp(pdata, msg);
+	kfree(msg);
+
+	return ret;
 }
 
 static int rk1608_send_meta_hdrae(struct rk1608_state *pdata,
@@ -742,7 +803,7 @@ static void rk1608_cs_set_value(struct rk1608_state *pdata, int value)
 	spi_sync(pdata->spi, &m);
 }
 
-static void rk1608_set_spi_speed(struct rk1608_state *pdata, u32 hz)
+void rk1608_set_spi_speed(struct rk1608_state *pdata, u32 hz)
 {
 	pdata->spi->max_speed_hz = hz;
 }
@@ -751,6 +812,21 @@ static int rk1608_power_on(struct rk1608_state *pdata)
 {
 	struct spi_device *spi = pdata->spi;
 	int ret = 0;
+
+	if (!IS_ERR(pdata->mclk)) {
+		ret = clk_set_rate(pdata->mclk, RK1608_MCLK_RATE);
+		if (ret < 0)
+			dev_warn(pdata->dev, "Failed to set mclk rate\n");
+		if (clk_get_rate(pdata->mclk) != RK1608_MCLK_RATE)
+			dev_warn(pdata->dev, "mclk(%lu) mismatched\n",
+				 clk_get_rate(pdata->mclk));
+
+		ret = clk_prepare_enable(pdata->mclk);
+		if (ret < 0)
+			dev_warn(pdata->dev, "Failed to enable mclk\n");
+		else
+			usleep_range(3000, 3500);
+	}
 
 	/* Request rk1608 enter slave mode */
 	rk1608_cs_set_value(pdata, 0);
@@ -767,14 +843,15 @@ static int rk1608_power_on(struct rk1608_state *pdata)
 	/* After Reset pull-up, CSn should keep low for 2ms+ */
 	usleep_range(3000, 3500);
 	rk1608_cs_set_value(pdata, 1);
+	rk1608_set_spi_speed(pdata, pdata->min_speed_hz);
 	rk1608_lsb_w32(spi, SPI_ENR, 0);
 	rk1608_lsb_w32(spi, SPI_CTRL0,
 		       OPM_SLAVE_MODE | RSD_SEL_2CYC | DFS_SEL_16BIT);
-	rk1608_hw_init(pdata->spi);
+	rk1608_hw_init(pdata, pdata->spi);
 	rk1608_set_spi_speed(pdata, pdata->max_speed_hz);
 
 	/* Download system firmware */
-	ret = rk1608_download_fw(pdata->spi, pdata->firm_name);
+	ret = rk1608_download_fw(pdata, pdata->spi, pdata->firm_name);
 	if (ret)
 		dev_err(pdata->dev, "Download firmware failed!");
 	else
@@ -783,7 +860,10 @@ static int rk1608_power_on(struct rk1608_state *pdata)
 	if (pdata->irq > 0)
 		enable_irq(pdata->irq);
 
-	return 0;
+	if (!ret)
+		ret = rk1608_set_log_level(pdata, pdata->log_level);
+
+	return ret;
 }
 
 static int rk1608_power_off(struct rk1608_state *pdata)
@@ -797,30 +877,59 @@ static int rk1608_power_off(struct rk1608_state *pdata)
 		gpiod_direction_output(pdata->reset_gpio, 0);
 	rk1608_cs_set_value(pdata, 0);
 
+	if (!IS_ERR(pdata->mclk))
+		clk_disable_unprepare(pdata->mclk);
+
 	return 0;
+}
+
+int rk1608_set_power(struct rk1608_state *pdata, int on)
+{
+	mutex_lock(&pdata->lock);
+	if (on) {
+		if (!pdata->power_count)
+			rk1608_power_on(pdata);
+	} else {
+		if (pdata->power_count == 1)
+			rk1608_power_off(pdata);
+	}
+
+	pdata->power_count += on ? 1 : -1;
+	if (pdata->power_count < 0)
+		pdata->power_count = 0;
+	mutex_unlock(&pdata->lock);
+
+	return 0;
+}
+
+static void rk1608_poweron_func(struct work_struct *work)
+{
+	struct rk1608_power_work *pwork = (struct rk1608_power_work *)work;
+
+	rk1608_power_on(pwork->pdata);
+	complete(&pwork->work_fin);
 }
 
 static int rk1608_sensor_power(struct v4l2_subdev *sd, int on)
 {
-	int ret = 0;
-	struct msg *msg = NULL;
 	struct rk1608_state *pdata = to_state(sd);
+	struct rk1608_power_work work;
 
 	mutex_lock(&pdata->lock);
 	if (on) {
-		v4l2_subdev_call(pdata->sensor[sd->grp_id], core, s_power, on);
-		if (!pdata->power_count)
-			rk1608_power_on(pdata);
+		if (!pdata->power_count) {
+			INIT_WORK(&work.wk, rk1608_poweron_func);
+			init_completion(&work.work_fin);
+			work.pdata = pdata;
+			schedule_work(&work.wk);
 
-		msg = kzalloc(sizeof(*msg), GFP_KERNEL);
-		if (!msg) {
-			mutex_unlock(&pdata->lock);
-			return -ENOMEM;
+			v4l2_subdev_call(pdata->sensor[sd->grp_id],
+					 core, s_power, on);
+			if (!wait_for_completion_timeout(&work.work_fin,
+					msecs_to_jiffies(1000)))
+				dev_err(pdata->dev,
+					"wait for preisp power on timeout!");
 		}
-
-		ret = rk1608_set_log_level(pdata, msg, 2);
-		if (!msg)
-			kfree(msg);
 	} else if (!on && pdata->power_count == 1) {
 		v4l2_subdev_call(pdata->sensor[sd->grp_id], core, s_power, on);
 		rk1608_power_off(pdata);
@@ -831,7 +940,7 @@ static int rk1608_sensor_power(struct v4l2_subdev *sd, int on)
 	WARN_ON(pdata->power_count < 0);
 	mutex_unlock(&pdata->lock);
 
-	return ret;
+	return 0;
 }
 
 static int rk1608_stream_on(struct rk1608_state *pdata)
@@ -896,6 +1005,7 @@ static int rk1608_s_stream(struct v4l2_subdev *sd, int enable)
 	int ret;
 	struct rk1608_state *pdata = to_state(sd);
 
+	pdata->msg_num = 0;
 	if (enable) {
 		v4l2_subdev_call(pdata->sensor[sd->grp_id], core, s_power, enable);
 		ret = rk1608_stream_on(pdata);
@@ -922,6 +1032,21 @@ static int rk1608_g_frame_interval(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int rk1608_set_fmt(struct v4l2_subdev *sd,
+			  struct v4l2_subdev_pad_config *cfg,
+			  struct v4l2_subdev_format *fmt)
+{
+	struct rk1608_state *pdata = to_state(sd);
+
+	v4l2_subdev_call(pdata->sensor[sd->grp_id],
+			 pad,
+			 set_fmt,
+			 cfg,
+			 fmt);
+
+	return 0;
+}
+
 static long rk1608_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct rk1608_state *pdata = to_state(sd);
@@ -942,6 +1067,11 @@ static long rk1608_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		    pdata->hdrae_exp.short_exp_reg == hdrae_exp->short_exp_reg &&
 		    pdata->hdrae_exp.short_gain_reg == hdrae_exp->short_gain_reg)
 			break;
+
+		if (!pdata->sensor_cnt) {
+			dev_info(pdata->dev, "set Aec before stream on");
+			break;
+		}
 
 		pdata->hdrae_exp = *hdrae_exp;
 
@@ -975,6 +1105,11 @@ static int rk1608_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 		container_of(ctrl->handler,
 			     struct rk1608_state, ctrl_handler);
 	int id = pdata->sd.grp_id;
+
+	if (!pdata->sensor[id]) {
+		dev_err(pdata->dev, "Did not find a sensor[%d]!\n", id);
+		return -EINVAL;
+	}
 
 	remote_ctrl = v4l2_ctrl_find(pdata->sensor[id]->ctrl_handler,
 				     ctrl->id);
@@ -1080,9 +1215,14 @@ static const struct v4l2_subdev_core_ops rk1608_core_ops = {
 	.ioctl	 = rk1608_ioctl,
 };
 
+static const struct v4l2_subdev_pad_ops rk1608_subdev_pad_ops = {
+	.set_fmt	= rk1608_set_fmt,
+};
+
 static const struct v4l2_subdev_ops rk1608_subdev_ops = {
 	.core	= &rk1608_core_ops,
 	.video	= &rk1608_subdev_video_ops,
+	.pad	= &rk1608_subdev_pad_ops,
 };
 
 /**
@@ -1094,19 +1234,20 @@ static const struct v4l2_subdev_ops rk1608_subdev_ops = {
  *
  * It returns zero on success, else a negative error code.
  */
-static int rk1608_msq_read_head(struct spi_device *spi,
+static int rk1608_msq_read_head(struct rk1608_state *rk1608,
+				struct spi_device *spi,
 				u32 addr, struct rk1608_msg_queue *q)
 {
 	int err = 0;
 	s32 reg;
 
-	err = rk1608_safe_read(spi, RK1608_PMU_SYS_REG0, &reg, 4);
+	err = rk1608_safe_read(rk1608, spi, RK1608_PMU_SYS_REG0, &reg, 4);
 
 	if (err || ((reg & RK1608_MSG_QUEUE_OK_MASK) !=
 		     RK1608_MSG_QUEUE_OK_TAG))
 		return -EINVAL;
 
-	err = rk1608_safe_read(spi, addr, (s32 *)q, sizeof(*q));
+	err = rk1608_safe_read(rk1608, spi, addr, (s32 *)q, sizeof(*q));
 
 	return err;
 }
@@ -1117,11 +1258,12 @@ static int rk1608_msq_read_head(struct spi_device *spi,
  * @q: msg queue
  * @m: a msg pointer buf [out]
  *
- * need call rk1608_msq_recv_msg_free to free msg after msg use done
+ * need free msg after msg use done
  *
  * It returns zero on success, else a negative error code.
  */
-static int rk1608_msq_recv_msg(struct spi_device *spi, struct msg **m)
+int rk1608_msq_recv_msg(struct rk1608_state *rk1608, struct spi_device *spi,
+			struct msg **m)
 {
 	struct rk1608_msg_queue queue;
 	struct rk1608_msg_queue *q = &queue;
@@ -1131,18 +1273,19 @@ static int rk1608_msq_recv_msg(struct spi_device *spi, struct msg **m)
 	int err = 0;
 
 	*m = NULL;
-	err = rk1608_msq_read_head(spi, RK1608_S_MSG_QUEUE_ADDR, q);
+	err = rk1608_msq_read_head(rk1608, spi, RK1608_S_MSG_QUEUE_ADDR, q);
 	if (err)
 		return err;
 
 	if (q->cur_send == q->cur_recv)
 		return -EINVAL;
 	/* Skip to head when size is 0 */
-	err = rk1608_safe_read(spi, (s32)q->cur_recv, (s32 *)&size, 4);
+	err = rk1608_safe_read(rk1608, spi, (s32)q->cur_recv, (s32 *)&size, 4);
 	if (err)
 		return err;
 	if (size == 0) {
-		err = rk1608_safe_read(spi, (s32)q->buf_head, (s32 *)&size, 4);
+		err = rk1608_safe_read(rk1608, spi, (s32)q->buf_head,
+			(s32 *)&size, 4);
 		if (err)
 			return err;
 
@@ -1161,14 +1304,18 @@ static int rk1608_msq_recv_msg(struct spi_device *spi, struct msg **m)
 		return -EPERM;
 
 	*m = kmalloc(msg_size, GFP_KERNEL);
-	err = rk1608_safe_read(spi, recv_addr, (s32 *)*m, msg_size);
+	if (!*m)
+		return -ENOMEM;
+	err = rk1608_safe_read(rk1608, spi, recv_addr, (s32 *)*m, msg_size);
 	if (err == 0) {
-		err = rk1608_safe_write(spi, RK1608_S_MSG_QUEUE_ADDR +
+		err = rk1608_safe_write(rk1608, spi, RK1608_S_MSG_QUEUE_ADDR +
 				       (u8 *)&q->cur_recv - (u8 *)q,
 				       &next_recv_addr, 4);
 	}
-	if (err)
+	if (err) {
 		kfree(*m);
+		*m = NULL;
+	}
 
 	return err;
 }
@@ -1197,8 +1344,7 @@ static u32 rk1608_msq_tail_free_size(const struct rk1608_msg_queue *q)
  *
  * It returns zero on success, else a negative error code.
  */
-static int rk1608_interrupt_request(struct spi_device *spi,
-				    s32 interrupt_num)
+int rk1608_interrupt_request(struct spi_device *spi, s32 interrupt_num)
 {
 	s32 write_reg1_cmd = APB_CMD_WRITE_REG1;
 	struct spi_transfer write_reg1_cmd_packet = {
@@ -1241,7 +1387,8 @@ static u32 rk1608_msq_head_free_size(const struct rk1608_msg_queue *q)
  *
  * It returns zero on success, else a negative error code.
  */
-static int rk1608_msq_send_msg(struct spi_device *spi, struct msg *m)
+int rk1608_msq_send_msg(struct rk1608_state *rk1608, struct spi_device *spi,
+			struct msg *m)
 {
 	int err = 0;
 	s32 tmp = 0;
@@ -1249,24 +1396,26 @@ static int rk1608_msq_send_msg(struct spi_device *spi, struct msg *m)
 	struct rk1608_msg_queue *q = &queue;
 	u32 msg_size = m->size * sizeof(u32);
 
-	err = rk1608_msq_read_head(spi, RK1608_R_MSG_QUEUE_ADDR, q);
+	err = rk1608_msq_read_head(rk1608, spi, RK1608_R_MSG_QUEUE_ADDR, q);
 	if (err)
 		return err;
 
 	if (rk1608_msq_tail_free_size(q) > msg_size) {
 		u32 next_send;
 
-		err = rk1608_safe_write(spi, q->cur_send, (s32 *)m, msg_size);
+		err = rk1608_safe_write(rk1608, spi, q->cur_send,
+			(s32 *)m, msg_size);
 		next_send = q->cur_send + msg_size;
 		if (next_send == q->buf_tail)
 			next_send = q->buf_head;
 		q->cur_send = next_send;
 	} else if (rk1608_msq_head_free_size(q) > msg_size) {
 		/* Set size to 0 for skip to head mark */
-		err = rk1608_safe_write(spi, q->cur_send, &tmp, 4);
+		err = rk1608_safe_write(rk1608, spi, q->cur_send, &tmp, 4);
 		if (err)
 			return err;
-		err = rk1608_safe_write(spi, q->buf_head, (s32 *)m, msg_size);
+		err = rk1608_safe_write(rk1608, spi, q->buf_head, (s32 *)m,
+			msg_size);
 		q->cur_send = q->buf_head + msg_size;
 	} else {
 		return -EPERM;
@@ -1275,21 +1424,21 @@ static int rk1608_msq_send_msg(struct spi_device *spi, struct msg *m)
 	if (err)
 		return err;
 
-	err = rk1608_safe_write(spi, RK1608_R_MSG_QUEUE_ADDR +
+	err = rk1608_safe_write(rk1608, spi, RK1608_R_MSG_QUEUE_ADDR +
 				(u8 *)&q->cur_send - (u8 *)q, &q->cur_send, 4);
 	rk1608_interrupt_request(spi, RK1608_IRQ_TYPE_MSG);
 
 	return err;
 }
 
-static int rk1608_send_msg_to_dsp(struct rk1608_state *pdata, struct msg *m)
+int rk1608_send_msg_to_dsp(struct rk1608_state *pdata, struct msg *m)
 {
 	int ret, msg_num = 0, timeout = 0;
 
 	/* For msg sync */
 	if (pdata->msg_num >= 8) {
 		dev_err(pdata->dev, "MSG sync queue full\n!");
-		ret = -EINVAL;
+		return -EINVAL;
 	} else if (m->mux.sync == 1) {
 		mutex_lock(&pdata->send_msg_lock);
 		msg_num = pdata->msg_num;
@@ -1298,7 +1447,7 @@ static int rk1608_send_msg_to_dsp(struct rk1608_state *pdata, struct msg *m)
 	}
 
 	mutex_lock(&pdata->send_msg_lock);
-	ret = rk1608_msq_send_msg(pdata->spi, m);
+	ret = rk1608_msq_send_msg(pdata, pdata->spi, m);
 	mutex_unlock(&pdata->send_msg_lock);
 
 	/* For msg sync */
@@ -1326,7 +1475,7 @@ static void rk1608_print_rk1608_log(struct rk1608_state *pdata,
 
 	str[log->size * sizeof(s32) - 1] = 0;
 	str += sizeof(struct msg);
-	dev_info(pdata->dev, "RK1608(%d): %s", log->id.core_id, str);
+	dev_info(pdata->dev, "DSP(%d): %s", log->id.core_id, str);
 }
 
 static void rk1608_dispatch_received_msg(struct rk1608_state *pdata,
@@ -1340,6 +1489,8 @@ static void rk1608_dispatch_received_msg(struct rk1608_state *pdata,
 
 	if (msg->type == id_msg_rk1608_log_t)
 		rk1608_print_rk1608_log(pdata, msg);
+
+	rk1608_dev_receive_msg(pdata, msg);
 }
 
 static irqreturn_t rk1608_threaded_isr(int irq, void *ctx)
@@ -1347,7 +1498,7 @@ static irqreturn_t rk1608_threaded_isr(int irq, void *ctx)
 	struct rk1608_state *pdata = ctx;
 	struct msg *msg;
 
-	while (!rk1608_msq_recv_msg(pdata->spi, &msg) && NULL != msg) {
+	while (!rk1608_msq_recv_msg(pdata, pdata->spi, &msg) && NULL != msg) {
 		rk1608_dispatch_received_msg(pdata, msg);
 		/* For kernel msg sync */
 		if (msg->type >= id_msg_init_sensor_ret_t &&
@@ -1422,6 +1573,10 @@ static int rk1608_parse_dt_property(struct rk1608_state *pdata)
 		dev_err(dev, "can not find aesync_gpio\n");
 		return PTR_ERR(pdata->aesync_gpio);
 	}
+
+	pdata->mclk = devm_clk_get(dev, "mclk");
+	if (IS_ERR(pdata->mclk))
+		dev_warn(dev, "Failed to get mclk, do you use ext 24M clk?\n");
 
 	pdata->msg_num = 0;
 	init_waitqueue_head(&pdata->msg_wait);
@@ -1504,11 +1659,17 @@ static int rk1608_probe(struct spi_device *spi)
 	struct v4l2_subdev *sd;
 	int ret = 0;
 
+	dev_info(&spi->dev, "driver version: %02x.%02x.%02x",
+		 RK1608_VERSION >> 16,
+		 (RK1608_VERSION & 0xff00) >> 8,
+		 RK1608_VERSION & 0x00ff);
+
 	rk1608 = devm_kzalloc(&spi->dev, sizeof(*rk1608), GFP_KERNEL);
 	if (!rk1608)
 		return -ENOMEM;
 	rk1608->dev = &spi->dev;
 	rk1608->spi = spi;
+	rk1608->log_level = LOG_INFO;
 	spi_set_drvdata(spi, rk1608);
 
 	ret = rk1608_parse_dt_property(rk1608);
@@ -1518,15 +1679,14 @@ static int rk1608_probe(struct spi_device *spi)
 	}
 
 	ret = rk1608_get_remote_node_dev(rk1608);
-	if (ret) {
-		dev_err(rk1608->dev, "Get remote node dev err %x\n", ret);
-		return ret;
-	}
+	if (ret)
+		dev_info(rk1608->dev, "remote node dev is NULL\n");
 
 	rk1608->sensor_cnt = 0;
 	mutex_init(&rk1608->sensor_lock);
 	mutex_init(&rk1608->send_msg_lock);
 	mutex_init(&rk1608->lock);
+	mutex_init(&rk1608->spi2apb_lock);
 	spin_lock_init(&rk1608->hdrae_lock);
 	sd = &rk1608->sd;
 
@@ -1552,6 +1712,8 @@ static int rk1608_probe(struct spi_device *spi)
 		disable_irq(rk1608->irq);
 	}
 
+	rk1608_dev_register(rk1608);
+
 	return 0;
 }
 
@@ -1563,6 +1725,8 @@ static int rk1608_remove(struct spi_device *spi)
 	mutex_destroy(&rk1608->lock);
 	mutex_destroy(&rk1608->send_msg_lock);
 	mutex_destroy(&rk1608->sensor_lock);
+	mutex_destroy(&rk1608->spi2apb_lock);
+	rk1608_dev_unregister(rk1608);
 
 	return 0;
 }

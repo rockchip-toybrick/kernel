@@ -101,6 +101,14 @@
 		compatible = "operating-points-v2";
 		opp-shared;
 
+		rockchip,temp-hysteresis = <5000>;
+		rockchip,low-temp = <0>;
+		rockchip,low-temp-min-volt = <800000>;
+		rockchip,low-temp-adjust-volt = <
+			/* MHz    MHz    uV */
+			   0      1608   50000
+		>;
+
 		rockchip,max-volt = <950000>;
 		rockchip,evb-irdrop = <25000>;
 		nvmem-cells = <&cpu_leakage>;
@@ -203,7 +211,7 @@
 		soc-bus0 {
 			bus-id = <0>;
 			timer-us = <20>;
-			enable-msk = <0x4077>;
+			enable-msk = <0x407f>;
 			status = "okay";
 		};
 		soc-bus1 {
@@ -215,7 +223,7 @@
 		soc-bus2 {
 			bus-id = <2>;
 			timer-us = <200>;
-			enable-msk = <0x4007>;
+			enable-msk = <0x4005>;
 			status = "okay";
 		};
 		soc-bus3 {
@@ -228,7 +236,7 @@
 			bus-id = <4>;
 			timer-us = <200>;
 			enable-msk = <0x4001>;
-			status = "okay";
+			status = "disabled";
 		};
 	};
 
@@ -1426,18 +1434,14 @@
 
 	cif: cif@ffae0000 {
 		compatible = "rockchip,rk1808-cif";
-		reg = <0x0 0xffae0000 0x0 0x200>, <0x0 0xffb10000 0x0 0x100>;
-		reg-names = "cif_regs", "csihost_regs";
-		interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>,
-			     <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>,
-			     <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "cif-intr", "csi-intr1", "csi-intr2";
+		reg = <0x0 0xffae0000 0x0 0x200>;
+		reg-names = "cif_regs";
+		interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "cif-intr";
 		clocks = <&cru ACLK_CIF>, <&cru DCLK_CIF>,
-			 <&cru HCLK_CIF>, <&cru SCLK_CIF_OUT>,
-			 <&cru PCLK_CSI2HOST>;
+			 <&cru HCLK_CIF>, <&cru SCLK_CIF_OUT>;
 		clock-names = "aclk_cif", "dclk_cif",
-			"hclk_cif", "sclk_cif_out",
-			"pclk_csi2host";
+			"hclk_cif", "sclk_cif_out";
 		resets = <&cru SRST_CIF_A>, <&cru SRST_CIF_H>,
 			 <&cru SRST_CIF_I>, <&cru SRST_CIF_D>,
 			 <&cru SRST_CIF_PCLKIN>;
@@ -1498,6 +1502,18 @@
 		clock-names = "aclk", "hclk";
 		power-domains = <&power RK1808_PD_VIO>;
 		#iommu-cells = <0>;
+		status = "disabled";
+	};
+
+	mipi_csi2: mipi-csi2@ffb10000 {
+		compatible = "rockchip,rk1808-mipi-csi2";
+		reg = <0x0 0xffb10000 0x0 0x100>;
+		reg-names = "csihost_regs";
+		interrupts = <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "csi-intr1", "csi-intr2";
+		clocks = <&cru PCLK_CSI2HOST>;
+		clock-names = "pclk_csi2host";
 		status = "disabled";
 	};
 
@@ -1692,7 +1708,16 @@
 	npu_opp_table: npu-opp-table {
 		compatible = "operating-points-v2";
 
-		rockchip,max-volt = <950000>;
+		rockchip,thermal-zone = "soc-thermal";
+		rockchip,temp-hysteresis = <5000>;
+		rockchip,low-temp = <0>;
+		rockchip,low-temp-min-volt = <800000>;
+		rockchip,low-temp-adjust-volt = <
+			/* MHz    MHz    uV */
+			   0      792   50000
+		>;
+
+		rockchip,max-volt = <880000>;
 		rockchip,evb-irdrop = <37500>;
 		nvmem-cells = <&npu_leakage>;
 		nvmem-cell-names = "leakage";
@@ -1706,26 +1731,26 @@
 
 		opp-200000000 {
 			opp-hz = /bits/ 64 <200000000>;
-			opp-microvolt = <750000 750000 950000>;
+			opp-microvolt = <750000 750000 880000>;
 		};
 		opp-297000000 {
 			opp-hz = /bits/ 64 <297000000>;
-			opp-microvolt = <750000 750000 950000>;
+			opp-microvolt = <750000 750000 880000>;
 		};
 		opp-400000000 {
 			opp-hz = /bits/ 64 <400000000>;
-			opp-microvolt = <750000 750000 950000>;
+			opp-microvolt = <750000 750000 880000>;
 		};
 		opp-594000000 {
 			opp-hz = /bits/ 64 <594000000>;
-			opp-microvolt = <750000 750000 950000>;
+			opp-microvolt = <750000 750000 880000>;
 		};
 		opp-792000000 {
 			opp-hz = /bits/ 64 <792000000>;
-			opp-microvolt = <825000 825000 950000>;
-			opp-microvolt-L0 = <825000 825000 950000>;
-			opp-microvolt-L1 = <800000 800000 950000>;
-			opp-microvolt-L2 = <775000 775000 950000>;
+			opp-microvolt = <825000 825000 880000>;
+			opp-microvolt-L0 = <825000 825000 880000>;
+			opp-microvolt-L1 = <800000 800000 880000>;
+			opp-microvolt-L2 = <775000 775000 880000>;
 		};
 	};
 
@@ -1815,6 +1840,13 @@
 		reset-names = "stmmaceth";
 		/* power-domains = <&power RK1808_PD_GMAC>; */
 		status = "disabled";
+	};
+
+	rockchip_system_monitor: rockchip-system-monitor {
+		compatible = "rockchip,system-monitor";
+
+		rockchip,thermal-zone = "soc-thermal";
+		rockchip,polling-delay = <200>; /* milliseconds */
 	};
 
 	pinctrl: pinctrl {
@@ -2065,11 +2097,11 @@
 			rgmii_pins: rgmii-pins {
 				rockchip,pins =
 					/* rgmii_txen */
-					<2 RK_PA1 2 &pcfg_pull_none_8ma>,
+					<2 RK_PA1 2 &pcfg_pull_none_4ma>,
 					/* rgmii_txd1 */
-					<2 RK_PA2 2 &pcfg_pull_none_8ma>,
+					<2 RK_PA2 2 &pcfg_pull_none_4ma>,
 					/* rgmii_txd0 */
-					<2 RK_PA3 2 &pcfg_pull_none_8ma>,
+					<2 RK_PA3 2 &pcfg_pull_none_4ma>,
 					/* rgmii_rxd0 */
 					<2 RK_PA4 2 &pcfg_pull_none>,
 					/* rgmii_rxd1 */
@@ -2077,13 +2109,13 @@
 					/* rgmii_rxdv */
 					<2 RK_PA7 2 &pcfg_pull_none>,
 					/* rgmii_mdio */
-					<2 RK_PB0 2 &pcfg_pull_none>,
+					<2 RK_PB0 2 &pcfg_pull_none_2ma>,
 					/* rgmii_mdc */
-					<2 RK_PB2 2 &pcfg_pull_none>,
+					<2 RK_PB2 2 &pcfg_pull_none_2ma>,
 					/* rgmii_txd3 */
-					<2 RK_PB3 2 &pcfg_pull_none_8ma>,
+					<2 RK_PB3 2 &pcfg_pull_none_4ma>,
 					/* rgmii_txd2 */
-					<2 RK_PB4 2 &pcfg_pull_none_8ma>,
+					<2 RK_PB4 2 &pcfg_pull_none_4ma>,
 					/* rgmii_rxd2 */
 					<2 RK_PB5 2 &pcfg_pull_none>,
 					/* rgmii_rxd3 */
@@ -2091,7 +2123,7 @@
 					/* rgmii_clk */
 					<2 RK_PB7 2 &pcfg_pull_none>,
 					/* rgmii_txclk */
-					<2 RK_PC1 2 &pcfg_pull_none_8ma>,
+					<2 RK_PC1 2 &pcfg_pull_none_4ma>,
 					/* rgmii_rxclk */
 					<2 RK_PC2 2 &pcfg_pull_none>;
 			};
@@ -2099,11 +2131,11 @@
 			rmii_pins: rmii-pins {
 				rockchip,pins =
 					/* rmii_txen */
-					<2 RK_PA1 2 &pcfg_pull_none_8ma>,
+					<2 RK_PA1 2 &pcfg_pull_none_4ma>,
 					/* rmii_txd1 */
-					<2 RK_PA2 2 &pcfg_pull_none_8ma>,
+					<2 RK_PA2 2 &pcfg_pull_none_4ma>,
 					/* rmii_txd0 */
-					<2 RK_PA3 2 &pcfg_pull_none_8ma>,
+					<2 RK_PA3 2 &pcfg_pull_none_4ma>,
 					/* rmii_rxd0 */
 					<2 RK_PA4 2 &pcfg_pull_none>,
 					/* rmii_rxd1 */
@@ -2113,9 +2145,9 @@
 					/* rmii_rxdv */
 					<2 RK_PA7 2 &pcfg_pull_none>,
 					/* rmii_mdio */
-					<2 RK_PB0 2 &pcfg_pull_none>,
+					<2 RK_PB0 2 &pcfg_pull_none_2ma>,
 					/* rmii_mdc */
-					<2 RK_PB2 2 &pcfg_pull_none>,
+					<2 RK_PB2 2 &pcfg_pull_none_2ma>,
 					/* rmii_clk */
 					<2 RK_PB7 2 &pcfg_pull_none>;
 			};

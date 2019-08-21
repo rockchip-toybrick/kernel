@@ -215,6 +215,9 @@
 #define RC_REGION_0_PASS_BITS			(25 - 1)
 #define MAX_AXI_WRAPPER_REGION_NUM		33
 
+#define PCIE_USER_RELINK 0x1
+#define PCIE_USER_UNLINK 0x2
+
 struct rockchip_pcie {
 	void	__iomem *reg_base;		/* DT axi-base */
 	void	__iomem *apb_base;		/* DT apb-base */
@@ -385,7 +388,7 @@ static int rockchip_pcie_rd_other_conf(struct rockchip_pcie *rockchip,
 	busdev = PCIE_ECAM_ADDR(bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), where);
 
-	if (!IS_ALIGNED(busdev, size)) {
+	if (!IS_ALIGNED(busdev, size) || busdev >= SZ_1M) {
 		*val = 0;
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 	}
@@ -411,7 +414,7 @@ static int rockchip_pcie_wr_other_conf(struct rockchip_pcie *rockchip,
 
 	busdev = PCIE_ECAM_ADDR(bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), where);
-	if (!IS_ALIGNED(busdev, size))
+	if (!IS_ALIGNED(busdev, size) || busdev >= SZ_1M)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
 	if (size == 4)
@@ -980,9 +983,9 @@ static int rockchip_pcie_parse_dt(struct rockchip_pcie *rockchip)
 		return PTR_ERR(rockchip->aclk_rst);
 	}
 
-	rockchip->ep_gpio = devm_gpiod_get(dev, "ep", GPIOD_OUT_HIGH);
+	rockchip->ep_gpio = devm_gpiod_get_optional(dev, "ep", GPIOD_OUT_HIGH);
 	if (IS_ERR(rockchip->ep_gpio)) {
-		dev_err(dev, "missing ep-gpios property in node\n");
+		dev_err(dev, "invalid ep-gpios property in node\n");
 		return PTR_ERR(rockchip->ep_gpio);
 	}
 
@@ -1324,6 +1327,10 @@ static int rockchip_pcie_wait_l2(struct rockchip_pcie *rockchip)
 	u32 value;
 	int err;
 
+	/* Don't enter L2 state when no ep connected */
+	if (rockchip->dma_trx_enabled == 1)
+		return 0;
+
 	/* send PME_TURN_OFF message */
 	writel(0x0, rockchip->msg_region + PCIE_RC_SEND_PME_OFF);
 
@@ -1375,6 +1382,11 @@ static int __maybe_unused rockchip_pcie_resume_noirq(struct device *dev)
 	clk_prepare_enable(rockchip->hclk_pcie);
 	clk_prepare_enable(rockchip->aclk_perf_pcie);
 	clk_prepare_enable(rockchip->aclk_pcie);
+
+	if (rockchip->dma_trx_enabled == 1) {
+		dev_info(dev, "bypass for user to link...");
+		return 0;
+	}
 
 	err = rockchip_pcie_init_port(rockchip);
 	if (err)
@@ -1459,9 +1471,14 @@ static ssize_t pcie_reset_ep_store(struct device *dev,
 	if (err)
 		return err;
 
+	/* Clear ltssm status before unlinking */
 	if (val) {
+		rockchip_pcie_write(rockchip, 0x00020000, PCIE_CLIENT_CONFIG);
 		phy_power_off(rockchip->phy);
 		phy_exit(rockchip->phy);
+
+		if (val == PCIE_USER_UNLINK)
+			return size;
 
 		rockchip->wait_ep = 1;
 
@@ -1616,6 +1633,9 @@ static int rockchip_pcie_probe(struct platform_device *pdev)
 			goto err_free_res;
 		}
 	}
+
+	if (rockchip->dma_trx_enabled == 0)
+		return 0;
 
 	rockchip->dma_obj = rk_pcie_dma_obj_probe(dev);
 	if (IS_ERR(rockchip->dma_obj)) {

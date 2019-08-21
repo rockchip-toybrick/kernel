@@ -40,6 +40,7 @@
 #include <linux/workqueue.h>
 #include <linux/v4l2-dv-timings.h>
 #include <linux/hdmi.h>
+#include <linux/version.h>
 #include <linux/rk-camera-module.h>
 #include <media/v4l2-dv-timings.h>
 #include <media/v4l2-device.h>
@@ -60,6 +61,8 @@ MODULE_AUTHOR("Mikhail Khelik <mkhelik@cisco.com>");
 MODULE_AUTHOR("Mats Randgaard <matrandg@cisco.com>");
 MODULE_LICENSE("GPL");
 
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x0)
+
 #define EDID_NUM_BLOCKS_MAX 8
 #define EDID_BLOCK_SIZE 128
 
@@ -67,13 +70,14 @@ MODULE_LICENSE("GPL");
 
 #define POLL_INTERVAL_MS	1000
 
-#define TC35874X_LINK_FREQ_300MHZ	300000000
-#define TC35874X_PIXEL_RATE		(TC35874X_LINK_FREQ_300MHZ * 2 * 2 / 8)
+/* PIXEL_RATE = MIPI_FREQ * 2 * lane / 8bit */
+#define TC35874X_LINK_FREQ_310MHZ	310000000
+#define TC35874X_PIXEL_RATE		TC35874X_LINK_FREQ_310MHZ
 
 #define TC35874X_NAME			"tc35874x"
 
 static const s64 link_freq_menu_items[] = {
-	TC35874X_LINK_FREQ_300MHZ,
+	TC35874X_LINK_FREQ_310MHZ,
 };
 
 static const struct v4l2_dv_timings_cap tc35874x_timings_cap = {
@@ -1999,6 +2003,11 @@ static int tc35874x_probe(struct i2c_client *client,
 	struct device_node *node = dev->of_node;
 	char facing[2];
 	int err, data;
+
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
 		return -EIO;

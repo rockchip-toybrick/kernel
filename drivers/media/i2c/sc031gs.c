@@ -3,6 +3,8 @@
  * sc031gs driver
  *
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
+ *
+ * V0.0X01.0X01 add poweron function.
  */
 
 #include <linux/clk.h>
@@ -15,10 +17,14 @@
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
 #include <linux/rk-camera-module.h>
+#include <linux/slab.h>
+#include <linux/version.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
+
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -109,6 +115,7 @@ struct sc031gs {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct sc031gs_mode *cur_mode;
 	u32			module_index;
 	const char		*module_facing;
@@ -135,6 +142,7 @@ static const struct regval sc031gs_global_regs[] = {
 	{0x3018, 0x1f},
 	{0x3019, 0xff},
 	{0x301c, 0xb4},
+	{0x3028, 0x82},
 	{0x320c, 0x03},
 	{0x320d, 0x6e},
 //	{0x320e, 0x02},	//120fps
@@ -204,9 +212,10 @@ static const struct regval sc031gs_global_regs[] = {
 	{0x4500, 0x59},
 	{0x4501, 0xc4},
 	{0x5011, 0x00},
-//	{0x0100, 0x01},
+	{0x0100, 0x01},
 	{0x4418, 0x08},
-	{0x4419, 0x8a},
+	{0x4419, 0x8e},
+	{0x0100, 0x00},
 //	test pattern
 //	{0x4501, 0xac},
 //	{0x5011, 0x01},
@@ -289,8 +298,10 @@ static const struct regval sc031gs_global_regs[] = {
 	{0x4501, 0xc4},
 	{0x4603, 0x00},
 	{0x5011, 0x00},
+	{0x0100, 0x01},
 	{0x4418, 0x08},
-	{0x4419, 0x8a},
+	{0x4419, 0x8e},
+	{0x0100, 0x00},
 	{REG_NULL, 0x00},
 #endif
 };
@@ -360,6 +371,8 @@ static int sc031gs_write_array(struct i2c_client *client,
 	for (i = 0; ret == 0 && regs[i].addr != REG_NULL; i++) {
 		ret = sc031gs_write_reg(client, regs[i].addr,
 				       SC031GS_REG_VALUE_08BIT, regs[i].val);
+		if (regs[i].addr == 0x0100 && regs[i].val == 0x01)
+			msleep(10);
 	}
 
 	return ret;
@@ -636,12 +649,12 @@ static int sc031gs_set_ctrl_gain(struct sc031gs *sc031gs, u32 a_gain)
 
 		if (a_gain < 0x20) {
 			ret |= sc031gs_write_reg(sc031gs->client, 0x3314,
-				SC031GS_REG_VALUE_08BIT, 0x3a);
+				SC031GS_REG_VALUE_08BIT, 0x42);
 			ret |= sc031gs_write_reg(sc031gs->client, 0x3317,
 				SC031GS_REG_VALUE_08BIT, 0x20);
 		} else {
 			ret |= sc031gs_write_reg(sc031gs->client, 0x3314,
-				SC031GS_REG_VALUE_08BIT, 0x44);
+				SC031GS_REG_VALUE_08BIT, 0x4f);
 			ret |= sc031gs_write_reg(sc031gs->client, 0x3317,
 				SC031GS_REG_VALUE_08BIT, 0x0f);
 		}
@@ -734,6 +747,37 @@ static int sc031gs_g_frame_interval(struct v4l2_subdev *sd,
 	mutex_unlock(&sc031gs->mutex);
 
 	return 0;
+}
+
+static int sc031gs_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct sc031gs *sc031gs = to_sc031gs(sd);
+	struct i2c_client *client = sc031gs->client;
+	int ret = 0;
+
+	mutex_lock(&sc031gs->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (sc031gs->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		sc031gs->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		sc031gs->power_on = false;
+	}
+
+unlock_and_return:
+	mutex_unlock(&sc031gs->mutex);
+
+	return ret;
 }
 
 /* Calculate the delay in us by clock rate and clock cycles */
@@ -850,6 +894,7 @@ static const struct v4l2_subdev_internal_ops sc031gs_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops sc031gs_core_ops = {
+	.s_power = sc031gs_s_power,
 	.ioctl = sc031gs_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = sc031gs_compat_ioctl32,
@@ -1012,7 +1057,7 @@ static int sc031gs_check_sensor_id(struct sc031gs *sc031gs,
 			      SC031GS_REG_VALUE_16BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%04x), ret(%d)\n", id, ret);
-		return ret;
+		return -ENODEV;
 	}
 
 	dev_info(dev, "Detected SC031GS CHIP ID = 0x%04x sensor\n", CHIP_ID);
@@ -1041,6 +1086,11 @@ static int sc031gs_probe(struct i2c_client *client,
 	struct v4l2_subdev *sd;
 	char facing[2];
 	int ret;
+
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
 
 	sc031gs = devm_kzalloc(dev, sizeof(*sc031gs), GFP_KERNEL);
 	if (!sc031gs)

@@ -102,6 +102,16 @@ enum
     RGA2_FORMAT_YCrCb_422_P  = 0x15,
     RGA2_FORMAT_YCrCb_420_SP = 0x16,
     RGA2_FORMAT_YCrCb_420_P  = 0x17,
+
+	RGA2_FORMAT_YVYU_422 = 0x18,
+	RGA2_FORMAT_YVYU_420 = 0x19,
+	RGA2_FORMAT_VYUY_422 = 0x1a,
+	RGA2_FORMAT_VYUY_420 = 0x1b,
+	RGA2_FORMAT_YUYV_422 = 0x1c,
+	RGA2_FORMAT_YUYV_420 = 0x1d,
+	RGA2_FORMAT_UYVY_422 = 0x1e,
+	RGA2_FORMAT_UYVY_420 = 0x1f,
+
     RGA2_FORMAT_YCbCr_420_SP_10B = 0x20,
     RGA2_FORMAT_YCrCb_420_SP_10B = 0x21,
     RGA2_FORMAT_YCbCr_422_SP_10B = 0x22,
@@ -509,7 +519,7 @@ struct rga2_req
     u8 dst_a_global_val;    /* dst global alpha value        */
 
 
-    u8  rop_mode;
+    u8  rop_mode;	    /* rop mode select 0 : rop2 1 : rop3 2 : rop4 */
     u16 rop_code;           /* rop2/3/4 code */
 
     u8 palette_mode;        /* (enum) color palatte  0/1bpp, 1/2bpp 2/4bpp 3/8bpp*/
