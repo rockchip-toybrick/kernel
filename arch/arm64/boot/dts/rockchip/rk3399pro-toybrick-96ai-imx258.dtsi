@@ -40,74 +40,115 @@
  *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
-&cif_isp1 {
-	rockchip,camera-modules-attached = <&camera0>;
-	status = "okay";
+&isp0 {
+	status = "disabled";
 };
 
 &isp1 {
-	status = "okay";
+	status = "disabled";
+};
+
+&isp0_mmu {
+	status = "disabled";
 };
 
 &isp1_mmu {
 	status = "okay";
 };
 
-&pinctrl {
-	cam_mclk {
-		cam_default_pins: cam-default-pins {
-			rockchip,pins = <2 11 RK_FUNC_3 &pcfg_pull_none>;
+
+&i2c2 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+	clock-frequency=<400000>;
+
+	dw9714_1: dw9714_1@0c {
+		compatible = "silicon touch,dw9714";
+		status = "okay";
+		reg = <0x0c>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,vcm-start-current = <20>;
+		rockchip,vcm-rated-current = <120>;
+		rockchip,vcm-step-mode = <13>;
+	};
+	imx258_eeprom_1: imx258_eeprom@0x50 {
+		compatible = "otp,imx258_eeprom";
+		status = "okay";
+		reg = <0x50>;
+	};
+	imx258_1: imx258_1@10 {
+		compatible = "sony,imx258";
+		status = "okay";
+		reg = <0x10>;
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+		//conflict with csi-ctl-gpios
+		reset-gpios = <&gpio4 RK_PD2 GPIO_ACTIVE_LOW>;
+		pwdn-gpios = <&gpio4 RK_PD0 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&cif_clkout>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "GEIR180089";
+		rockchip,camera-module-lens-name = "LG500627G";
+		eeprom-ctrl = <&imx258_eeprom_1>;
+		lens-focus = <&dw9714_1>;
+		//flash-leds = <&sgm3784_led0 &sgm3784_led1>;
+		port {
+			ucam_out1: endpoint {
+				remote-endpoint = <&mipi_in_ucam1>;
+				data-lanes = <1 2 3 4>;
+			};
 		};
 	};
 };
 
-&i2c2 {
+&mipi_dphy_tx1rx1 {
 	status = "okay";
 
-	afc0: af-controller@0 {
-		status = "okay";
-		compatible = "dongwoon,dw9714-v4l2-i2c-subdev";
-		reg = <0x0C>;
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-		rockchip,vcm-start-current = <20>;
-		rockchip,vcm-rated-current = <76>;
-		rockchip,vcm-step-mode = <0>;
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_in_ucam1: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&ucam_out1>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dphy_tx1rx1_out: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&isp1_mipi_in>;
+			};
+		};
 	};
-
-	camera0: camera-module@10 {
-		status = "okay";
-		compatible = "sony,imx258-v4l2-i2c-subdev";
-		reg = <0x10>;
-		device_type = "v4l2-i2c-subdev";
-		clocks = <&cru SCLK_CIF_OUT>;
-		clock-names = "clk_cif_out";
-
-		pinctrl-names = "default";
-		pinctrl-0 = <&cam_default_pins>;
-
-		rockchip,pd-gpio = <&gpio4 RK_PD0 GPIO_ACTIVE_LOW>;
-		rockchip,rst-gpio = <&gpio4 RK_PD2 GPIO_ACTIVE_LOW>;
-
-		rockchip,camera-module-mclk-name = "clk_cif_out";
-		rockchip,camera-module-facing = "back";
-		rockchip,camera-module-name = "MDG001";
-		rockchip,camera-module-len-name = "NONE";
-		rockchip,camera-module-fov-h = "80";
-		rockchip,camera-module-fov-v = "65";
-		rockchip,camera-module-orientation = <0>;
-		rockchip,camera-module-iq-flip = <0>;
-		rockchip,camera-module-iq-mirror = <0>;
-		rockchip,camera-module-flip = <1>;
-		rockchip,camera-module-mirror = <1>;
-		rockchip,af-ctrl = <&afc0>;
-
-		rockchip,camera-module-defrect0 = <2096 1560 0 0 2096 1560>;
-		rockchip,camera-module-defrect1 = <4208 3120 0 0 4208 3120>;
-		rockchip,camera-module-flash-support = <0>;
-		rockchip,camera-module-mipi-dphy-index = <1>;
-		as-master = <0>;
-	};
-
 };
+
+&rkisp1_1 {
+	status = "okay";
+
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		isp1_mipi_in: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&dphy_tx1rx1_out>;
+		};
+	};
+};
+
 
