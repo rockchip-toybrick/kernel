@@ -51,7 +51,7 @@
 		enable-active-high;
 		//gpio = <&gpio2 6 GPIO_ACTIVE_HIGH>;// csq
 		pinctrl-names = "default";
-		pinctrl-0 = <&vcc_pcie_drv>;
+		//pinctrl-0 = <&vcc_pcie_drv>;
 		regulator-name = "vcc_pcie";
 		regulator-always-on;
 		regulator-boot-on;
