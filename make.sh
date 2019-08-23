@@ -14,10 +14,12 @@ function help()
 	echo "e.g. ./make.sh android prod"
 	echo "     ./make.sh android prop"
 	echo "     ./make.sh android 96ai"
+    echo "     ./make.sh android prox"
 	echo "     ./make.sh linux prod"
 	echo "     ./make.sh linux prop"
 	echo "     ./make.sh linux 96ai"
 	echo "     ./make.sh linux ivc"
+    echo "     ./make.sh linux prox"
 }
 
 if [ $# -lt 2 ];then
@@ -51,6 +53,9 @@ case $1 in
 			ivc)
 				DTB=rk3399pro-toybrick-96ai-ivc
 				;;
+            prox)
+                DTB=rk3399pro-toybrick-prox-linux
+                ;;
 			*)
 				help
 				exit 1
