@@ -43,6 +43,7 @@
 /dts-v1/;
 #include "rk3399pro-toybrick-prox.dtsi"
 #include "rk3399-android.dtsi"
+#include "rk3399pro-toybrick-prox-ov9750.dtsi"
 
 / {
 	compatible = "rockchip,rk3399pro-toybrick-prox-android","rockchip,rk3399pro";
