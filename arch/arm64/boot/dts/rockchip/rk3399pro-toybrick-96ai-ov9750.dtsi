@@ -40,62 +40,93 @@
  *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
-&cif_isp1 {
-	rockchip,camera-modules-attached = <&camera0>;
-	status = "okay";
+&isp0 {
+	status = "disabled";
+};
+ 
+&isp1 {
+	status = "disabled";
 };
 
-&isp1 {
-	status = "okay";
+&isp0_mmu {
+	status = "disabled";
 };
 
 &isp1_mmu {
 	status = "okay";
 };
 
-&pinctrl {
-	cam_mclk {
-		cam_default_pins: cam-default-pins {
-			rockchip,pins = <2 11 RK_FUNC_3 &pcfg_pull_none>;
+&i2c2 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+	clock-frequency=<400000>;
+
+	ov9750_1: ov9750_1@36 {//or 0x10 
+		compatible = "ovti,ov9750";
+		reg = <0x36>
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+		pwdn-gpios = <&gpio4 RK_PD0 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio4 RK_PD2 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cif_clkout>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-OT0854-FV1";
+		rockchip,camera-module-lens-name = "CHT-842B-MD";
+		port {
+			ucam_out1: endpoint {
+				remote-endpoint = <&mipi_in_ucam1>;
+				data-lanes = <1 2>;
+			};
 		};
 	};
 };
 
-&i2c2 {
+&mipi_dphy_tx1rx1 {
 	status = "okay";
 
-	camera0: camera-module@36 {
-		status = "okay";
-		compatible = "omnivision,ov9750-v4l2-i2c-subdev";
-		reg = <0x36>;
-		device_type = "v4l2-i2c-subdev";
-		clocks = <&cru SCLK_CIF_OUT>;
-		clock-names = "clk_cif_out";
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-		pinctrl-names = "default";
-		pinctrl-0 = <&cam_default_pins>;
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 
-		rockchip,pd-gpio = <&gpio4 RK_PD0 GPIO_ACTIVE_LOW>;
-		rockchip,rst-gpio = <&gpio4 RK_PD2 GPIO_ACTIVE_LOW>;
+			mipi_in_ucam1: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&ucam_out1>;
+				data-lanes = <1 2>;
+			};
+		};
 
-		rockchip,camera-module-mclk-name = "clk_cif_out";
-		rockchip,camera-module-facing = "back";
-		rockchip,camera-module-name = "MDG001";
-		rockchip,camera-module-len-name = "NONE";
-		rockchip,camera-module-fov-h = "80";
-		rockchip,camera-module-fov-v = "65";
-		rockchip,camera-module-orientation = <0>;
-		rockchip,camera-module-iq-flip = <0>;
-		rockchip,camera-module-iq-mirror = <0>;
-		rockchip,camera-module-flip = <1>;
-		rockchip,camera-module-mirror = <1>;
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 
-		rockchip,camera-module-defrect0 = <1280 960 0 0 1280 960>;
-		rockchip,camera-module-flash-support = <0>;
-		rockchip,camera-module-mipi-dphy-index = <1>;
-		as-master = <0>;
+			dphy_tx1rx1_out: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&isp1_mipi_in>;
+			};
+		};
 	};
+};
 
+&rkisp1_1 {
+	status = "okay";
+
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		isp1_mipi_in: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&dphy_tx1rx1_out>;
+		};
+	};
 };
 
