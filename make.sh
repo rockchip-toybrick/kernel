@@ -62,6 +62,7 @@ case $1 in
 		cp -f arch/arm64/boot/Image boot_linux/extlinux/
 		cp -f extlinux.conf boot_linux/extlinux/
 		cp -f initramfs-4.4-1.rockchip.fc28.aarch64.img boot_linux/
+		cp -f rescue.sh boot_linux/
 		if [ "`uname -i`" == "aarch64" ]; then
 			echo y | mke2fs -b 4096 -d boot_linux -i 8192 -t ext2 boot_linux.img $((64 * 1024 * 1024 / 4096))
 		else
