@@ -64,7 +64,7 @@
 
 	ov9750_1: ov9750_1@36 {//or 0x10 
 		compatible = "ovti,ov9750";
-		reg = <0x36>
+		reg = <0x36>;
 		clocks = <&cru SCLK_CIF_OUT>;
 		clock-names = "xvclk";
 		pwdn-gpios = <&gpio3 RK_PD7 GPIO_ACTIVE_HIGH>;
