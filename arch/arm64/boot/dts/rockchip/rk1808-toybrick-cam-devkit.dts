@@ -118,6 +118,20 @@
 
 };
 
+&cif {
+	status = "okay";
+
+	port {
+		cif_in: endpoint@0 {
+			remote-endpoint = <&vcamera_out>;
+		};
+	};
+};
+
+&cif_mmu {
+	status = "okay";
+};
+
 &cpu0 {
 	cpu-supply = <&vdd_cpu>;
 };
