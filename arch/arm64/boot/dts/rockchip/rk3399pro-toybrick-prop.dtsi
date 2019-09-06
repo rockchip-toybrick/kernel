@@ -84,7 +84,7 @@
 
 	usbhub_reset: usbhub-reset {
 		compatible = "usbhub-reset";
-		uhrst-gpio = <&gpio1 10 GPIO_ACTIVE_HIGH>;
+		uhrst-gpio = <&gpio4 RK_PC5 GPIO_ACTIVE_HIGH>;
         };
 
 	leds: gpio-leds {
