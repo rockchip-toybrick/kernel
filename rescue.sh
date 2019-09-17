@@ -6,13 +6,10 @@
 # mkdir /rootfs
 
 ######## step2: mount rootfs partition ########
-# In dual system, rootfs partition is /dev/mmcblk1p16
-# mount /dev/mmcblk1p16 /rootfs
-# In Linux system, rootfs partition is /dev/mmcblk1p4 
-# mount /dev/mmcblk1p4 /rootfs
+# mount /dev/disk/by-partlabel/rootfs rootfs
 
-######## step3: save or fix #########
-# Do something
+######## step3: system rescue #########
+# Do something for system rescue
 
 ######## step4: umount rootfs partition ########
 # umount rootfs
