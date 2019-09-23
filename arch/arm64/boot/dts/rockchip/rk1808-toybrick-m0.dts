@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2018 Fuzhou Rockchip Electronics Co., Ltd
+ */
+
+/dts-v1/;
+#include "rk1808-toybrick.dtsi"
+
+/ {
+	model = "Toybrick rk1808 compute module m0";
+	compatible = "rockchip,rk1808-toybrick-m0", "rockchip,rk1808";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0xff550000 console=ttyFIQ0 swiotlb=1 coherent_pool=1m swiotlb=1 kpti=0";
+	};
+
+	leds: gpio-leds {
+                compatible = "gpio-leds";
+                pinctrl-names = "default";
+                pinctrl-0 =<&leds_gpio>;
+
+                led@1 {
+                        gpios = <&gpio0 12 GPIO_ACTIVE_LOW>;
+                        label = "system_work_led1"; // blue
+                        retain-state-suspended;
+                };
+                led@2 {
+                        gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
+                        label = "system_work_led2";
+                        retain-state-suspended; // red
+                };
+                led@3 {
+                        gpios = <&gpio0 10 GPIO_ACTIVE_LOW>;
+                        label = "system_work_led3";
+                        retain-state-suspended; // green
+                };
+	};
+};
+
+&cpu0_opp_table {
+	opp-1296000000 {
+		status = "disabled";
+	};
+	opp-1416000000 {
+		status = "disabled";
+	};
+	opp-1512000000 {
+		status = "disabled";
+	};
+	opp-1608000000 {
+		status = "disabled";
+	};
+};
+
+&npu_opp_table {
+	opp-792000000 	{
+		status = "disabled";
+	};
+};
+
+&thermal_zones {
+	soc-thermal {
+		sustainable-power = <381>;
+
+		trips {
+			trip-point-0 {
+				temperature = <80000>;
+			};
+			trip-point-1 {
+				temperature = <85000>;
+			};
+		};
+		/delete-node/ cooling-maps;
+		cooling-maps {
+			map0 {
+				trip = <&target>;
+				cooling-device =
+					<&npu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+};
+
+&tsadc {
+	rockchip,hw-tshut-mode = <1>; /* tshut mode 0:CRU 1:GPIO */
+	rockchip,hw-tshut-polarity = <0>; /* tshut polarity 0:LOW 1:HIGH */
+	pinctrl-names = "gpio", "otpout";
+	pinctrl-0 = <&tsadc_otp_gpio>;
+	pinctrl-1 = <&tsadc_otp_out>;
+	status = "okay";
+};
+
+&pinctrl {
+        pinctrl-names = "default";
+
+	gpio-leds {
+                leds_gpio: leds-gpio {
+                        rockchip,pins =
+                                <0 10 RK_FUNC_GPIO &pcfg_pull_up>,
+                                <0 11 RK_FUNC_GPIO &pcfg_pull_up>,
+                                <0 12 RK_FUNC_GPIO &pcfg_pull_up>;
+                };
+        };
+};
+
