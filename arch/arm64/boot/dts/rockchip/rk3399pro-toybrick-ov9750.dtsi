@@ -53,7 +53,7 @@
 };
 
 &isp1_mmu {
-	status = "disabled";
+	status = "okay";
 };
 
 &i2c1 {
@@ -61,7 +61,7 @@
 	i2c-scl-rising-time-ns = <300>;
 	i2c-scl-falling-time-ns = <15>;
 	clock-frequency=<400000>;
-	ov9750: ov9750@36 {
+	ov9750: ov9750@36 {//0x10 B 0x36 SB
 		compatible = "ovti,ov9750";
 		reg = <0x36>;
 		clocks = <&cru SCLK_CIF_OUT>;
@@ -84,22 +84,22 @@
 };
 
 &i2c2 {
-	status = "disabled";
+	status = "okay";
 	i2c-scl-rising-time-ns = <300>;
 	i2c-scl-falling-time-ns = <15>;
 	clock-frequency=<400000>;
 
-	ov9750_1: ov9750_1@10 {
+	ov9750_1: ov9750_1@36 {//0x10 B 0x36 SB
 		compatible = "ovti,ov9750";
-		reg = <0x10>;
+		reg = <0x36>;
 		clocks = <&cru SCLK_CIF_OUT>;
 		clock-names = "xvclk";
 		pwdn-gpios = <&gpio3 RK_PD2 GPIO_ACTIVE_HIGH>;
 		reset-gpios = <&gpio3 RK_PD7 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&cif_clkout>;
-		rockchip,camera-module-index = <0>;
-		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-index = <1>;
+		rockchip,camera-module-facing = "front";
 		rockchip,camera-module-name = "CMK-OT0854-FV1";
 		rockchip,camera-module-lens-name = "CHT-842B-MD";
 		port {
@@ -144,7 +144,7 @@
 };
 
 &mipi_dphy_tx1rx1 {
-	status = "disabled";
+	status = "okay";
 
 	ports {
 		#address-cells = <1>;
@@ -190,7 +190,7 @@
 };
 
 &rkisp1_1 {
-	status = "disabled";
+	status = "okay";
 
 	port {
 		#address-cells = <1>;
