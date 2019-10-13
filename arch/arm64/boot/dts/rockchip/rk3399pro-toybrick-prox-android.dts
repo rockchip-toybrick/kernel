@@ -176,11 +176,11 @@
 };
 
 &isp0 {
-	status = "disabled";
+	status = "okay";
 };
 
 &isp1 {
-	status = "disabled";
+	status = "okay";
 };
 
 &isp0_mmu {
