@@ -5,6 +5,7 @@
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X01 add poweron function.
+ * V0.0X01.0X02 fix mclk issue when probe multiple camera.
  */
 
 #include <linux/clk.h>
@@ -25,7 +26,7 @@
 #include <linux/pinctrl/consumer.h>
 #include "imx258_eeprom_head.h"
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -963,7 +964,8 @@ static void imx258_get_module_inf(struct imx258 *imx258,
 		imx258->module_name,
 		sizeof(inf->base.module));
 	strlcpy(inf->base.lens, imx258->len_name, sizeof(inf->base.lens));
-	imx258_get_otp(otp, inf);
+	if (otp)
+		imx258_get_otp(otp, inf);
 }
 
 static void imx258_set_awb_cfg(struct imx258 *imx258,
@@ -1180,11 +1182,11 @@ static int __imx258_start_stream(struct imx258 *imx258)
 	mutex_lock(&imx258->mutex);
 	if (ret)
 		return ret;
-
-	ret = imx258_apply_otp(imx258);
-	if (ret)
-		return ret;
-
+	if (imx258->otp) {
+		ret = imx258_apply_otp(imx258);
+		if (ret)
+			return ret;
+	}
 	return imx258_write_reg(imx258->client,
 		IMX258_REG_CTRL_MODE,
 		IMX258_REG_VALUE_08BIT,
@@ -1292,13 +1294,16 @@ static int __imx258_power_on(struct imx258 *imx258)
 		if (ret < 0)
 			dev_err(dev, "could not set pins\n");
 	}
-
+	ret = clk_set_rate(imx258->xvclk, IMX258_XVCLK_FREQ);
+	if (ret < 0)
+		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
+	if (clk_get_rate(imx258->xvclk) != IMX258_XVCLK_FREQ)
+		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 	ret = clk_prepare_enable(imx258->xvclk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable xvclk\n");
 		return ret;
 	}
-
 	if (!IS_ERR(imx258->reset_gpio))
 		gpiod_set_value_cansleep(imx258->reset_gpio, 1);
 
@@ -1643,13 +1648,6 @@ static int imx258_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to get xvclk\n");
 		return -EINVAL;
 	}
-	ret = clk_set_rate(imx258->xvclk, IMX258_XVCLK_FREQ);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
-		return ret;
-	}
-	if (clk_get_rate(imx258->xvclk) != IMX258_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
 	imx258->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(imx258->reset_gpio))

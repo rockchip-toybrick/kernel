@@ -101,12 +101,12 @@ static struct hid_descriptor hidg_desc = {
 /* Super-Speed Support */
 
 static struct usb_endpoint_descriptor hidg_ss_in_ep_desc = {
-	.bLength                = USB_DT_ENDPOINT_SIZE,
-	.bDescriptorType        = USB_DT_ENDPOINT,
-	.bEndpointAddress       = USB_DIR_IN,
-	.bmAttributes           = USB_ENDPOINT_XFER_INT,
-	/*.wMaxPacketSize       = DYNAMIC */
-	.bInterval              = 4, /* FIXME: Add this field in the
+	.bLength		= USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType	= USB_DT_ENDPOINT,
+	.bEndpointAddress	= USB_DIR_IN,
+	.bmAttributes		= USB_ENDPOINT_XFER_INT,
+	/*.wMaxPacketSize	= DYNAMIC */
+	.bInterval		= 4, /* FIXME: Add this field in the
 				      * HID gadget configuration?
 				      * (struct hidg_func_descriptor)
 				      */
@@ -122,15 +122,15 @@ static struct usb_ss_ep_comp_descriptor hidg_ss_in_comp_desc = {
 };
 
 static struct usb_endpoint_descriptor hidg_ss_out_ep_desc = {
-	.bLength                = USB_DT_ENDPOINT_SIZE,
-	.bDescriptorType        = USB_DT_ENDPOINT,
-	.bEndpointAddress       = USB_DIR_OUT,
-	.bmAttributes           = USB_ENDPOINT_XFER_INT,
-	/*.wMaxPacketSize       = DYNAMIC */
-	.bInterval              = 4, /* FIXME: Add this field in the
-	* HID gadget configuration?
-	* (struct hidg_func_descriptor)
-	*/
+	.bLength		= USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType	= USB_DT_ENDPOINT,
+	.bEndpointAddress	= USB_DIR_OUT,
+	.bmAttributes		= USB_ENDPOINT_XFER_INT,
+	/*.wMaxPacketSize	= DYNAMIC */
+	.bInterval		= 4, /* FIXME: Add this field in the
+				      * HID gadget configuration?
+				      * (struct hidg_func_descriptor)
+				      */
 };
 
 static struct usb_ss_ep_comp_descriptor hidg_ss_out_comp_desc = {
@@ -151,8 +151,6 @@ static struct usb_descriptor_header *hidg_ss_descriptors[] = {
 	(struct usb_descriptor_header *)&hidg_ss_out_comp_desc,
 	NULL,
 };
-
-
 
 /* High-Speed Support */
 
@@ -701,11 +699,13 @@ static int hidg_bind(struct usb_configuration *c, struct usb_function *f)
 	hidg_interface_desc.bInterfaceSubClass = hidg->bInterfaceSubClass;
 	hidg_interface_desc.bInterfaceProtocol = hidg->bInterfaceProtocol;
 	hidg_ss_in_ep_desc.wMaxPacketSize = cpu_to_le16(hidg->report_length);
-	hidg_ss_in_comp_desc.wBytesPerInterval = cpu_to_le16(hidg->report_length);
+	hidg_ss_in_comp_desc.wBytesPerInterval =
+				cpu_to_le16(hidg->report_length);
 	hidg_hs_in_ep_desc.wMaxPacketSize = cpu_to_le16(hidg->report_length);
 	hidg_fs_in_ep_desc.wMaxPacketSize = cpu_to_le16(hidg->report_length);
 	hidg_ss_out_ep_desc.wMaxPacketSize = cpu_to_le16(hidg->report_length);
-	hidg_ss_out_comp_desc.wBytesPerInterval = cpu_to_le16(hidg->report_length);
+	hidg_ss_out_comp_desc.wBytesPerInterval =
+				cpu_to_le16(hidg->report_length);
 	hidg_hs_out_ep_desc.wMaxPacketSize = cpu_to_le16(hidg->report_length);
 	hidg_fs_out_ep_desc.wMaxPacketSize = cpu_to_le16(hidg->report_length);
 	/*
@@ -722,7 +722,7 @@ static int hidg_bind(struct usb_configuration *c, struct usb_function *f)
 		hidg_fs_out_ep_desc.bEndpointAddress;
 
 	hidg_ss_in_ep_desc.bEndpointAddress =
-                hidg_fs_in_ep_desc.bEndpointAddress;
+		hidg_fs_in_ep_desc.bEndpointAddress;
 	hidg_ss_out_ep_desc.bEndpointAddress =
 		hidg_fs_out_ep_desc.bEndpointAddress;
 

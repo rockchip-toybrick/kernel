@@ -157,15 +157,22 @@
 		};
 	};
 
-	hdmi_sound: hdmi-sound {
-		status = "okay";
-	};
-
 	ext_cam_clk: external-camera-clock {
 		compatible = "fixed-clock";
 		clock-frequency = <27000000>;
 		clock-output-names = "CLK_CAMERA_27MHZ";
 		#clock-cells = <0>;
+	};
+
+	/delete-node/ rt5651-sound;
+	rt5651_sound: rt5651-sound {
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "realtek,rt5651-codec";
+		rockchip,codec-hp-det;
+		rockchip,mclk-fs = <256>;
+		rockchip,cpu = <&i2s0>;
+		rockchip,codec = <&rt5651>;
+		status = "okay";
 	};
 
 	test_power: test-power {
@@ -197,7 +204,7 @@
 	};
 };
 
-&edp_in_vopl {
+&edp_in_vopb {
 	status = "disabled";
 };
 
@@ -210,7 +217,7 @@
 	status = "okay";
 };
 
-&hdmi_in_vopb {
+&hdmi_in_vopl {
 	status = "disabled";
 };
 

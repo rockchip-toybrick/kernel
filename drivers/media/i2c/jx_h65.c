@@ -51,7 +51,7 @@
 #define	ANALOG_GAIN_MIN			0x00
 #define	ANALOG_GAIN_MAX			0x7f
 #define	ANALOG_GAIN_STEP		1
-#define	ANALOG_GAIN_DEFAULT		0x30
+#define	ANALOG_GAIN_DEFAULT		0x0
 
 #define JX_H65_DIGI_GAIN_L_MASK		0x3f
 #define JX_H65_DIGI_GAIN_H_SHIFT	6
@@ -223,7 +223,6 @@ static const struct regval jx_h65_1280x720_regs[] = {
 	{0x90, 0x00},
 	{0x79, 0x00},
 	{0x13, 0x81},
-	{0x12, 0x00},
 	{0x45, 0x89},
 	{0x93, 0x68},
 	{REG_DELAY, 0x00},
@@ -322,7 +321,6 @@ static const struct regval jx_h65_1280x960_regs[] = {
 	{0x90, 0x00},
 	{0x79, 0x00},
 	{0x13, 0x81},
-	{0x12, 0x00},
 	{0x45, 0x89},
 	{0x93, 0x68},
 	{REG_DELAY, 0x00},
@@ -663,19 +661,6 @@ static int jx_h65_g_frame_interval(struct v4l2_subdev *sd,
 
 static int __jx_h65_start_stream(struct jx_h65 *jx_h65)
 {
-	int ret;
-
-	ret = jx_h65_write_array(jx_h65->client, jx_h65->cur_mode->reg_list);
-	if (ret)
-		return ret;
-
-	/* In case these controls are set before streaming */
-	mutex_unlock(&jx_h65->mutex);
-	ret = v4l2_ctrl_handler_setup(&jx_h65->ctrl_handler);
-	mutex_lock(&jx_h65->mutex);
-	if (ret)
-		return ret;
-
 	return jx_h65_write_reg(jx_h65->client, JX_H65_REG_CTRL_MODE,
 				JX_H65_MODE_STREAMING);
 }
@@ -742,6 +727,18 @@ static int jx_h65_s_power(struct v4l2_subdev *sd, int on)
 			goto unlock_and_return;
 		}
 
+		ret = jx_h65_write_array(jx_h65->client,
+					 jx_h65->cur_mode->reg_list);
+		if (ret)
+			goto unlock_and_return;
+
+		mutex_unlock(&jx_h65->mutex);
+		/* In case these controls are set before streaming */
+		ret = v4l2_ctrl_handler_setup(&jx_h65->ctrl_handler);
+		if (ret)
+			return ret;
+		mutex_lock(&jx_h65->mutex);
+
 		jx_h65->power_on = true;
 	} else {
 		pm_runtime_put(&client->dev);
@@ -781,6 +778,9 @@ static int __jx_h65_power_on(struct jx_h65 *jx_h65)
 		dev_err(dev, "Failed to enable regulators\n");
 		goto disable_clk;
 	}
+
+	/* According to datasheet, at least 10ms for reset duration */
+	usleep_range(10 * 1000, 15 * 1000);
 
 	if (!IS_ERR(jx_h65->reset_gpio))
 		gpiod_set_value_cansleep(jx_h65->reset_gpio, 0);
@@ -914,6 +914,7 @@ static int jx_h65_set_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_EXPOSURE:
+		dev_dbg(&client->dev, "set expo: val: %d\n", ctrl->val);
 		/* 4 least significant bits of expsoure are fractional part */
 		ret = jx_h65_write_reg(jx_h65->client,
 				JX_H65_AEC_PK_LONG_EXPO_HIGH_REG,
@@ -923,12 +924,14 @@ static int jx_h65_set_ctrl(struct v4l2_ctrl *ctrl)
 				JX_H65_FETCH_LOW_BYTE_EXP(ctrl->val));
 		break;
 	case V4L2_CID_ANALOGUE_GAIN:
+		dev_dbg(&client->dev, "set a-gain: val: %d\n", ctrl->val);
 		ret |= jx_h65_write_reg(jx_h65->client,
 			JX_H65_AEC_PK_LONG_GAIN_REG, ctrl->val);
 		break;
 	case V4L2_CID_DIGITAL_GAIN:
 		break;
 	case V4L2_CID_VBLANK:
+		dev_dbg(&client->dev, "set vblank: val: %d\n", ctrl->val);
 		ret |= jx_h65_write_reg(jx_h65->client, JX_H65_REG_HIGH_VTS,
 			JX_H65_FETCH_HIGH_BYTE_VTS((ctrl->val + jx_h65->cur_mode->height)));
 		ret |= jx_h65_write_reg(jx_h65->client, JX_H65_REG_LOW_VTS,
