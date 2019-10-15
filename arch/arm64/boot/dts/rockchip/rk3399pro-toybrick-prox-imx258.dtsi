@@ -119,7 +119,7 @@
 		rockchip,camera-module-defrect0 = <2096 1560 0 0 2096 1560>;
 		rockchip,camera-module-defrect1 = <4208 3120 0 0 4208 3120>;
 		rockchip,camera-module-flash-support = <0>;
-		rockchip,camera-module-mipi-dphy-index = <0>;
+		rockchip,camera-module-mipi-dphy-index = <1>;
 		as-master = <0>;
 	};
 
