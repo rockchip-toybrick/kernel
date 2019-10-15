@@ -58,6 +58,7 @@
 		   <&gpio4 RK_PD2 GPIO_ACTIVE_HIGH>;    /* GPIO4_D2 */
 };
 
+#if 0
 &dfi {
 	status = "disabled";
 };
@@ -138,6 +139,7 @@
 		status = "disabled";
 	};
 };
+#endif
 
 &route_hdmi {
         status = "disabled";

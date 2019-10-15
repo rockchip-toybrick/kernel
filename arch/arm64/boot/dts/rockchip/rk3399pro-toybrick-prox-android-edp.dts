@@ -84,6 +84,7 @@
     };
 };
 
+#if 0
 &dfi {
 	status = "disabled";
 };
@@ -164,6 +165,7 @@
 		status = "disabled";
 	};
 };
+#endif
 
 &dp_sound {
 	status = "okay";
