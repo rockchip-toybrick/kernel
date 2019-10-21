@@ -141,11 +141,11 @@
 	status = "okay";
 };
 
-&i2c0 {
-	rk809: pmic@20 {
-		pmic-reset-func = <1>;
-	};
-};
+//&i2c0 {
+	//rk809: pmic@20 {
+	//	pmic-reset-func = <1>;
+	//};
+//};
 
 &i2c4 {
 	status = "okay";

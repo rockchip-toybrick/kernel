@@ -49,9 +49,9 @@
 	vcc_pcie: vcc-pcie-regulator {
 		compatible = "regulator-fixed";
 		enable-active-high;
-		//gpio = <&gpio2 6 GPIO_ACTIVE_HIGH>;// csq
+		//gpio = <&gpio2 6 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&vcc_pcie_drv>;
+		//pinctrl-0 = <&vcc_pcie_drv>;
 		regulator-name = "vcc_pcie";
 		regulator-always-on;
 		regulator-boot-on;
@@ -120,7 +120,7 @@
 			label = "system_work_led3"; // Green LED
 			retain-state-suspended;
 		};
-        };
+	};
 
 	rk_headset {
 		compatible = "rockchip_headset";
@@ -128,6 +128,10 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&hp_det>;
 		io-channels = <&saradc 3>;
+	};
+	usbacm_video_control: usbacm-video-control {
+		compatible = "rockchip,usbacm-video-control";
+		status = "disabled";
 	};
 };
 
@@ -143,9 +147,82 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&rgmii_pins>;
 	tx_delay = <0x28>;
-	rx_delay = <0x11>;
+	rx_delay = <0x20>;
 	status = "okay";
 };
+
+&i2c0 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <180>;
+	i2c-scl-falling-time-ns = <30>;
+	clock-frequency = <400000>;
+	rk809: pmic@20 {
+		regulators {
+			vcc0v9_s3: LDO_REG1 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <900000>;
+				regulator-max-microvolt = <900000>;
+				regulator-name = "vcc0v9_s3";
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <900000>;
+				};
+			};
+			
+			vcca_0v9_s0: LDO_REG3 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <900000>;
+				regulator-max-microvolt = <900000>;
+
+				regulator-name = "vcca_0v9_s0";
+				regulator-state-mem {
+					regulator-off-in-suspend;
+				};
+			};
+
+			vdd1v8_dvp: LDO_REG5 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+
+				regulator-name = "vdd1v8_dvp";
+				regulator-state-mem {
+					regulator-off-in-suspend;
+				};
+			};
+
+			vccio_sd: LDO_REG8 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <3000000>;
+				regulator-max-microvolt = <3000000>;
+
+				regulator-name = "vccio_sd";
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <3000000>;
+				};
+			};
+
+			vcc_sd: LDO_REG9 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <3000000>;
+				regulator-max-microvolt = <3000000>;
+
+				regulator-name = "vcc_sd";
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <3000000>;
+				};
+			};
+		};
+	};
+};
+
 
 &i2c4 {
 	status = "okay";
@@ -186,7 +263,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&fusb0_int>;
 		int-n-gpios = <&gpio1 RK_PA2 GPIO_ACTIVE_HIGH>;
-		vbus-5v-gpios = <&gpio4 RK_PC5 GPIO_ACTIVE_LOW>;
+		vbus-5v-gpios = <&gpio4 RK_PC5 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
 };
@@ -194,31 +271,31 @@
 &usbdrd3_0 {
         extcon = <&fusb0>;
         status = "okay";
-};// csq
+};
 
 &usbdrd3_1 {
         status = "okay";
         pinctrl-names = "default";
-        pinctrl-0 = <&usb3_host_en>;
-};// csq
+		pinctrl-0 = <&usb3_host_en>;
+};
 
 &usbdrd_dwc3_0 {
         status = "okay";
-};// csq
+};
 
 &usbdrd_dwc3_1 {
         snps,dis-u3-autosuspend-quirk;
         status = "okay";
-};// csq
+};
 
 &tcphy0 {
 	extcon = <&fusb0>;
 	status = "okay";
-};// csq
+};
 
 &tcphy1 {
 	status = "okay";
-};// csq
+};
 
 &u2phy0 {
 	status = "okay";
@@ -248,7 +325,7 @@
 };
 
 &cdn_dp {
-	status = "okay";
+	status = "disabled";
 	extcon = <&fusb0>;
 	phys = <&tcphy0_dp>;
 };
@@ -274,6 +351,16 @@
 	status = "okay";
 };
 
+&i2s0 {
+	status = "okay";
+	rockchip,i2s-broken-burst-len;
+	rockchip,playback-channels = <8>;
+	rockchip,capture-channels = <8>;
+	dma-names ="rx";
+	dmas = <&dmac_bus 1>;
+	#sound-dai-cells = <0>;
+};
+
 &pinctrl {
 
 	fusb30x {
@@ -286,9 +373,9 @@
 	usb3 {
 		usb3_host_en: usb3-host-en {
 			rockchip,pins =
-				<2 RK_PA2 RK_FUNC_GPIO &pcfg_output_high>;
+				<1 RK_PB5 RK_FUNC_GPIO &pcfg_output_high>;
 		};
-	};// csq
+	};
 
 	leds_gpio: leds-gpio {
 		rockchip,pins =
@@ -303,13 +390,14 @@
 				<0 RK_PB5 0 &pcfg_pull_up>;
 		};
 	};
+	
 	/*
 	pcie {
 		vcc_pcie_drv: vcc-pcie-drv {
 			rockchip,pins =
 				<2 RK_PA6 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
-	};*/ // csq
+	};*/ 
 
 	touch {
 		mipi_touch_int: mipi-touch-int {

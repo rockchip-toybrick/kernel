@@ -43,13 +43,12 @@
 /dts-v1/;
 #include "rk3399pro-toybrick-prox.dtsi"
 #include "rk3399-android.dtsi"
-
 / {
 	compatible = "rockchip,rk3399pro-toybrick-prox-android","rockchip,rk3399pro";
 
-	chosen {
-		bootargs = "console=ttyFIQ0 androidboot.baseband=N/A androidboot.selinux=permissive androidboot.veritymode=enforcing androidboot.hardware=rk30board androidboot.console=ttyFIQ0 init=/init initrd=0x62000000,0x00800000 earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1";
-	};
+    chosen {
+        bootargs = "console=ttyFIQ0 androidboot.baseband=N/A androidboot.selinux=permissive androidboot.veritymode=enforcing androidboot.hardware=rk30board androidboot.console=ttyFIQ0 init=/init initrd=0x62000000,0x00800000 earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1";
+    };
 };
 
 &fiq_debugger {
@@ -63,25 +62,108 @@
 };
 
 &firmware_android {
-	compatible = "android,firmware";
-	fstab {
-		compatible = "android,fstab";
-		system {
-			compatible = "android,system";
-			dev = "/dev/block/by-name/system";
-			type = "ext4";
-			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
-			fsmgr_flags = "wait,verify";
-		};
-		vendor {
-			compatible = "android,vendor";
-			dev = "/dev/block/by-name/vendor";
-			type = "ext4";
-			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
-			fsmgr_flags = "wait,verify";
-		};
+    compatible = "android,firmware";
+    fstab {
+        compatible = "android,fstab";
+        system {
+            compatible = "android,system";
+            dev = "/dev/block/by-name/system";
+            type = "ext4";
+            mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+            fsmgr_flags = "wait,verify";
+        };
+        vendor {
+            compatible = "android,vendor";
+            dev = "/dev/block/by-name/vendor";
+            type = "ext4";
+            mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+            fsmgr_flags = "wait,verify";
+        };
+    };
+};
+
+#if 0
+&dfi {
+	status = "disabled";
+};
+
+&dmc {
+	status = "disabled";
+	center-supply = <&vdd_log>;
+	upthreshold = <40>;
+	downdifferential = <20>;
+	system-status-freq = <
+		/*system status         freq(KHz)*/
+		SYS_STATUS_NORMAL       800000
+		SYS_STATUS_REBOOT       528000
+		SYS_STATUS_SUSPEND      200000
+		SYS_STATUS_VIDEO_1080P  200000
+		SYS_STATUS_VIDEO_4K     600000
+		SYS_STATUS_VIDEO_4K_10B 800000
+		SYS_STATUS_PERFORMANCE  800000
+		SYS_STATUS_BOOST        400000
+		SYS_STATUS_DUALVIEW     600000
+		SYS_STATUS_ISP          600000
+	>;
+	vop-pn-msch-readlatency = <
+	/* plane_number  readlatency */
+		0	0
+		4	0x20
+	>;
+	vop-bw-dmc-freq = <
+	/* min_bw(MB/s) max_bw(MB/s) freq(KHz) */
+		0       762      200000
+		763     1893     400000
+		1894    3012     528000
+		3013    99999    800000
+	>;
+	auto-min-freq = <200000>;
+	auto-freq-en = <0>;
+};
+
+&dmc_opp_table {
+	compatible = "operating-points-v2";
+	opp-200000000 {
+		opp-hz = /bits/ 64 <200000000>;
+		opp-microvolt = <825000>;
+		status = "disabled";
+	};
+	opp-300000000 {
+		opp-hz = /bits/ 64 <300000000>;
+		opp-microvolt = <850000>;
+		status = "disabled";
+	};
+	opp-400000000 {
+		opp-hz = /bits/ 64 <400000000>;
+		opp-microvolt = <900000>;
+		status = "disabled";
+	};
+	opp-528000000 {
+		opp-hz = /bits/ 64 <528000000>;
+		opp-microvolt = <900000>;
+		status = "disabled";
+	};
+	opp-600000000 {
+		opp-hz = /bits/ 64 <600000000>;
+		opp-microvolt = <900000>;
+		status = "disabled";
+	};
+	opp-800000000 {
+		opp-hz = /bits/ 64 <800000000>;
+		opp-microvolt = <900000>;
+	};
+	opp-928000000 {
+		opp-hz = /bits/ 64 <928000000>;
+		opp-microvolt = <900000>;
+		status = "disabled";
+	};
+	opp-1056000000 {
+		opp-hz = /bits/ 64 <1056000000>;
+		opp-microvolt = <900000>;
+		status = "disabled";
 	};
 };
+#endif
 
 &dp_sound {
 	status = "okay";
@@ -93,6 +175,13 @@
 
 &hdmi_sound {
 	status = "okay";
+};
+
+&i2c1 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+	clock-frequency=<400000>;
 };
 
 &isp0 {

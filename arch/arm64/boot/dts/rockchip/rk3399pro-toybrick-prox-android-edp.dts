@@ -43,26 +43,45 @@
 /dts-v1/;
 #include "rk3399pro-toybrick-prox.dtsi"
 #include "rk3399-android.dtsi"
-#include "rk3399pro-toybrick-extboard.dtsi"
-#include "rk3399pro-toybrick-prox-ov9750.dtsi"
+#include "rk3399pro-toybrick-edp.dtsi"
 
 / {
-	compatible = "rockchip,rk3399pro-toybrick-prox-linux","rockchip,rk3399pro";
+	compatible = "rockchip,rk3399pro-toybrick-prox-android","rockchip,rk3399pro";
+
+    chosen {
+        bootargs = "console=ttyFIQ0 androidboot.baseband=N/A androidboot.selinux=permissive androidboot.veritymode=enforcing androidboot.hardware=rk30board androidboot.console=ttyFIQ0 init=/init initrd=0x62000000,0x00800000 earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1";
+    };
 };
 
-&sdio0 {
+&fiq_debugger {
+	pinctrl-0 = <&uart2c_xfer>;
+};
+
+&rk_key {
 	status = "okay";
+	io-channels = <&saradc 2>;
+	/delete-node/ power-key;
 };
 
-&spi5 {
-	status = "disabled";
-};
-
-&extbrd {
-	status = "okay";
-	io-channels = <&saradc 1>, <&saradc 5>;
-	ext-leds = <&gpio4 RK_PD1 GPIO_ACTIVE_LOW>,    /* GPIO4_D1 */
-			   <&gpio4 RK_PD2 GPIO_ACTIVE_LOW>;    /* GPIO4_D2 */
+&firmware_android {
+    compatible = "android,firmware";
+    fstab {
+        compatible = "android,fstab";
+        system {
+            compatible = "android,system";
+            dev = "/dev/block/by-name/system";
+            type = "ext4";
+            mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+            fsmgr_flags = "wait,verify";
+        };
+        vendor {
+            compatible = "android,vendor";
+            dev = "/dev/block/by-name/vendor";
+            type = "ext4";
+            mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+            fsmgr_flags = "wait,verify";
+        };
+    };
 };
 
 #if 0
@@ -148,8 +167,43 @@
 };
 #endif
 
+&dp_sound {
+	status = "okay";
+};
+
+&hdmi_dp_sound {
+	status = "disabled";
+};
+
+&hdmi_sound {
+	status = "okay";
+};
+
+&i2c1 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+	clock-frequency=<400000>;
+};
+
+&isp0 {
+	status = "okay";
+};
+
+&isp1 {
+	status = "okay";
+};
+
+&isp0_mmu {
+	status = "okay";
+};
+
+&isp1_mmu {
+	status = "okay";
+};
+
 &route_hdmi {
-        status = "disabled";
+	status = "disabled";
 };
 
 &route_dsi {
@@ -160,24 +214,3 @@
         status = "okay";
 };
 
-&dp_sound {
-        status = "disabled";
-};
-
-&hdmi_dp_sound {
-        status = "disabled";
-};
-
-&hdmi_sound {
-        status = "okay";
-};
-
-&fiq_debugger {
-        pinctrl-0 = <&uart2c_xfer>;
-};
-
-&rk_key {
-        status = "okay";
-        io-channels = <&saradc 2>;
-        /delete-node/ power-key;
-};

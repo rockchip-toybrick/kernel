@@ -45,24 +45,17 @@
 #include "rk3399-android.dtsi"
 #include "rk3399pro-toybrick-extboard.dtsi"
 #include "rk3399pro-toybrick-prox-ov9750.dtsi"
+#include "rk3399pro-toybrick-edp.dtsi"
 
 / {
 	compatible = "rockchip,rk3399pro-toybrick-prox-linux","rockchip,rk3399pro";
 };
 
-&sdio0 {
-	status = "okay";
-};
-
-&spi5 {
-	status = "disabled";
-};
-
 &extbrd {
 	status = "okay";
 	io-channels = <&saradc 1>, <&saradc 5>;
-	ext-leds = <&gpio4 RK_PD1 GPIO_ACTIVE_LOW>,    /* GPIO4_D1 */
-			   <&gpio4 RK_PD2 GPIO_ACTIVE_LOW>;    /* GPIO4_D2 */
+	ext-leds = <&gpio4 RK_PD1 GPIO_ACTIVE_HIGH>,    /* GPIO4_D1 */
+		   <&gpio4 RK_PD2 GPIO_ACTIVE_HIGH>;    /* GPIO4_D2 */
 };
 
 #if 0

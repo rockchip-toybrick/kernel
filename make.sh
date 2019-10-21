@@ -16,7 +16,14 @@ function help()
 	echo "   - prox: TB-RK3399ProX"
 	echo "   - 96ai: TB-96AI"
 	echo
-	echo "e.g. ./make.sh linux prod"
+	echo "e.g. ./make.sh android prod"
+	echo "     ./make.sh android prop"
+	echo "     ./make.sh android 96ai"
+	echo "     ./make.sh android prox"
+	echo "     ./make.sh linux prod"
+	echo "     ./make.sh linux prop"
+	echo "     ./make.sh linux 96ai"
+    echo "     ./make.sh linux prox"
 }
 
 function make_extlinux_conf()
@@ -58,6 +65,9 @@ case $1 in
 			96ai)
 				DTB=rk3399pro-toybrick-96ai-linux
 				;;
+			prox)
+                DTB=rk3399pro-toybrick-prox-linux
+                ;;
 			*)
 				help
 				exit 1

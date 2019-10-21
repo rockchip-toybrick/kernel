@@ -95,6 +95,20 @@
 	status = "okay";
 };
 
+&i2c1 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+	clock-frequency=<400000>;
+};
+
+&i2c2 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+	clock-frequency=<400000>;
+};
+
 &isp0 {
 	status = "okay";
 };
