@@ -50,6 +50,14 @@
 	compatible = "rockchip,rk3399pro-toybrick-prox-linux","rockchip,rk3399pro";
 };
 
+&sdio0 {
+	status = "okay";
+};
+
+&spi5 {
+	status = "disabled";
+};
+
 &extbrd {
 	status = "okay";
 	io-channels = <&saradc 1>, <&saradc 5>;
