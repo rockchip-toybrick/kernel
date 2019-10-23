@@ -598,6 +598,10 @@
 	status = "okay";
 };
 
+&uart1 {
+	status = "okay";
+};
+
 &sdio {
 	bus-width = <4>;
 	cap-sd-highspeed;
