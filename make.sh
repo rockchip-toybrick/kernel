@@ -44,7 +44,7 @@ case $1 in
 	android)
 		make rockchip_defconfig
 		make ARCH=arm64 rk3399pro-${DTB}-android.img -j${JOB}
-		;;
+        ;;
 	linux)
 		rm -rf boot_linux
 		mkdir -p boot_linux/extlinux
@@ -53,7 +53,6 @@ case $1 in
 		case $2 in
 			prod)
 				DTB=rk3399pro-toybrick-prod-linux
-				MODEL="TB-RK3399ProD"
 				make ARCH=arm64 ${DTB}-edp.img -j${JOB}
 				make ARCH=arm64 ${DTB}-mipi.img -j${JOB}
 				cp -f arch/arm64/boot/dts/rockchip/${DTB}-edp.dtb boot_linux/extlinux/toybrick-edp.dtb
@@ -67,6 +66,10 @@ case $1 in
 				;;
 			prox)
                 DTB=rk3399pro-toybrick-prox-linux
+				make ARCH=arm64 ${DTB}-edp.img -j${JOB}
+				make ARCH=arm64 ${DTB}-mipi.img -j${JOB}
+				cp -f arch/arm64/boot/dts/rockchip/${DTB}-edp.dtb boot_linux/extlinux/toybrick-edp.dtb
+				cp -f arch/arm64/boot/dts/rockchip/${DTB}-mipi.dtb boot_linux/extlinux/toybrick-mipi.dtb
                 ;;
 			*)
 				help
