@@ -44,6 +44,7 @@ case $1 in
 	android)
 		make rockchip_defconfig
 		make ARCH=arm64 rk3399pro-${DTB}-android.img -j${JOB}
+        ;;
 	linux)
 		rm -rf boot_linux
 		mkdir -p boot_linux/extlinux
