@@ -183,7 +183,7 @@
 &emmc {
 	bus-width = <8>;
 	cap-mmc-highspeed;
-	max-frequency = <100000000>;
+	max-frequency = <150000000>;
 	mmc-hs200-1_8v;
 	supports-emmc;
 	non-removable;
