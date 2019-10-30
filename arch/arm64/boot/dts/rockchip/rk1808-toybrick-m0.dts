@@ -37,30 +37,9 @@
 	};
 };
 
-&cpu0_opp_table {
-	opp-1296000000 {
-		status = "disabled";
-	};
-	opp-1416000000 {
-		status = "disabled";
-	};
-	opp-1512000000 {
-		status = "disabled";
-	};
-	opp-1608000000 {
-		status = "disabled";
-	};
-};
-
-&npu_opp_table {
-	opp-792000000 	{
-		status = "disabled";
-	};
-};
-
 &thermal_zones {
 	soc-thermal {
-		sustainable-power = <381>;
+		sustainable-power = <977>;
 
 		trips {
 			trip-point-0 {
