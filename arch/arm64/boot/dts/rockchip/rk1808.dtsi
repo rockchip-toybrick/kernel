@@ -1242,6 +1242,12 @@
 		status = "disabled";
 	};
 
+	msch: msch@0xfe801000 {
+		compatible = "msch-agingx0";
+		reg = <0x0 0xfe801000 0x0 0x10>;
+		status = "disabled";
+	};
+
 	dcf: dcf@ff640000 {
 		compatible = "syscon";
 		reg = <0x0 0xff640000 0x0 0x1000>;
