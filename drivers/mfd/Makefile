@@ -197,3 +197,4 @@ obj-$(CONFIG_INTEL_SOC_PMIC)	+= intel-soc-pmic.o
 obj-$(CONFIG_MFD_MT6397)	+= mt6397-core.o
 obj-$(CONFIG_FUSB_30X)		+= fusb302.o
 obj-$(CONFIG_MFD_RK1000)	+= rk1000-core.o
+obj-y				+= msch.o
