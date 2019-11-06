@@ -148,24 +148,27 @@
 		};
 	};
 
-	rk809-sound {
+	rk809_sound: rk809-sound {
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "rockchip,rk809-codec";
+		rockchip,codec-hp-det;
+		rockchip,mclk-fs = <256>;
+		rockchip,cpu = <&i2s1>;
+		rockchip,codec = <&rk809_codec>;
+	};
+
+	hdmi_sound: hdmi-sound {
+		status = "okay";
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
-		simple-audio-card,name = "rockchip,rk809-codec";
 		simple-audio-card,mclk-fs = <256>;
-		simple-audio-card,widgets =
-			"Microphone", "Mic Jack",
-			"Headphone", "Headphone Jack";
-		simple-audio-card,routing =
-			"Mic Jack", "MICBIAS1",
-			"IN1P", "Mic Jack",
-			"Headphone Jack", "HPOL",
-			"Headphone Jack", "HPOR";
+		simple-audio-card,name = "rockchip,hdmi";
+
 		simple-audio-card,cpu {
-			sound-dai = <&i2s1>;
+			sound-dai = <&i2s2>;
 		};
 		simple-audio-card,codec {
-			sound-dai = <&rk809_codec>;
+			sound-dai = <&hdmi>;
 		};
 	};
 
@@ -224,7 +227,7 @@
 		clock-names = "ext_clock";
 		uart_rts_gpios = <&gpio2 RK_PC3 GPIO_ACTIVE_LOW>;
 		pinctrl-names = "default", "rts_gpio";
-		pinctrl-0 = <&uart0_rts>;
+		pinctrl-0 = <&uart0_rts>, <&bt_irq_gpio>;
 		pinctrl-1 = <&uart0_gpios>;
 		BT,reset_gpio    = <&gpio2 RK_PD4 GPIO_ACTIVE_HIGH>;
 		BT,wake_gpio     = <&gpio2 RK_PD2 GPIO_ACTIVE_HIGH>;
@@ -286,7 +289,7 @@
 	};
 };
 
-&edp_in_vopl {
+&edp_in_vopb {
 	status = "disabled";
 };
 
@@ -321,6 +324,7 @@
 
 &hdmi {
 	status = "okay";
+	#sound-dai-cells = <0>;
 	rockchip,phy-table =
 		<74250000  0x8009 0x0004 0x0272>,
 		<165000000 0x802b 0x0004 0x0209>,
@@ -329,7 +333,7 @@
 		<000000000 0x0000 0x0000 0x0000>;
 };
 
-&hdmi_in_vopb {
+&hdmi_in_vopl {
 	status = "disabled";
 };
 
@@ -735,6 +739,28 @@
 			};
 		};
 	};
+	imx327: imx327@1a {
+		compatible = "sony,imx327";
+		status = "okay";
+		reg = <0x1a>;
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+		/* conflict with csi-ctl-gpios */
+		reset-gpios = <&gpio4 26 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio4 25 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cif_clkout>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "TongJu";
+		rockchip,camera-module-lens-name = "CHT842-MD";
+		port {
+			ucam_out2: endpoint {
+				remote-endpoint = <&mipi_in_ucam2>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
 };
 
 &i2c4 {
@@ -845,6 +871,12 @@
 				remote-endpoint = <&ucam_out0>;
 				data-lanes = <1 2>;
 			};
+
+			mipi_in_ucam2: endpoint@2 {
+				reg = <2>;
+				remote-endpoint = <&ucam_out2>;
+				data-lanes = <1 2>;
+			};
 		};
 
 		port@1 {
@@ -883,7 +915,8 @@
 
 &rkisp1_0 {
 	status = "okay";
-
+	assigned-clocks = <&cru PLL_NPLL>, <&cru SCLK_CIF_OUT_SRC>, <&cru SCLK_CIF_OUT>;
+	assigned-clock-rates = <594000000>, <594000000>, <37125000>;
 	port {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -1174,6 +1207,11 @@
 	};
 
 	wireless-bluetooth {
+		bt_irq_gpio: bt-irq-gpio {
+			rockchip,pins =
+				<0 RK_PA5 0 &pcfg_pull_down>;
+		};
+
 		uart0_gpios: uart0-gpios {
 			rockchip,pins =
 				<2 RK_PC3 0 &pcfg_pull_none>;

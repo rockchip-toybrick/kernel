@@ -3,6 +3,9 @@
  * gc2155 driver
  *
  * Copyright (C) 2018 Fuzhou Rockchip Electronics Co., Ltd.
+ *
+ * V0.0X01.0X01 add poweron function.
+ * V0.0X01.0X02 fix mclk issue when probe multiple camera.
  */
 
 #include <linux/clk.h>
@@ -13,11 +16,15 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/slab.h>
+#include <linux/version.h>
 #include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
+
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
 
 #define REG_CHIP_ID_H			0xf0
 #define REG_CHIP_ID_L			0xf1
@@ -57,6 +64,7 @@ struct gc2155 {
 	struct regulator_bulk_data supplies[GC2155_NUM_SUPPLIES];
 
 	bool			streaming;
+	bool			power_on;
 	struct mutex		mutex; /* lock to serialize v4l2 callback */
 	struct v4l2_subdev	subdev;
 	struct media_pad	pad;
@@ -1063,12 +1071,15 @@ static int __gc2155_power_on(struct gc2155 *gc2155)
 		return ret;
 	}
 
-	if (!IS_ERR(gc2155->xvclk)) {
-		ret = clk_prepare_enable(gc2155->xvclk);
-		if (ret < 0) {
-			dev_err(dev, "Failed to enable xvclk\n");
-			return ret;
-		}
+	ret = clk_set_rate(gc2155->xvclk, GC2155_XVCLK_FREQ);
+	if (ret < 0)
+		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
+	if (clk_get_rate(gc2155->xvclk) != GC2155_XVCLK_FREQ)
+		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
+	ret = clk_prepare_enable(gc2155->xvclk);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable xvclk\n");
+		return ret;
 	}
 
 	if (!IS_ERR(gc2155->pwdn_gpio))
@@ -1182,12 +1193,6 @@ static int gc2155_s_stream(struct v4l2_subdev *sd, int on)
 			goto unlock_and_return;
 		}
 
-		ret = gc2155_write_array(gc2155->client, gc2155_global_regs);
-		if (ret) {
-			pm_runtime_put(&client->dev);
-			goto unlock_and_return;
-		}
-
 		ret = gc2155_write_array(gc2155->client,
 					  gc2155->cur_mode->reg_list);
 		if (ret) {
@@ -1200,6 +1205,44 @@ static int gc2155_s_stream(struct v4l2_subdev *sd, int on)
 	}
 
 	gc2155->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&gc2155->mutex);
+
+	return ret;
+}
+
+static int gc2155_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct gc2155 *gc2155 = to_gc2155(sd);
+	struct i2c_client *client = gc2155->client;
+	int ret = 0;
+
+	mutex_lock(&gc2155->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (gc2155->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = gc2155_write_array(gc2155->client, gc2155_global_regs);
+		if (ret) {
+			v4l2_err(sd, "could not set init registers\n");
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		gc2155->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		gc2155->power_on = false;
+	}
 
 unlock_and_return:
 	mutex_unlock(&gc2155->mutex);
@@ -1255,6 +1298,7 @@ static const struct dev_pm_ops gc2155_pm_ops = {
 };
 
 static const struct v4l2_subdev_core_ops gc2155_core_ops = {
+	.s_power = gc2155_s_power,
 	.ioctl = gc2155_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = gc2155_compat_ioctl32,
@@ -1326,6 +1370,11 @@ static int gc2155_probe(struct i2c_client *client,
 	char facing[2];
 	int ret;
 
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
+
 	gc2155 = devm_kzalloc(dev, sizeof(*gc2155), GFP_KERNEL);
 	if (!gc2155)
 		return -ENOMEM;
@@ -1351,13 +1400,6 @@ static int gc2155_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to get xvclk\n");
 		return -EINVAL;
 	}
-	ret = clk_set_rate(gc2155->xvclk, GC2155_XVCLK_FREQ);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
-		return ret;
-	}
-	if (clk_get_rate(gc2155->xvclk) != GC2155_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
 	gc2155->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(gc2155->reset_gpio))

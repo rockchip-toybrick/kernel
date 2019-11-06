@@ -1380,6 +1380,11 @@ if BLK_DEV_INITRD
 
 source "usr/Kconfig"
 
+config INITRD_ASYNC
+	bool "Initrd async"
+	help
+	  Init ramdisk async, can reduce kernel init time.
+
 endif
 
 choice
@@ -1782,6 +1787,11 @@ config VM_EVENT_COUNTERS
 	  This option allows the disabling of the VM event counters
 	  on EXPERT systems.  /proc/vmstat will only show page counts
 	  if VM event counters are disabled.
+
+config SLUB_SYSFS
+	bool "Enable SLUB sysfs interface"
+	depends on SLUB && SYSFS
+	default y
 
 config SLUB_DEBUG
 	default y

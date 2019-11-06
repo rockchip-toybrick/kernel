@@ -3,6 +3,9 @@
  * ov2718 driver
  *
  * Copyright (C) 2018 Fuzhou Rockchip Electronics Co., Ltd.
+ *
+ * V0.0X01.0X01 add poweron function.
+ * V0.0X01.0X02 fix mclk issue when probe multiple camera.
  */
 
 #include <linux/clk.h>
@@ -14,6 +17,8 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/slab.h>
+#include <linux/version.h>
 #include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
@@ -28,6 +33,8 @@
 #include <linux/of_gpio.h>
 #include <linux/mfd/syscon.h>
 #include <linux/rk-preisp.h>
+
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -147,6 +154,7 @@ struct ov2718 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	bool			has_devnode;
 	const struct ov2718_mode *cur_mode;
 	const struct ov2718_mode *support_modes;
@@ -4443,6 +4451,37 @@ static long ov2718_compat_ioctl32(struct v4l2_subdev *sd,
 }
 #endif
 
+static int ov2718_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct ov2718 *ov2718 = to_ov2718(sd);
+	struct i2c_client *client = ov2718->client;
+	int ret = 0;
+
+	mutex_lock(&ov2718->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (ov2718->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ov2718->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		ov2718->power_on = false;
+	}
+
+unlock_and_return:
+	mutex_unlock(&ov2718->mutex);
+
+	return ret;
+}
+
 /* Calculate the delay in us by clock rate and clock cycles */
 static inline u32 ov2718_cal_delay(u32 cycles)
 {
@@ -4463,13 +4502,16 @@ static int __ov2718_power_on(struct ov2718 *ov2718)
 		if (ret < 0)
 			dev_err(dev, "could not set pins\n");
 	}
-
+	ret = clk_set_rate(ov2718->xvclk, OV2718_XVCLK_FREQ);
+	if (ret < 0)
+		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
+	if (clk_get_rate(ov2718->xvclk) != OV2718_XVCLK_FREQ)
+		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 	ret = clk_prepare_enable(ov2718->xvclk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable xvclk\n");
 		return ret;
 	}
-
 	if (ov2718->regulators.regulator) {
 		for (i = 0; i < ov2718->regulators.cnt; i++) {
 			regulator = ov2718->regulators.regulator + i;
@@ -4617,6 +4659,7 @@ static const struct v4l2_subdev_pad_ops ov2718_pad_ops = {
 };
 
 static const struct v4l2_subdev_core_ops ov2718_core_ops = {
+	.s_power = ov2718_s_power,
 	.ioctl = ov2718_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = ov2718_compat_ioctl32,
@@ -4851,6 +4894,10 @@ static int ov2718_check_sensor_id(struct ov2718 *ov2718,
 		usleep_range(1000, 2000);
 		continue;
 	}
+
+	if (id != CHIP_ID)
+		return -ENODEV;
+
 	dev_info(dev, "Detected OV%06x sensor\n", CHIP_ID);
 
 	return 0;
@@ -4858,7 +4905,6 @@ static int ov2718_check_sensor_id(struct ov2718 *ov2718,
 
 static int ov2718_analyze_dts(struct ov2718 *ov2718)
 {
-	int ret;
 	int elem_size, elem_index;
 	const char *str = "";
 	struct property *prop;
@@ -4871,13 +4917,6 @@ static int ov2718_analyze_dts(struct ov2718 *ov2718)
 		dev_err(dev, "Failed to get xvclk\n");
 		return -EINVAL;
 	}
-	ret = clk_set_rate(ov2718->xvclk, OV2718_XVCLK_FREQ);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
-		return ret;
-	}
-	if (clk_get_rate(ov2718->xvclk) != OV2718_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
 	ov2718->pinctrl = devm_pinctrl_get(dev);
 	if (!IS_ERR(ov2718->pinctrl)) {
@@ -4989,6 +5028,11 @@ static int ov2718_probe(struct i2c_client *client,
 	struct v4l2_subdev *sd;
 	char facing[2];
 	int ret;
+
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
 
 	ov2718 = devm_kzalloc(dev, sizeof(*ov2718), GFP_KERNEL);
 	if (!ov2718)

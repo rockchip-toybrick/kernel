@@ -168,49 +168,65 @@ static int rga2_buf_size_cal(unsigned long yrgb_addr, unsigned long uv_addr, uns
             stride = (w * 4 + 3) & (~3);
             size_yrgb = stride*h;
             start = yrgb_addr >> PAGE_SHIFT;
-            pageCount = (size_yrgb + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	    end = yrgb_addr + size_yrgb;
+	    end = (end + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+	    pageCount = end - start;
             break;
         case RGA2_FORMAT_RGBX_8888 :
             stride = (w * 4 + 3) & (~3);
             size_yrgb = stride*h;
             start = yrgb_addr >> PAGE_SHIFT;
-            pageCount = (size_yrgb + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	    end = yrgb_addr + size_yrgb;
+	    end = (end + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+	    pageCount = end - start;
             break;
         case RGA2_FORMAT_RGB_888 :
             stride = (w * 3 + 3) & (~3);
             size_yrgb = stride*h;
             start = yrgb_addr >> PAGE_SHIFT;
-            pageCount = (size_yrgb + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	    end = yrgb_addr + size_yrgb;
+	    end = (end + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+	    pageCount = end - start;
             break;
         case RGA2_FORMAT_BGRA_8888 :
             stride = (w * 4 + 3) & (~3);
             size_yrgb = stride * h;
             start = yrgb_addr >> PAGE_SHIFT;
-            pageCount = (size_yrgb + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	    end = yrgb_addr + size_yrgb;
+	    end = (end + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+	    pageCount = end - start;
             break;
         case RGA2_FORMAT_RGB_565 :
             stride = (w*2 + 3) & (~3);
             size_yrgb = stride * h;
             start = yrgb_addr >> PAGE_SHIFT;
-            pageCount = (size_yrgb + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	    end = yrgb_addr + size_yrgb;
+	    end = (end + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+	    pageCount = end - start;
             break;
         case RGA2_FORMAT_RGBA_5551 :
             stride = (w*2 + 3) & (~3);
             size_yrgb = stride * h;
             start = yrgb_addr >> PAGE_SHIFT;
-            pageCount = (size_yrgb + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	    end = yrgb_addr + size_yrgb;
+	    end = (end + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+	    pageCount = end - start;
             break;
         case RGA2_FORMAT_RGBA_4444 :
             stride = (w*2 + 3) & (~3);
             size_yrgb = stride * h;
             start = yrgb_addr >> PAGE_SHIFT;
-            pageCount = (size_yrgb + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	    end = yrgb_addr + size_yrgb;
+	    end = (end + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+	    pageCount = end - start;
             break;
         case RGA2_FORMAT_BGR_888 :
             stride = (w*3 + 3) & (~3);
             size_yrgb = stride * h;
             start = yrgb_addr >> PAGE_SHIFT;
-            pageCount = (size_yrgb + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	    end = yrgb_addr + size_yrgb;
+	    end = (end + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+	    pageCount = end - start;
             break;
 
         /* YUV FORMAT */
@@ -260,6 +276,32 @@ static int rga2_buf_size_cal(unsigned long yrgb_addr, unsigned long uv_addr, uns
             end = (end + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
             pageCount = end - start;
             break;
+	case RGA2_FORMAT_YVYU_422:
+	case RGA2_FORMAT_VYUY_422:
+	case RGA2_FORMAT_YUYV_422:
+	case RGA2_FORMAT_UYVY_422:
+		stride = (w + 3) & (~3);
+		size_yrgb = stride * h;
+		size_uv = stride * h;
+		start = MIN(yrgb_addr, uv_addr);
+		start >>= PAGE_SHIFT;
+		end = MAX((yrgb_addr + size_yrgb), (uv_addr + size_uv));
+		end = (end + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+		pageCount = end - start;
+		break;
+	case RGA2_FORMAT_YVYU_420:
+	case RGA2_FORMAT_VYUY_420:
+	case RGA2_FORMAT_YUYV_420:
+	case RGA2_FORMAT_UYVY_420:
+		stride = (w + 3) & (~3);
+		size_yrgb = stride * h;
+		size_uv = (stride * (h >> 1));
+		start = MIN(yrgb_addr, uv_addr);
+		start >>= PAGE_SHIFT;
+		end = MAX((yrgb_addr + size_yrgb), (uv_addr + size_uv));
+		end = (end + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+		pageCount = end - start;
+		break;
         #if 0
         case RK_FORMAT_BPP1 :
             break;
@@ -350,11 +392,11 @@ static int rga2_UserMemory_cheeck(struct page **pages, u32 w, u32 h, u32 format,
 		tai_vaddr = (int *)vaddr + taidata_num / 4 - 1;
 	}
 	if (flag == 1) {
-		printk(KERN_DEBUG "src user memory check\n");
-		printk(KERN_DEBUG "tai data is %d\n", *tai_vaddr);
+		pr_info("src user memory check\n");
+		pr_info("tai data is %d\n", *tai_vaddr);
 	} else {
-		printk(KERN_DEBUG "dst user memory check\n");
-		printk(KERN_DEBUG "tai data is %d\n", *tai_vaddr);
+		pr_info("dst user memory check\n");
+		pr_info("tai data is %d\n", *tai_vaddr);
 	}
 	if (taidata_num == 0)
 		kunmap(pages[taipage_num - 1]);
@@ -384,7 +426,11 @@ static int rga2_MapUserMemory(struct page **pages, uint32_t *pageTable,
 	status = 0;
 	Address = 0;
 	down_read(&current->mm->mmap_sem);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 168) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+	result = get_user_pages(current, current->mm, Memory << PAGE_SHIFT,
+				pageCount, writeFlag ? FOLL_WRITE : 0,
+				pages, NULL);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
 	result = get_user_pages(current, current->mm, Memory << PAGE_SHIFT,
 				pageCount, writeFlag, 0, pages, NULL);
 #else
@@ -397,9 +443,6 @@ static int rga2_MapUserMemory(struct page **pages, uint32_t *pageTable,
 		for (i = 0; i < pageCount; i++) {
 			/* Get the physical address from page struct. */
 			pageTable[i] = page_to_phys(pages[i]);
-			/* ensure dst not flush null cache */
-			if (writeFlag && i >= pageCount - 2)
-				break;
 			rga_dma_flush_page(pages[i]);
 		}
 		for (i = 0; i < result; i++)
@@ -438,7 +481,7 @@ static int rga2_MapUserMemory(struct page **pages, uint32_t *pageTable,
 		pte = pte_offset_map_lock(current->mm, pmd,
 					  (Memory + i) << PAGE_SHIFT,
 					  &ptl);
-		if (!pte) {
+		if (pte_none(*pte)) {
 			pr_err("RGA2 failed to get pte\n");
 			pte_unmap_unlock(pte, ptl);
 			status = RGA2_OUT_OF_RESOURCES;
@@ -447,11 +490,9 @@ static int rga2_MapUserMemory(struct page **pages, uint32_t *pageTable,
 		pfn = pte_pfn(*pte);
 		Address = ((pfn << PAGE_SHIFT) | (((unsigned long)((Memory + i)
 			   << PAGE_SHIFT)) & ~PAGE_MASK));
-		pte_unmap_unlock(pte, ptl);
 		pageTable[i] = (uint32_t)Address;
-		if ( writeFlag && (i >= pageCount - 2))
-			break;
 		rga_dma_flush_page(pfn_to_page(pfn));
+		pte_unmap_unlock(pte, ptl);
 	}
 	up_read(&current->mm->mmap_sem);
 	return status;
@@ -550,8 +591,6 @@ static int rga2_mmu_info_BitBlt_mode(struct rga2_reg *reg, struct rga2_req *req)
 						 req->dst.vir_w,
 						 req->dst.vir_h,
 						 &DstStart);
-		/* if vir_address not 4k align need more page */
-		DstPageCount += 2;
 		if (DstPageCount == 0)
 			return -EINVAL;
 	}
