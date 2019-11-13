@@ -160,42 +160,36 @@
 
 #if 0
 &dfi {
-	status = "disabled";
+	status = "okay";
 };
 
 &dmc {
-	status = "disabled";
-	center-supply = <&vdd_log>;
+	compatible = "rockchip,rk3399-dmc";
+	devfreq-events = <&dfi>;
+	interrupts = <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH 0>;
+	clocks = <&cru SCLK_DDRCLK>;
+	clock-names = "dmc_clk";
+	ddr_timing = <&ddr_timing>;
 	upthreshold = <40>;
 	downdifferential = <20>;
 	system-status-freq = <
-		/*system status         freq(KHz)*/
-		SYS_STATUS_NORMAL       800000
-		SYS_STATUS_REBOOT       528000
-		SYS_STATUS_SUSPEND      200000
-		SYS_STATUS_VIDEO_1080P  200000
-		SYS_STATUS_VIDEO_4K     600000
+		/*system status 		freq(KHz)*/
+		SYS_STATUS_NORMAL		800000
+		SYS_STATUS_REBOOT		528000
+		SYS_STATUS_SUSPEND		200000
+		SYS_STATUS_VIDEO_1080P	300000
+		SYS_STATUS_VIDEO_4K 	600000
 		SYS_STATUS_VIDEO_4K_10B 800000
-		SYS_STATUS_PERFORMANCE  800000
-		SYS_STATUS_BOOST        400000
-		SYS_STATUS_DUALVIEW     600000
-		SYS_STATUS_ISP          600000
+		SYS_STATUS_PERFORMANCE	800000
+		SYS_STATUS_BOOST		400000
+		SYS_STATUS_DUALVIEW 	600000
+		SYS_STATUS_ISP			600000
 	>;
-	vop-pn-msch-readlatency = <
-	/* plane_number  readlatency */
-		0	0
-		4	0x20
-	>;
-	vop-bw-dmc-freq = <
-	/* min_bw(MB/s) max_bw(MB/s) freq(KHz) */
-		0       762      200000
-		763     1893     400000
-		1894    3012     528000
-		3013    99999    800000
-	>;
-	auto-min-freq = <200000>;
-	auto-freq-en = <0>;
+	auto-min-freq = <400000>;
+	auto-freq-en = <1>;
+	status = "okay";
 };
+
 
 &dmc_opp_table {
 	compatible = "operating-points-v2";
@@ -212,7 +206,7 @@
 	opp-400000000 {
 		opp-hz = /bits/ 64 <400000000>;
 		opp-microvolt = <900000>;
-		status = "disabled";
+		status = "okay";
 	};
 	opp-528000000 {
 		opp-hz = /bits/ 64 <528000000>;
@@ -227,16 +221,6 @@
 	opp-800000000 {
 		opp-hz = /bits/ 64 <800000000>;
 		opp-microvolt = <900000>;
-	};
-	opp-928000000 {
-		opp-hz = /bits/ 64 <928000000>;
-		opp-microvolt = <900000>;
-		status = "disabled";
-	};
-	opp-1056000000 {
-		opp-hz = /bits/ 64 <1056000000>;
-		opp-microvolt = <900000>;
-		status = "disabled";
 	};
 };
 #endif
