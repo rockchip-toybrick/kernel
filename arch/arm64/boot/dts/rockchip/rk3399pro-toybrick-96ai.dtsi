@@ -87,11 +87,6 @@
 		status = "okay";
 	};
 
-	usbhub_reset: usbhub-reset {
-		compatible = "usbhub-reset";
-		uhrst-gpio = <&gpio4 21 GPIO_ACTIVE_HIGH>;
-        };
-
 	leds: gpio-leds {
 		compatible = "gpio-leds";
 		pinctrl-names = "default";
