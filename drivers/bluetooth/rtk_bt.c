@@ -51,6 +51,21 @@ DEFINE_SEMAPHORE(switch_sem);
 static bool reset = 0;
 #endif
 
+#ifdef RTKBT_ERR
+#undef RTKBT_ERR
+#define RTKBT_ERR(x...)
+#endif
+
+#ifdef RTKBT_DBG
+#undef RTKBT_DBG
+#define RTKBT_DBG(x...)
+#endif
+
+#ifdef RTKBT_INFO
+#undef RTKBT_INFO
+#define RTKBT_INFO(x...)
+#endif
+
 static struct usb_driver btusb_driver;
 static struct usb_device_id btusb_table[] = {
 	{

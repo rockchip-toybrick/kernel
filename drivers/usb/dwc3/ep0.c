@@ -987,6 +987,7 @@ static void __dwc3_ep0_do_control_data(struct dwc3 *dwc,
 			dwc3_trace(trace_dwc3_ep0, "failed to map request");
 			return;
 		}
+		req->mapped = 1;
 
 		maxpacket = dep->endpoint.maxpacket;
 
@@ -1016,6 +1017,7 @@ static void __dwc3_ep0_do_control_data(struct dwc3 *dwc,
 			dwc3_trace(trace_dwc3_ep0, "failed to map request");
 			return;
 		}
+		req->mapped = 1;
 
 		dwc3_ep0_prepare_one_trb(dwc, dep->number, req->request.dma,
 				req->request.length, DWC3_TRBCTL_CONTROL_DATA,
@@ -1107,8 +1109,22 @@ static void dwc3_ep0_xfernotready(struct dwc3 *dwc,
 		dwc->ep0state = EP0_STATUS_PHASE;
 
 		if (dwc->delayed_status) {
+			struct dwc3_ep *dep = dwc->eps[0];
+
 			WARN_ON_ONCE(event->endpoint_number != 1);
 			dwc3_trace(trace_dwc3_ep0, "Delayed Status");
+			/*
+			 * We should handle the delay STATUS phase here if the
+			 * request for handling delay STATUS has been queued
+			 * into the list.
+			 */
+			if (!list_empty(&dep->pending_list)) {
+				dwc->delayed_status = false;
+				usb_gadget_set_state(&dwc->gadget,
+						     USB_STATE_CONFIGURED);
+				dwc3_ep0_do_control_status(dwc, event);
+			}
+
 			return;
 		}
 

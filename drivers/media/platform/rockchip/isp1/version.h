@@ -35,8 +35,27 @@
  *21. check for capture S_FMT;
  *22. raw patch with default sensor fmt&size;
  *
+ *v0.1.2:
+ *1. fix reset on too high isp_clk rate will result in bus dead;
+ *2. add RKMODULE_LSC_CFG ioctl;
+ *
+ *v0.1.3:
+ *1. fix wrong RG10 format
+ *2. clear unready subdevice when kernel boot complete
+ *3. fix diff isp ver to get frame num
+ *4. enable af awb irq
+ *
+ *v0.1.4:
+ *1. add dmarx patch;
+ *2. fix get zero data when start stream again;
+ *3. add pipeline power management;
+ *
+ *v0.1.5:
+ *1. fix kernel reboot in monkey test;
+ *2. fix raw patch wrong RG10 format;
+ *3. fix isp iommu work after suspend;
  */
 
-#define RKISP1_DRIVER_VERSION KERNEL_VERSION(0, 1, 0x1)
+#define RKISP1_DRIVER_VERSION KERNEL_VERSION(0, 1, 0x5)
 
 #endif

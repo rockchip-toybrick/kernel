@@ -1084,6 +1084,11 @@ dhdsdio_clk_kso_enab(dhd_bus_t *bus, bool on)
 		if (((rd_val & bmask) == cmp_val) && !err)
 			break;
 
+		if (bus->dhd->disabling && try_cnt > 10) {
+			printf("%s: break due to wlan0 disabling\n", __FUNCTION__);
+			break;
+		}
+
 		KSO_DBG(("%s> KSO wr/rd retry:%d, ERR:%x \n", __FUNCTION__, try_cnt, err));
 
 		if (((try_cnt + 1) % KSO_SLEEP_RETRY_COUNT) == 0) {
@@ -7567,6 +7572,11 @@ dhd_bus_console_in(dhd_pub_t *dhdp, uchar *msg, uint msglen)
 	val = htol32(msglen);
 	if ((rv = dhdsdio_membytes(bus, TRUE, addr, (uint8 *)&val, sizeof(val))) < 0)
 		goto done;
+
+	if (!DATAOK(bus)) {
+		rv = BCME_NOTREADY;
+		goto done;
+	}
 
 	/* Bump dongle by sending an empty packet on the event channel.
 	 * sdpcm_sendup (RX) checks for virtual console input.

@@ -215,7 +215,7 @@ static int rkisp1_stats_init_vb2_queue(struct vb2_queue *q,
 	q->mem_ops = &vb2_vmalloc_memops;
 	q->buf_struct_size = sizeof(struct rkisp1_buffer);
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
-	q->lock = &node->vlock;
+	q->lock = &stats_vdev->dev->iqlock;
 
 	return vb2_queue_init(q);
 }
@@ -480,7 +480,7 @@ rkisp1_stats_send_measurement(struct rkisp1_isp_stats_vdev *stats_vdev,
 
 	cur_stat_buf =
 		(struct rkisp1_stat_buffer *)(cur_buf->vaddr[0]);
-
+	memset(cur_stat_buf, 0, sizeof(*cur_stat_buf));
 	cur_stat_buf->frame_id = cur_frame_id;
 	if (meas_work->isp_ris & CIF_ISP_AWB_DONE) {
 		ops->get_awb_meas(stats_vdev, cur_stat_buf);
@@ -503,13 +503,14 @@ rkisp1_stats_send_measurement(struct rkisp1_isp_stats_vdev *stats_vdev,
 		cur_stat_buf->meas_type |= CIFISP_STAT_HIST;
 	}
 
-	if (ops->get_emb_data)
+	if ((meas_work->isp_ris & CIF_ISP_FRAME) &&
+		ops->get_emb_data)
 		ops->get_emb_data(stats_vdev, cur_stat_buf);
 
 	vb2_set_plane_payload(&cur_buf->vb.vb2_buf, 0,
 			      sizeof(struct rkisp1_stat_buffer));
 	cur_buf->vb.sequence = cur_frame_id;
-	cur_buf->vb.timestamp = ns_to_timeval(ktime_get_ns());
+	cur_buf->vb.timestamp = ns_to_timeval(meas_work->timestamp);
 	vb2_buffer_done(&cur_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 }
 
@@ -543,26 +544,29 @@ int rkisp1_stats_isr(struct rkisp1_isp_stats_vdev *stats_vdev, u32 isp_ris)
 
 	spin_lock(&stats_vdev->irq_lock);
 
-	writel((CIF_ISP_AWB_DONE | CIF_ISP_AFM_FIN | CIF_ISP_EXP_END |
-		CIF_ISP_HIST_MEASURE_RDY),
-		stats_vdev->dev->base_addr + CIF_ISP_ICR);
+	isp_mis_tmp = isp_ris & (CIF_ISP_AWB_DONE | CIF_ISP_AFM_FIN |
+			CIF_ISP_EXP_END | CIF_ISP_HIST_MEASURE_RDY);
+	if (isp_mis_tmp) {
+		writel(isp_mis_tmp,
+			stats_vdev->dev->base_addr + CIF_ISP_ICR);
 
-	isp_mis_tmp = readl(stats_vdev->dev->base_addr + CIF_ISP_MIS);
-	if (isp_mis_tmp &
-		(CIF_ISP_AWB_DONE | CIF_ISP_AFM_FIN |
-		 CIF_ISP_EXP_END | CIF_ISP_HIST_MEASURE_RDY))
-		v4l2_err(stats_vdev->vnode.vdev.v4l2_dev,
-			 "isp icr 3A info err: 0x%x\n",
-			 isp_mis_tmp);
+		isp_mis_tmp &= readl(stats_vdev->dev->base_addr + CIF_ISP_MIS);
+		if (isp_mis_tmp)
+			v4l2_err(stats_vdev->vnode.vdev.v4l2_dev,
+				 "isp icr 3A info err: 0x%x 0x%x\n",
+				 isp_mis_tmp, isp_ris);
+	}
 
 	if (!stats_vdev->streamon)
 		goto unlock;
-	if (isp_ris & (CIF_ISP_AWB_DONE | CIF_ISP_AFM_FIN | CIF_ISP_EXP_END |
+
+	if (isp_ris & (CIF_ISP_FRAME | CIF_ISP_AWB_DONE |
+		CIF_ISP_AFM_FIN | CIF_ISP_EXP_END |
 		CIF_ISP_HIST_MEASURE_RDY)) {
 		work.readout = RKISP1_ISP_READOUT_MEAS;
 		work.frame_id = cur_frame_id;
 		work.isp_ris = isp_ris;
-
+		work.timestamp = ktime_get_ns();
 		if (!kfifo_is_full(&stats_vdev->rd_kfifo))
 			kfifo_in(&stats_vdev->rd_kfifo,
 				 &work, sizeof(work));
@@ -619,7 +623,6 @@ int rkisp1_register_stats_vdev(struct rkisp1_isp_stats_vdev *stats_vdev,
 	struct video_device *vdev = &node->vdev;
 
 	stats_vdev->dev = dev;
-	mutex_init(&node->vlock);
 	INIT_LIST_HEAD(&stats_vdev->stat);
 	spin_lock_init(&stats_vdev->irq_lock);
 	spin_lock_init(&stats_vdev->rd_lock);
@@ -630,7 +633,7 @@ int rkisp1_register_stats_vdev(struct rkisp1_isp_stats_vdev *stats_vdev,
 	vdev->ioctl_ops = &rkisp1_stats_ioctl;
 	vdev->fops = &rkisp1_stats_fops;
 	vdev->release = video_device_release_empty;
-	vdev->lock = &node->vlock;
+	vdev->lock = &dev->iqlock;
 	vdev->v4l2_dev = v4l2_dev;
 	vdev->queue = &node->buf_queue;
 	vdev->device_caps = V4L2_CAP_META_CAPTURE | V4L2_CAP_STREAMING;

@@ -3,6 +3,9 @@
  * ov2735 driver
  *
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
+ *
+ * V0.0X01.0X01 add poweron function.
+ * V0.0X01.0X02 fix mclk issue when probe multiple camera.
  */
 
 #include <linux/clk.h>
@@ -14,11 +17,15 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/slab.h>
+#include <linux/version.h>
 #include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
+
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -129,6 +136,7 @@ struct ov2735 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct ov2735_mode *cur_mode;
 	u32			module_index;
 	const char		*module_facing;
@@ -585,10 +593,6 @@ static int __ov2735_start_stream(struct ov2735 *ov2735)
 {
 	int ret;
 
-	ret = ov2735_write_array(ov2735->client, ov2735_global_regs);
-	if (ret)
-		return ret;
-	mdelay(3);
 	ret = ov2735_write_array(ov2735->client, ov2735->cur_mode->reg_list);
 	if (ret)
 		return ret;
@@ -654,6 +658,44 @@ unlock_and_return:
 	return ret;
 }
 
+static int ov2735_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct ov2735 *ov2735 = to_ov2735(sd);
+	struct i2c_client *client = ov2735->client;
+	int ret = 0;
+
+	mutex_lock(&ov2735->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (ov2735->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = ov2735_write_array(ov2735->client, ov2735_global_regs);
+		if (ret) {
+			v4l2_err(sd, "could not set init registers\n");
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ov2735->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		ov2735->power_on = false;
+	}
+
+unlock_and_return:
+	mutex_unlock(&ov2735->mutex);
+
+	return ret;
+}
+
 /* Calculate the delay in us by clock rate and clock cycles */
 static inline u32 ov2735_cal_delay(u32 cycles)
 {
@@ -687,11 +729,14 @@ static int __ov2735_power_on(struct ov2735 *ov2735)
 		gpiod_set_value_cansleep(ov2735->reset_gpio, 1);
 		usleep_range(2000, 5000);
 	}
-	if (!IS_ERR(ov2735->xvclk)) {
-		ret = clk_prepare_enable(ov2735->xvclk);
-		if (ret < 0)
-			dev_info(dev, "Failed to enable xvclk\n");
-	}
+	ret = clk_set_rate(ov2735->xvclk, OV2735_XVCLK_FREQ);
+	if (ret < 0)
+		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
+	if (clk_get_rate(ov2735->xvclk) != OV2735_XVCLK_FREQ)
+		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
+	ret = clk_prepare_enable(ov2735->xvclk);
+	if (ret < 0)
+		dev_info(dev, "Failed to enable xvclk\n");
 
 	/* 8192 cycles prior to first SCCB transaction */
 	delay_us = ov2735_cal_delay(8192);
@@ -769,6 +814,7 @@ static const struct v4l2_subdev_internal_ops ov2735_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops ov2735_core_ops = {
+	.s_power = ov2735_s_power,
 	.ioctl = ov2735_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = ov2735_compat_ioctl32,
@@ -982,6 +1028,11 @@ static int ov2735_probe(struct i2c_client *client,
 	char facing[2];
 	int ret;
 
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
+
 	ov2735 = devm_kzalloc(dev, sizeof(*ov2735), GFP_KERNEL);
 	if (!ov2735)
 		return -ENOMEM;
@@ -1007,13 +1058,6 @@ static int ov2735_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to get xvclk\n");
 		return -EINVAL;
 	}
-	ret = clk_set_rate(ov2735->xvclk, OV2735_XVCLK_FREQ);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
-		return ret;
-	}
-	if (clk_get_rate(ov2735->xvclk) != OV2735_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
 	ov2735->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(ov2735->reset_gpio))
@@ -1151,3 +1195,4 @@ module_exit(sensor_mod_exit);
 
 MODULE_DESCRIPTION("OmniVision ov2735 sensor driver");
 MODULE_LICENSE("GPL v2");
+
