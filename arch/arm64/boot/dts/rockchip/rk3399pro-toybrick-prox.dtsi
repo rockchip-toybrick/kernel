@@ -351,16 +351,6 @@
 	status = "okay";
 };
 
-&i2s0 {
-	status = "okay";
-	rockchip,i2s-broken-burst-len;
-	rockchip,playback-channels = <8>;
-	rockchip,capture-channels = <8>;
-	dma-names ="rx";
-	dmas = <&dmac_bus 1>;
-	#sound-dai-cells = <0>;
-};
-
 &pinctrl {
 
 	fusb30x {
