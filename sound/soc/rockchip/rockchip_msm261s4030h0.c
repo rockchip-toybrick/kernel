@@ -48,39 +48,58 @@ static int rk3399_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	int mclk, ret;
+	int mclk=0, ret;
 	es7243_init();
 	udelay(5);
 	es7243_start();
 	udelay(5);
+	printk(KERN_ERR "111000rk3399_hw_params mic record mclk is %d\n",mclk);
 	/* in bypass mode, the mclk has to be one of the frequencies below */
 	switch (params_rate(params)) {
 	case 8000:
+		mclk = 2048000;
+		break;
 	case 16000:
+		mclk = 4096000;
+		break;
 	case 24000:
+		mclk = 5644800;
+		break;
 	case 32000:
+		mclk = 8192000;
+		break;
 	case 48000:
-	case 64000:
-	case 96000:
 		mclk = 12288000;
 		break;
+	case 64000:
+		mclk = 16384000;
+		break;
+	case 96000:
+		mclk = 24576000;
+		break;
 	case 11025:
+		mclk = 2822400;
+		break;
 	case 22050:
+		mclk = 5644800;
+		break;
 	case 44100:
-	case 88200:
 		mclk = 11289600;
+		break;
+	case 88200:
+		mclk = 22579200;
 		break;
 	default:
 		return -EINVAL;
 	}
-
+	printk(KERN_ERR "111rk3399_hw_params mic record mclk is %d\n",mclk);
 	ret = snd_soc_dai_set_sysclk(cpu_dai, 0, mclk, SND_SOC_CLOCK_OUT);
 	if (ret < 0) {
 		dev_err(codec_dai->dev, "Can't set cpu clock out %d\n", ret);
 		return ret;
 	}
 	
-	printk(KERN_ERR "rk3399_hw_params mic record\n");
+	printk(KERN_ERR "rk3399_hw_params mic record mclk is %d\n",mclk);
 	return 0;
 }
 
