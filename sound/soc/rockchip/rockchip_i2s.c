@@ -324,6 +324,8 @@ static int rockchip_i2s_hw_params(struct snd_pcm_substream *substream,
 
 		div_bclk = DIV_ROUND_CLOSEST(mclk_rate, bclk_rate);
 		div_lrck = bclk_rate / params_rate(params);
+		pr_err("test_i2s - %s,%d, mclk:%d, bclk_rate:%d, lrck:%d\n",
+			__func__, __LINE__, mclk_rate, bclk_rate, params_rate(params));
 		regmap_update_bits(i2s->regmap, I2S_CKR,
 				   I2S_CKR_MDIV_MASK,
 				   I2S_CKR_MDIV(div_bclk));
@@ -374,14 +376,27 @@ static int rockchip_i2s_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+		val = 0;
+		val |= I2S_CHN_8;
+		val |= I2S_TXCR_VDW(16);
 		regmap_update_bits(i2s->regmap, I2S_RXCR,
 				   I2S_RXCR_VDW_MASK | I2S_RXCR_CSR_MASK,
 				   val);
-	else
+	}
+	else {
 		regmap_update_bits(i2s->regmap, I2S_TXCR,
 				   I2S_TXCR_VDW_MASK | I2S_TXCR_CSR_MASK,
 				   val);
+		/* for echo fixed 8 channels capture when playback */
+		dev_info(i2s->dev, "for echo fixed 8 channels capture when playback\n");
+		val = 0;
+		val |= I2S_CHN_8;
+		val |= I2S_TXCR_VDW(16);
+		regmap_update_bits(i2s->regmap, I2S_RXCR,
+				I2S_RXCR_VDW_MASK | I2S_RXCR_CSR_MASK,
+				val);
+	}
 
 	if (!IS_ERR(i2s->grf) && i2s->pins) {
 		regmap_read(i2s->regmap, I2S_TXCR, &val);
