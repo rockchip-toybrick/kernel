@@ -676,11 +676,11 @@ static int rk817_capture_path_put(struct snd_kcontrol *kcontrol,
 			break;
 		}
 		if (!rk817->mic_in_differential) {
-			snd_soc_write(codec, RK817_CODEC_DADC_VOLL, 0xff);
+			snd_soc_write(codec, RK817_CODEC_DADC_VOLR, 0xff);
 			snd_soc_update_bits(codec, RK817_CODEC_AADC_CFG0,
-					    ADC_L_PWD_MASK, ADC_L_PWD_EN);
+					    ADC_R_PWD_MASK, ADC_R_PWD_EN);
 			snd_soc_update_bits(codec, RK817_CODEC_AMIC_CFG0,
-					    PWD_PGA_L_MASK, PWD_PGA_L_EN);
+					    PWD_PGA_R_MASK, PWD_PGA_R_EN);
 		}
 		break;
 	case BT_SCO_MIC:
