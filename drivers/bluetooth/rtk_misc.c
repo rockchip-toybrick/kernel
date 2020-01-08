@@ -4253,7 +4253,7 @@ static u8 rtl8723du_fw_data[] = {
 	0x00, 0x00, 0x00, 0x00, 0xFF, 0x09, 0x01, 0x00, 0x51, 0x04, 0xFD, 0x77,
 };
 
-static int __load_config(dev_data *dev_entry,
+static int __load_config_builtin(dev_data *dev_entry,
 				const struct firmware **firmware_p)
 {
 	struct firmware *firmware;
@@ -4281,7 +4281,7 @@ static int __load_config(dev_data *dev_entry,
 	return 0;
 }
 
-static int __load_firmware(dev_data *dev_entry,
+static int __load_firmware_builtin(dev_data *dev_entry,
 				const struct firmware **firmware_p)
 {
 	struct firmware *firmware;
@@ -4320,6 +4320,7 @@ static int load_config(dev_data *dev_entry, u8 **buf, int *length)
 	int len;
 	u8 tmp_buf[32];
 	int file_sz;
+	int fw_is_builtin = 0;
 
 	patch_entry = dev_entry->patch_entry;
 	config_name = patch_entry->config_name;
@@ -4328,9 +4329,10 @@ static int load_config(dev_data *dev_entry, u8 **buf, int *length)
 	RTKBT_INFO("config filename %s", config_name);
 	result = request_firmware(&fw, config_name, &udev->dev);
 	if (result < 0) {
-		result = __load_config(dev_entry, &fw);
+		result = __load_config_builtin(dev_entry, &fw);
 		if (result < 0)
 			return 0;
+		fw_is_builtin = 1;
 	}
 
 	file_sz = fw->size;
@@ -4372,13 +4374,15 @@ static int load_config(dev_data *dev_entry, u8 **buf, int *length)
 
 	util_hexdump(*buf, *length);
 
-	release_firmware(fw);
+	if (!fw_is_builtin)
+		release_firmware(fw);
 
 	RTKBT_INFO("Config file length %d, new length %d", file_sz, len);
 
 	return 0;
 err1:
-	release_firmware(fw);
+	if (!fw_is_builtin)
+		release_firmware(fw);
 	return -1;
 
 }
@@ -4395,6 +4399,7 @@ int load_firmware(dev_data * dev_entry, uint8_t ** buff)
 	uint8_t need_download_fw = 1;
 	uint16_t lmp_version;
 	struct rtk_epatch_entry current_entry = { 0 };
+	int fw_is_builtin = 0;
 
 	RTKBT_DBG("load_firmware start");
 	udev = dev_entry->udev;
@@ -4408,13 +4413,14 @@ int load_firmware(dev_data * dev_entry, uint8_t ** buff)
 	RTKBT_ERR("fw name is  %s", fw_name);
 	ret_val = request_firmware(&fw, fw_name, &udev->dev);
 	if (ret_val < 0) {
-		ret_val = __load_firmware(dev_entry, &fw);
+		ret_val = __load_firmware_builtin(dev_entry, &fw);
 		if (ret_val < 0) {
 			fw_len = 0;
 			kfree(config_file_buf);
 			config_file_buf = NULL;
 			goto fw_fail;
 		}
+		fw_is_builtin = 1;
 	}
 	epatch_buf = kzalloc(fw->size, GFP_KERNEL);
 	if (NULL == epatch_buf)
@@ -4515,7 +4521,8 @@ int load_firmware(dev_data * dev_entry, uint8_t ** buff)
 	RTKBT_DBG("load_firmware done");
 
 alloc_fail:
-	release_firmware(fw);
+	if (!fw_is_builtin)
+		release_firmware(fw);
 
 	if (epatch_buf)
 		kfree(epatch_buf);
