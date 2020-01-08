@@ -9,6 +9,7 @@
 #include <linux/platform_device.h>
 #include <sound/soc.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include "es7243.h"
 
 struct es7243_reg {
@@ -99,6 +100,7 @@ static int es7243_i2c_read(struct i2c_client *client, u8 reg)
 
 	return data;
 }
+
 int es7243_init_mode(struct i2c_client *client)
 {
 	int i = 0;
@@ -129,6 +131,7 @@ int es7243_startup(struct i2c_client *client)
 	for(i = 0; i < 0xf; i++)
 		dev_info(&client->dev, "0x%0x -- 0x%0x\n",
 			 i, es7243_i2c_read(client, i));
+	mdelay(50);
 	return 0;
 }
 
