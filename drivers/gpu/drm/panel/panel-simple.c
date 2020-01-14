@@ -121,7 +121,10 @@ struct panel_simple {
 	struct gpio_desc *spi_scl_gpio;
 	struct gpio_desc *spi_cs_gpio;
 
+	struct panel_cmds *read_cmds;
 	struct panel_cmds *on_cmds;
+	struct panel_cmds *on_cmds_0;
+	struct panel_cmds *on_cmds_1;
 	struct panel_cmds *off_cmds;
 	struct device_node *np_crtc;
 };
@@ -175,6 +178,27 @@ static void panel_simple_cmds_cleanup(struct panel_simple *p)
 		kfree(p->off_cmds->buf);
 		kfree(p->off_cmds->cmds);
 	}
+
+	if (p->read_cmds) {
+		kfree(p->read_cmds->buf);
+		kfree(p->read_cmds->cmds);
+	}
+
+	if (p->read_cmds) {
+		kfree(p->read_cmds->buf);
+		kfree(p->read_cmds->cmds);
+	}
+
+	if (p->on_cmds_0) {
+		kfree(p->on_cmds_0->buf);
+		kfree(p->on_cmds_0->cmds);
+	}
+
+	if (p->on_cmds_1) {
+		kfree(p->on_cmds_1->buf);
+		kfree(p->on_cmds_1->cmds);
+	}
+
 }
 
 static int panel_simple_parse_cmds(struct device *dev,
@@ -325,6 +349,23 @@ static int panel_simple_spi_send_cmds(struct panel_simple *panel,
 }
 
 #if IS_ENABLED(CONFIG_DRM_MIPI_DSI)
+static int get_panel_id(struct panel_simple *panel,
+				      struct panel_cmds *cmds)
+{
+	struct mipi_dsi_device *dsi = panel->dsi;
+	u8 data[1];
+	struct cmd_desc *cmd = &cmds->cmds[0];
+
+	data[0] = 0xff;
+	mipi_dsi_dcs_read(dsi, *(cmd->payload), data, 1);
+	dev_dbg(panel->dev, "get panel id 0x%x, wanted id 0x%x\n", data[0],
+			cmd->payload[cmd->dchdr.dlen-1]);
+	if (data[0] == cmd->payload[cmd->dchdr.dlen-1])
+		return 0;
+	else
+		return 1;
+}
+
 static int panel_simple_dsi_send_cmds(struct panel_simple *panel,
 				      struct panel_cmds *cmds)
 {
@@ -393,6 +434,57 @@ static int panel_simple_get_cmds(struct panel_simple *panel)
 		if (err) {
 			dev_err(panel->dev, "failed to parse panel init sequence\n");
 			return err;
+		}
+	} else {
+		data = of_get_property(panel->dev->of_node, "panel-read-id",
+						&len);
+		if (data) {
+			panel->read_cmds = devm_kzalloc(panel->dev,
+							  sizeof(*panel->read_cmds),
+							  GFP_KERNEL);
+			if (!panel->read_cmds)
+				return -ENOMEM;
+
+			err = panel_simple_parse_cmds(panel->dev, data, len,
+							  panel->read_cmds);
+			if (err) {
+				dev_err(panel->dev, "failed to parse panel read_cmds \n");
+				return err;
+			}
+		}
+
+		data = of_get_property(panel->dev->of_node, "panel-init-sequence-0",
+				       &len);
+		if (data) {
+			panel->on_cmds_0 = devm_kzalloc(panel->dev,
+						      sizeof(*panel->on_cmds_0),
+						      GFP_KERNEL);
+			if (!panel->on_cmds_0)
+				return -ENOMEM;
+
+			err = panel_simple_parse_cmds(panel->dev, data, len,
+						      panel->on_cmds_0);
+			if (err) {
+				dev_err(panel->dev, "failed to parse panel init sequence 0 \n");
+				return err;
+			}
+		}
+
+		data = of_get_property(panel->dev->of_node, "panel-init-sequence-1",
+					   &len);
+		if (data) {
+			panel->on_cmds_1 = devm_kzalloc(panel->dev,
+							  sizeof(*panel->on_cmds_1),
+							  GFP_KERNEL);
+			if (!panel->on_cmds_1)
+				return -ENOMEM;
+
+			err = panel_simple_parse_cmds(panel->dev, data, len,
+							  panel->on_cmds_1);
+			if (err) {
+				dev_err(panel->dev, "failed to parse panel init sequence 1 \n");
+				return err;
+			}
 		}
 	}
 
@@ -477,7 +569,7 @@ static int panel_simple_of_get_native_mode(struct panel_simple *panel)
 	struct drm_display_mode *mode;
 	struct device_node *timings_np;
 	int ret;
-
+	int use_which_mode = OF_USE_NATIVE_MODE;
 	timings_np = of_get_child_by_name(panel->dev->of_node,
 					  "display-timings");
 	if (!timings_np) {
@@ -490,8 +582,14 @@ static int panel_simple_of_get_native_mode(struct panel_simple *panel)
 	if (!mode)
 		return 0;
 
+	if (panel->read_cmds) {
+		if (panel->on_cmds == panel->on_cmds_0)
+			use_which_mode = 0;
+		else if (panel->on_cmds == panel->on_cmds_1)
+			use_which_mode = 1;
+	}
 	ret = of_get_drm_display_mode(panel->dev->of_node, mode,
-				      OF_USE_NATIVE_MODE);
+				      use_which_mode);
 	if (ret) {
 		dev_dbg(panel->dev, "failed to find dts display timings\n");
 		drm_mode_destroy(drm, mode);
@@ -664,6 +762,14 @@ static int panel_simple_prepare(struct drm_panel *panel)
 
 	if (p->desc && p->desc->delay.init)
 		panel_simple_sleep(p->desc->delay.init);
+
+	if (p->read_cmds) {
+		err = get_panel_id(p, p->read_cmds);
+		if (err == 0)
+			p->on_cmds = p->on_cmds_0;
+		else if (err == 1)
+			p->on_cmds = p->on_cmds_1;
+	}
 
 	if (p->on_cmds) {
 		if (p->dsi)
