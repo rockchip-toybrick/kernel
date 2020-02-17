@@ -489,6 +489,7 @@ static int extbrd_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		return ret;
 	}
+	ddata->board_type = board_type;
 
 	ret = extbrd_parse_dt(pdev);
 	if (ret < 0) {
