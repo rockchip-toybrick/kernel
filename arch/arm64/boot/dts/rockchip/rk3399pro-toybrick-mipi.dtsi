@@ -52,12 +52,12 @@
 		reg = <0>;
 		/*power-supply = <&vcc3v3_lcd>;*/
 		backlight = <&backlight>;
-		prepare-delay-ms = <2>;
-		reset-delay-ms = <1>;
-		init-delay-ms = <20>;
+		prepare-delay-ms = <10>;
+		reset-delay-ms = <120>;
+		init-delay-ms = <120>;
 		enable-delay-ms = <120>;
 		disable-delay-ms = <50>;
-		unprepare-delay-ms = <20>;
+		unprepare-delay-ms = <40>;
 		enable-gpios = <&gpio4 RK_PD5 GPIO_ACTIVE_HIGH>;
 		width-mm = <68>;
 		height-mm = <121>;
@@ -331,7 +331,7 @@
 		display-timings {
 			native-mode = <&timing0>;
 
-			timing1: timing0 {
+			timing0: timing0 {
 				clock-frequency = <64000000>;
 				hactive = <720>;
 				vactive = <1280>;
