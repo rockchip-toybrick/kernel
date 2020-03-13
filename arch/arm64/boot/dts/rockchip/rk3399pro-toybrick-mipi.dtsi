@@ -58,7 +58,7 @@
 		enable-delay-ms = <120>;
 		disable-delay-ms = <50>;
 		unprepare-delay-ms = <40>;
-		enable-gpios = <&gpio4 RK_PD5 GPIO_ACTIVE_HIGH>;
+	//	enable-gpios = <&gpio4 RK_PD5 GPIO_ACTIVE_HIGH>;
 		width-mm = <68>;
 		height-mm = <121>;
 
