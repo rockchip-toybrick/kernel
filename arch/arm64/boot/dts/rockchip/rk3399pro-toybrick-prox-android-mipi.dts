@@ -63,13 +63,6 @@
 	/delete-node/ power-key;
 };
 
-&dsi {
-	status = "okay";
-	panel@0 {
-		enable-gpios = <&gpio4 RK_PD6 GPIO_ACTIVE_HIGH>;
-		};
-};
-
 &firmware_android {
     compatible = "android,firmware";
     fstab {
