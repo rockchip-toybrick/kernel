@@ -146,7 +146,7 @@
 		reg = <0x14>;
 		goodix,rst-gpio = <&gpio4 RK_PC6 GPIO_ACTIVE_HIGH>;
 		goodix,irq-gpio = <&gpio4 RK_PD0 IRQ_TYPE_LEVEL_LOW>;
-		goodix,enable-gpio = <&gpio4 RK_PD5 GPIO_ACTIVE_HIGH>;
+		//goodix,enable-gpio = <&gpio4 RK_PD5 GPIO_ACTIVE_HIGH>;
 	};
 
 	gsl3673: gsl3673@40 {
@@ -309,7 +309,8 @@
 	touch {
 		mipi_touch_int: mipi-touch-int {
 			rockchip,pins =
-				<4 RK_PD0 RK_FUNC_GPIO &pcfg_pull_none>;
+				<4 RK_PD0 RK_FUNC_GPIO &pcfg_pull_none>,
+				<4 RK_PD5 RK_FUNC_GPIO &pcfg_output_high>;
 		};
 
 		edp_touch_int: edp-touch-int {

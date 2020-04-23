@@ -47,6 +47,20 @@
 		status = "disabled";
 		compatible = "toybrick-extboard";
 	};
+
+	
+	es7243-sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "rockchip,es7243";
+		simple-audio-card,cpu {
+			sound-dai = <&i2s0>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&es7243_13>;
+		};
+	};
 };
 
 &i2c6 {
@@ -66,10 +80,15 @@
 	i2c-scl-rising-time-ns = <345>;
 	i2c-scl-falling-time-ns = <11>;
 	clock-frequency = <400000>;
-	es7243: es7243@13 {
+	es7243_13: es7243@13 {
 		status = "okay";
 		compatible = "everest,es7243";
 		reg = <0x13>;
+		#sound-dai-cells = <0>;
+		clocks = <&cru SCLK_I2S_8CH_OUT>;
+		clock-names = "mclk";
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&i2s_8ch_mclk>;
 	};
 };
 
