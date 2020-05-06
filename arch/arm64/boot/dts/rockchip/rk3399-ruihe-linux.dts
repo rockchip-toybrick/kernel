@@ -1,0 +1,383 @@
+/*
+ * Copyright (c) 2016 Fuzhou Rockchip Electronics Co., Ltd
+ *
+ * This file is dual-licensed: you can use it either under the terms
+ * of the GPL or the X11 license, at your option. Note that this dual
+ * licensing only applies to this file, and not this project as a
+ * whole.
+ *
+ *  a) This file is free software; you can redistribute it and/or
+ *     modify it under the terms of the GNU General Public License as
+ *     published by the Free Software Foundation; either version 2 of the
+ *     License, or (at your option) any later version.
+ *
+ *     This file is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ * Or, alternatively,
+ *
+ *  b) Permission is hereby granted, free of charge, to any person
+ *     obtaining a copy of this software and associated documentation
+ *     files (the "Software"), to deal in the Software without
+ *     restriction, including without limitation the rights to use,
+ *     copy, modify, merge, publish, distribute, sublicense, and/or
+ *     sell copies of the Software, and to permit persons to whom the
+ *     Software is furnished to do so, subject to the following
+ *     conditions:
+ *
+ *     The above copyright notice and this permission notice shall be
+ *     included in all copies or substantial portions of the Software.
+ *
+ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ *     OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+/dts-v1/;
+#include "rk3399-ruihe.dtsi"
+
+/ {
+	model = "Rockchip RK3399 Board For ruihe board";
+	compatible = "rockchip-ruihe","rockchip,rk3399-ruihe";
+	fiq_debugger: fiq-debugger {
+		compatible = "rockchip,fiq-debugger";
+		rockchip,serial-id = <2>;
+		rockchip,signal-irq = <182>;
+		rockchip,wake-irq = <0>;
+		rockchip,irq-mode-enable = <1>;  /* If enable uart uses irq instead of fiq */
+		rockchip,baudrate = <1500000>;  /* Only 115200 and 1500000 */
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart2c_xfer>;
+	};
+/*
+	hdmi_codec: hdmi-codec {
+		status="okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "HDMI-CODEC";
+
+		simple-audio-card,cpu {
+			sound-dai = <&i2s2>;
+		};
+
+		simple-audio-card,codec {
+			sound-dai = <&hdmi>;
+		};
+	};
+*/
+	rga: rga@ff680000 {
+                compatible = "rockchip,rga2";
+                dev_mode = <1>;
+                reg = <0x0 0xff680000 0x0 0x1000>;
+                interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH 0>;
+                clocks = <&cru ACLK_RGA>, <&cru HCLK_RGA>, <&cru SCLK_RGA_CORE>;
+                clock-names = "aclk_rga", "hclk_rga", "clk_rga";
+                power-domains = <&power RK3399_PD_RGA>;
+                dma-coherent;
+                status = "okay";
+        };
+	ext_cam_clk: external-camera-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <27000000>;
+		clock-output-names = "CLK_CAMERA_27MHZ";
+		#clock-cells = <0>;
+	};
+};
+
+&rga{
+	status="okay";
+};
+&gpio3 {
+	status = "okay";
+};
+&gpio4 {
+	status = "okay";
+};
+&i2c1 {
+	status = "okay";
+	tc358749x: tc358749x@f {
+		compatible = "toshiba,tc358749";
+	//	#sound-dai-cells = <0>;
+		reg = <0x0f>;
+		status = "okay";
+		clocks = <&ext_cam_clk>;
+		clock-names = "refclk";
+		reset-gpios = <&gpio3 29 GPIO_ACTIVE_LOW>;
+		/* hardware irq-pin is dangling
+		 * connect it to other gpio then configurate follow interrupt
+		 * or del config just using software poll
+		 */
+		//interrupt-parent = <&gpio2>;
+		//interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hdmiin_gpios>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-CT0116";
+		rockchip,camera-module-lens-name = "Largan-50013A1";
+		port {
+			hdmiin_out0: endpoint {
+				/* Unlinked mipi dphy rx0 */
+				remote-endpoint = <&mipi_in_ucam0>;
+				data-lanes = <1 2 3 4>;
+				clock-noncontinuous;
+				link-frequencies =
+					/bits/ 64 <297000000>;
+			};
+		};
+	};
+};
+
+&i2s2 {
+	status = "disabled";
+	#sound-dai-cells = <0>;
+};
+
+&vopb {
+	status = "okay";
+};
+
+&vopb_mmu {
+	status = "okay";
+};
+
+&vopl {
+	status = "okay";
+};
+
+&vopl_mmu {
+	status = "okay";
+};
+
+/* USB2.0 Host * 2 */
+&usb_host0_ehci {
+	status = "okay";
+};
+
+&usb_host0_ohci {
+	status = "okay";
+};
+
+&usb_host1_ehci {
+	status = "okay";
+};
+
+&usb_host1_ohci {
+	status = "okay";
+};
+
+&tcphy0 {
+	status = "okay";
+};
+
+&tcphy1 {
+	status = "okay";
+};
+
+&u2phy0 {
+        status = "okay";
+
+        u2phy0_otg: otg-port {
+                status = "okay";
+        };
+
+        u2phy0_host: host-port {
+                phy-supply = <&vcc5v0_sys>;
+                status = "okay";
+        };
+};
+
+&u2phy1 {
+        status = "okay";
+
+        u2phy1_otg: otg-port {
+                status = "okay";
+        };
+
+        u2phy1_host: host-port {
+                phy-supply = <&vcc5v0_sys>;
+                status = "okay";
+        };
+};
+
+&usbdrd3_0 {
+        status = "okay";
+};
+
+&usbdrd_dwc3_0 {
+	pyhs = <&u2phy0_otg>;
+	phy-names = "usb2-phy";
+        status = "okay";
+};
+
+&usbdrd3_1 {
+        status = "okay";
+};
+
+&usbdrd_dwc3_1 {
+        status = "okay";
+};
+
+/* PCIE SATA HD */
+&pcie_phy {
+	status = "okay";
+};
+
+&vpu {
+	status = "okay";
+	/* 0 means ion, 1 means drm */
+	//allocator = <0>;
+};
+
+&rkvdec {
+	status = "okay";
+	/* 0 means ion, 1 means drm */
+	//allocator = <0>;
+};
+
+&display_subsystem {
+	status = "okay";
+};
+
+&hdmi {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	#sound-dai-cells = <0>;
+	status = "okay";
+};
+
+&rkisp1_0 {
+	status = "okay";
+
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		isp0_mipi_in: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&dphy_rx0_out>;
+		};
+	};
+};
+
+
+&mipi_dphy_rx0 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_in_ucam0: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&hdmiin_out0>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dphy_rx0_out: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&isp0_mipi_in>;
+			};
+		};
+	};
+};
+
+&isp0_mmu {
+	status = "okay";
+};
+
+
+&isp1_mmu {
+	status = "okay";
+};
+
+&pinctrl {
+	hdmiin {
+		hdmiin_gpios: hdmiin_gpios {
+			rockchip,pins =
+                                <2 2 RK_FUNC_GPIO &pcfg_output_low>,            //GPIO2_A2   MUTE
+                                <2 3 RK_FUNC_GPIO &pcfg_output_low>,            //GPIO2_A3   RELAY_CK_OUT3
+                                <2 4 RK_FUNC_GPIO &pcfg_output_high>,           //GPIO2_A4   ZIGBEE_RESET
+                                <2 5 RK_FUNC_GPIO &pcfg_output_low>,            //GPIO2_A5   kz_12v_ctr_pc
+                                <2 6 RK_FUNC_GPIO &pcfg_output_low>,            //GPIO2_A6   kz_pc_switch
+                                <2 7 RK_FUNC_GPIO &pcfg_output_low>,            //GPIO2_A7   kz_5v_CTR
+
+                                <2 8 RK_FUNC_GPIO &pcfg_output_high>,           //GPIO2_B0   SD_LR_CTR
+                                <2 9 RK_FUNC_GPIO &pcfg_output_low>,            //GPIO2_B1   SPI2_RXD
+
+                                <2 10 RK_FUNC_GPIO &pcfg_output_high>,          //GPIO2_B2   SPI2_TXD
+
+                                <2 11 RK_FUNC_GPIO &pcfg_output_low>,           //GPIO2_B3   SPI_CLK
+
+                                <2 12 RK_FUNC_GPIO &pcfg_output_low>,           //GPIO2_B4   SPI2_CSn0
+
+                                <3 10 RK_FUNC_GPIO &pcfg_output_low>,           //GPIO3_B2    OUTPUT_IO3
+                                <3 16 RK_FUNC_GPIO &pcfg_output_low>,           //GPIO3_C0    HDMI3399_DP_HPD
+
+
+                                <1 3  RK_FUNC_GPIO &pcfg_output_low>,           //GPIO1_A3    HDMI3399_PORT_HPD
+
+                                <1 4  RK_FUNC_GPIO &pcfg_output_high>,          //GPIO1_A4    HDMIIN2_PWR
+
+                                <1 22  RK_FUNC_GPIO &pcfg_output_low>,          //GPIO1_C6     kz_5v_ctr_arm
+
+
+                                <2 26  RK_FUNC_GPIO &pcfg_output_low>,          //GPIO2_D2     HDMI31_SEL2(PCIE_CLKREQ#)
+                                <2 28  RK_FUNC_GPIO &pcfg_output_low>,          //GPIO2_D4     HDMI32_SEL1(PCIE_PERST#)
+
+                                <3 30  RK_FUNC_GPIO &pcfg_output_low>,          //GPIO3_D6     RELAY_CK_OUT2
+
+                                <4 7   RK_FUNC_GPIO &pcfg_output_high>,         //GPIO4_A7     HDMIIN_PWR
+
+                                <4 18  RK_FUNC_GPIO &pcfg_output_low>,          //GPIO4_C2     LED_CTL
+
+                                <4 24  RK_FUNC_GPIO &pcfg_output_low>,          //GPIO4_D0     OUTPUT_IO1
+                                <4 27  RK_FUNC_GPIO &pcfg_output_low>,          //GPIO4_D3     HDMI31_SEL1
+                                <4 28  RK_FUNC_GPIO &pcfg_output_low>,          //GPIO4_D4     FAN_CTL_H
+                                <4 29 RK_FUNC_GPIO  &pcfg_output_high>,         //GPIO4_D5     PS176_HDMI_EN
+                                <4 30 RK_FUNC_GPIO  &pcfg_output_low>,          //GPIO4_D6     OUTPUT_IO2
+
+                                <0 2 RK_FUNC_GPIO &pcfg_output_low>,            //GPIO0_A2   HDMI4_IN_HPD_CTR
+                                <0 6 RK_FUNC_GPIO &pcfg_output_low>,            //GPIO0_A6   HDMI6_IN_HPD_CTR
+                                <0 8 RK_FUNC_GPIO &pcfg_output_low>,            //GPIO0_B0   HDMI5_IN_HPD_CTR
+                                <0 11 RK_FUNC_GPIO &pcfg_output_low>,           //GPIO0_B3   HDMI32_SEL2
+                                <0 12 RK_FUNC_GPIO &pcfg_output_low>,           //GPIO0_B4   HDMI2_IN_HPD_CTR
+                                <0 13 RK_FUNC_GPIO &pcfg_output_low>,           //GPIO0_B5   HDMI3_IN_HPD_CTR
+
+				//<2 5 RK_FUNC_GPIO &pcfg_output_high>,//HDMIIN_PWREN33  //
+				<4 7 RK_FUNC_GPIO &pcfg_output_high>,//HDMIIN_PWREN
+				<3 29 RK_FUNC_GPIO &pcfg_output_high>,//HDMIIN_RST
+				<3 28 RK_FUNC_GPIO &pcfg_output_high>,//HDMIIN_STBY
+				//<2 9 RK_FUNC_GPIO &pcfg_output_high>,//MIPI_RST  //
+				//<2 10 RK_FUNC_GPIO &pcfg_output_low>,//CSI_CTL  //
+				<4 5 RK_FUNC_GPIO &pcfg_pull_none>;//HDMIIN_INT
+
+		};
+		hdmiin2_gpios: hdmiin2_gpios {
+                	rockchip,pins =
+                                <1 4 RK_FUNC_GPIO &pcfg_pull_up>,               //HDMIIN2_PWR     GPIO1_A4
+                                <1 1 RK_FUNC_GPIO &pcfg_pull_none>,             //MIPI_RX1_RST    GPIO1_A1
+                                <1 2 RK_FUNC_GPIO &pcfg_pull_none>,             //MIPI_RX1_STBY   GPIO1_A2
+                                <1 0 RK_FUNC_GPIO &pcfg_pull_none>;             //MIPI_RX1_INT    GPIO1_A0
+                };
+
+
+	};
+};
