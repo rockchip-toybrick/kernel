@@ -159,6 +159,32 @@
 	test_power: test-power {
 		status = "okay";
 	};
+
+	rockchip-rt5670 {
+		compatible = "rockchip-rt5670";
+		dais {
+			dai0 {
+				audio-codec = <&rt5670>;
+				audio-controller = <&i2s0>;
+				format = "i2s";
+				//continuous-clock;
+				//bitclock-inversion;
+				//frame-inversion;
+				//bitclock-master;
+				//frame-master;
+			};
+			dai1 	{
+				audio-codec = <&rt5670>;
+				audio-controller = <&i2s0>;
+				format = "i2s";
+				//continuous-clock;
+				//bitclock-inversion;
+				//frame-inversion;
+				//bitclock-master;
+				//frame-master;
+			};
+		};
+	};
 };
 &sdmmc {
         //clock-frequency = <100000000>;
@@ -202,6 +228,19 @@
 &emmc_phy {
 	status = "okay";
 };
+
+&i2s0 {
+	status = "okay";
+	rockchip,i2s-broken-burst-len;
+	rockchip,playback-channels = <8>;
+	rockchip,capture-channels = <8>;
+	#sound-dai-cells = <0>;
+	clock-names = "i2s_clk", "i2s_mclk","i2s_hclk";
+	clocks = <&cru SCLK_I2S0_8CH>, <&cru SCLK_I2S_8CH_OUT>, <&cru HCLK_I2S0_8CH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s0_8ch_bus>,<&i2s_8ch_mclk>;
+};
+
 /*&watchdog {
 	status="disabled";
 };*/
@@ -608,6 +647,31 @@
                                 <3 16 RK_FUNC_GPIO &pcfg_pull_down>;
                 };
         };
+
+	i2s1 {
+		i2s1_2ch_bus: i2s1-2ch-bus {
+			rockchip,pins =
+				<4 3 RK_FUNC_1 &pcfg_pull_none>,
+				<4 4 RK_FUNC_1 &pcfg_pull_none>,
+				//<4 5 RK_FUNC_1 &pcfg_pull_none>,
+				<4 6 RK_FUNC_1 &pcfg_pull_none>;
+				//<4 7 RK_FUNC_1 &pcfg_pull_none>;
+		};
+	};
+
+	i2s0 {
+		i2s0_8ch_bus: i2s0-8ch-bus {
+			rockchip,pins =
+				<3 24 RK_FUNC_1 &pcfg_pull_none>,
+				<3 25 RK_FUNC_1 &pcfg_pull_none>,
+				<3 26 RK_FUNC_1 &pcfg_pull_none>,
+				<3 27 RK_FUNC_1 &pcfg_pull_none>,
+				//<3 28 RK_FUNC_1 &pcfg_pull_none>,
+				//<3 29 RK_FUNC_1 &pcfg_pull_none>,
+				//<3 30 RK_FUNC_1 &pcfg_pull_none>,
+				<3 31 RK_FUNC_1 &pcfg_pull_none>;
+		};
+	};
 };
 
 &pvtm {

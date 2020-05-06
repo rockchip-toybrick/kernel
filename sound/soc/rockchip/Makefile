@@ -27,6 +27,8 @@ snd-soc-rockchip-hdmi-dp-objs := rockchip_hdmi_dp.o
 snd-soc-rockchip-max98090-objs := rockchip_max98090.o
 snd-soc-rockchip-multicodecs-objs := rockchip_multicodecs.o
 snd-soc-rockchip-rt5645-objs := rockchip_rt5645.o
+snd-soc-rockchip-rt5670-objs := rk_rt5670.o card_info.o 
+obj-y += snd-soc-rockchip-rt5670.o
 snd-soc-rockchip-rt5651-tc358749x-objs := rockchip_rt5651_tc358749x.o
 snd-soc-rockchip-cdndp-objs := rockchip_cdndp.o
 

@@ -1,8 +1,8 @@
 /*
  * rt5670-dsp.h  --  RT5670 ALSA SoC DSP driver
  *
- * Copyright 2014 Realtek Microelectronics
- * Author: Bard Liao <bardliao@realtek.com>
+ * Copyright 2011 Realtek Microelectronics
+ * Author: Johnny Hsu <johnnyhsu@realtek.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -43,6 +43,23 @@
 #define RT5670_DSP_I2C_AL_16		(0x1 << 1)
 #define RT5670_DSP_CMD_EN		(0x1)
 
+/* Debug String Length */
+#define RT5670_DSP_REG_DISP_LEN 25
+
+
+enum {
+	RT5670_DSP_DIS,
+	RT5670_DSP_NS,
+	RT5670_DSP_AEC,
+	RT5670_DSP_VT,
+	RT5670_DSP_VR,
+	RT5670_DSP_FFP_NS,
+	RT5670_DSP_48K_STO_FFP,
+	RT5670_DSP_2MIC_HANDSET,
+	RT5670_DSP_2MIC_HANDSFREE,
+	RT5670_DSP_AEC_HANDSFREE,
+};
+
 struct rt5670_dsp_param {
 	u16 cmd_fmt;
 	u16 addr;
@@ -50,5 +67,14 @@ struct rt5670_dsp_param {
 	u8 cmd;
 };
 
+int rt5670_dsp_probe(struct snd_soc_codec *codec);
+//int rt5670_dsp_ioctl_common(struct snd_hwdep *hw,
+	//struct file *file, unsigned int cmd, unsigned long arg);// csqerr
+int rt5670_dsp_suspend(struct snd_soc_codec *codec);
+int rt5670_dsp_resume(struct snd_soc_codec *codec);
+int rt5670_dsp_write(struct snd_soc_codec *codec,
+	unsigned int addr, unsigned int data);
+unsigned int rt5670_dsp_read(
+	struct snd_soc_codec *codec, unsigned int reg);
 #endif /* __RT5670_DSP_H__ */
 

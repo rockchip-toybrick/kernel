@@ -136,6 +136,16 @@
 	};
 };
 
+&i2c4 {
+	status = "okay";
+	rt5670: rt5670@1c {
+		#sound-dai-cells = <0>;
+		compatible = "realtek,rt5670";
+		reg = <0x1c>;
+		status = "okay";
+	};
+};
+
 &i2s2 {
 	status = "disabled";
 	#sound-dai-cells = <0>;
