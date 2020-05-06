@@ -56,7 +56,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&uart2c_xfer>;
 	};
-/*
+
 	hdmi_codec: hdmi-codec {
 		status="okay";
 		compatible = "simple-audio-card";
@@ -72,7 +72,7 @@
 			sound-dai = <&hdmi>;
 		};
 	};
-*/
+
 	rga: rga@ff680000 {
                 compatible = "rockchip,rga2";
                 dev_mode = <1>;
@@ -147,7 +147,7 @@
 };
 
 &i2s2 {
-	status = "disabled";
+	status = "okay";
 	#sound-dai-cells = <0>;
 };
 
