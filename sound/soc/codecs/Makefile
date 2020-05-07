@@ -105,7 +105,7 @@ snd-soc-rt5616-objs := rt5616.o
 snd-soc-rt5631-objs := rt5631.o
 snd-soc-rt5640-objs := rt5640.o
 snd-soc-rt5645-objs := rt5645.o
-snd-soc-rt5670-objs := rt5670.o rt5670-dsp.o 
+snd-soc-rt5670-objs := rt5670.o rt5670-dsp.o tda7719.o 
 #rt5670_ioctl.o rt_codec_ioctl.o                                                                                                                              
 obj-y   += snd-soc-rt5670.o
 snd-soc-rt5651-objs := rt5651.o
