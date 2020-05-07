@@ -136,6 +136,7 @@
 	};
 };
 
+
 &i2c4 {
 	status = "okay";
 	rt5670: rt5670@1c {
@@ -145,6 +146,16 @@
 		status = "okay";
 	};
 };
+
+&i2c2 {
+	status = "okay";
+	tda7719: tda7719@44 {
+		compatible = "tda7719";
+		reg = <0x44>;
+		status = "okay";
+	};
+};
+
 
 &i2s2 {
 	status = "okay";
