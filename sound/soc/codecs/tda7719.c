@@ -73,17 +73,22 @@ static struct tda7719_reg default_mode[] = {
 
 static int tda7719_i2c_read(struct i2c_client *client, u8 reg)
 {
-	struct i2c_msg msg[1];
+	struct i2c_msg xfer[2];
 	u8 data;
 	int ret;
-
+	/* Write register */
+	xfer[0].addr = client->addr;
+	xfer[0].flags = 0;
+	xfer[0].len = 1;
+	xfer[0].buf = &reg;
 	/* Read data */
-	msg[0].addr = client->addr;
-	msg[0].flags = I2C_M_RD;
-	msg[0].len = 1;
-	msg[0].buf = &reg;
-	ret = i2c_transfer(client->adapter, msg, 1);
-	if (ret != 1) {
+	xfer[1].addr = client->addr;
+	xfer[1].flags = I2C_M_RD;
+	xfer[1].len = 1;
+	xfer[1].buf = (u8 *)&data;
+
+	ret = i2c_transfer(client->adapter, xfer, 2);
+	if (ret != 2) {
 		dev_err(&client->dev, "i2c_transfer() returned %d\n", ret);
 		return 0;
 	}
