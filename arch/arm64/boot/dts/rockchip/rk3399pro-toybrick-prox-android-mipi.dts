@@ -176,6 +176,14 @@
 };
 #endif
 
+
+&dsi {
+       status = "okay";
+       panel@0 {
+               test-gpios = <&gpio4 RK_PD6 GPIO_ACTIVE_HIGH>;
+               };
+};
+
 &dp_sound {
 	status = "okay";
 };
@@ -216,6 +224,7 @@
 };
 
 &route_dsi {
+	connect = <&vopl_out_dsi>;
         status = "okay";
 };
 

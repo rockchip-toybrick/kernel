@@ -67,6 +67,12 @@
 
 &dsi {
 	status = "okay";
+	test-gpios = <&gpio4 RK_PD6 GPIO_ACTIVE_HIGH>;
+};
+
+#if 0
+&dsi {
+	status = "okay";
 	panel@0 {
 		compatible = "sitronix,st7703", "simple-panel-dsi";
 		status = "okay";
@@ -157,6 +163,7 @@
 		};
 	};
 };
+#endif
 
 #if 0
 &dfi {
