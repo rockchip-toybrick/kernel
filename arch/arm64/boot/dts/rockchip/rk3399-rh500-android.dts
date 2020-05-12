@@ -400,6 +400,11 @@
 
 &i2c2 {
 	status = "okay";
+	tda7719: tda7719@44 {
+		compatible = "tda7719";
+		reg = <0x44>;
+		status = "okay";
+	};
 };
 
 &fusb0 {
