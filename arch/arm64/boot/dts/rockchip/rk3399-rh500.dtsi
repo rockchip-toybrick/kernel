@@ -330,6 +330,10 @@
 	rockchip,playback-channels = <8>;
 	rockchip,capture-channels = <8>;
 	#sound-dai-cells = <0>;
+	clock-names = "i2s_clk", "i2s_mclk","i2s_hclk";
+	clocks = <&cru SCLK_I2S0_8CH>, <&cru SCLK_I2S_8CH_OUT>, <&cru HCLK_I2S0_8CH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s0_8ch_bus>,<&i2s_8ch_mclk>;
 };
 
 

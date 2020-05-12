@@ -251,7 +251,7 @@
 				<2 26  RK_FUNC_GPIO &pcfg_output_low>,		//GPIO2_D2     HDMI31_SEL2(PCIE_CLKREQ#)
 				<2 28  RK_FUNC_GPIO &pcfg_output_low>,		//GPIO2_D4     HDMI32_SEL1(PCIE_PERST#)
 
-				<3 30  RK_FUNC_GPIO &pcfg_output_low>,		//GPIO3_D6     RELAY_CK_OUT2
+				//<3 30  RK_FUNC_GPIO &pcfg_output_low>,		//GPIO3_D6     RELAY_CK_OUT2
 
 				<4 7   RK_FUNC_GPIO &pcfg_output_high>,		//GPIO4_A7     HDMIIN_PWR
 
@@ -264,8 +264,8 @@
 				<4 30 RK_FUNC_GPIO  &pcfg_output_low>,		//GPIO4_D6     OUTPUT_IO2
 
 				<4 7 RK_FUNC_GPIO &pcfg_output_high>, 		//GPIO4_A7		HDMIIN_PWR
-				<3 29 RK_FUNC_GPIO &pcfg_output_high>,		//GPIO3_D5		HDMIIN_RST
-				<3 28 RK_FUNC_GPIO &pcfg_output_high>,		//GPIO3_D4		HDMIIN_STANDBY
+				//<3 29 RK_FUNC_GPIO &pcfg_output_high>,		//GPIO3_D5		HDMIIN_RST
+				//<3 28 RK_FUNC_GPIO &pcfg_output_high>,		//GPIO3_D4		HDMIIN_STANDBY
 				<4 5 RK_FUNC_GPIO &pcfg_output_low>,		//GPIO4_A5		HDMIIN_INT
 
 				<1 4 RK_FUNC_GPIO &pcfg_output_high>,		//HDMIIN2_PWR     GPIO1_A4
