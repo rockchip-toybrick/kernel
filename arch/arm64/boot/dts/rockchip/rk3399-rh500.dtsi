@@ -622,14 +622,14 @@
 	temperature = <115000>;
 };
 
-/*&tcphy0 {
-	extcon = <&vpd0>;
+&tcphy0 {
+	//extcon = <&vpd0>;
 	status = "okay";
 };
 
 &tcphy1 {
 	status = "okay";
-};*/
+};
 
 &tsadc {
 	/* tshut mode 0:CRU 1:GPIO */
@@ -654,15 +654,11 @@
 	status = "okay";
 };
 
-/*
- * USB
- */
+&u2phy0 {
+	status = "okay";
 
-/*&u2phy0 {
-	status = "okay";	
 	u2phy0_otg: otg-port {
 		status = "okay";
-
 	};
 
 	u2phy0_host: host-port {
@@ -682,9 +678,9 @@
 		phy-supply = <&vcc5v0_host>;
 		status = "okay";
 	};
-};*/
+};
 
-/*&usb_host0_ehci {
+&usb_host0_ehci {
 	status = "okay";
 };
 
@@ -727,7 +723,7 @@
 	dr_mode = "host";
 	maximum-speed = "high-speed";
 	status = "okay";
-};*/
+};
 
 &pwm2 {
 	status = "okay";

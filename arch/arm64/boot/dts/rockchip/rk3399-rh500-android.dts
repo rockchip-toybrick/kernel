@@ -402,6 +402,10 @@
 	status = "okay";
 };
 
+&fusb0 {
+    status = "disabled";
+};
+
 &hdmi_in_vopl {
 	status = "disabled";
 };
@@ -424,10 +428,7 @@
 		<000000000 0x0000 0x0000 0x0000>;
 };
 
-/* 
- * USB
- */
-
+/*
 &usb_host0_ehci {
 	status = "okay";
 };
@@ -445,7 +446,6 @@
 };
 
 &tcphy0 {
-	//extcon = <&vpd0>;
 	status = "okay";
 };
 
@@ -480,21 +480,10 @@
 };
 
 &usbdrd3_0 {
-	//extcon = <&u2phy0>;
 	status = "okay";
 };
 
 &usbdrd_dwc3_0 {
-	//dr_mode = "otg";
-	//maximum-speed = "high-speed";
-	//phys = <&u2phy0_otg>;
-	//phy-names = "usb2-phy";
-
-	//dr_mode = "host";
-	//maximum-speed = "high-speed";
-	//phys = <&u2phy0_host>;
-	//phy-names = "usb2-phy";
-	
 	status = "okay";
 };
 
@@ -505,3 +494,4 @@
 &usbdrd_dwc3_1 {
 	status = "okay";
 };
+*/
