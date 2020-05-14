@@ -895,7 +895,6 @@
 	pinctrl-1 = <&rgmii_sleep_pins>;
 	tx_delay = <0x28>;
 	rx_delay = <0x11>;
-	max-speed = <500>;
 	status = "okay";
 };
 
@@ -962,6 +961,31 @@
 		rgmii_sleep_pins: rgmii-sleep-pins {
 			rockchip,pins =
 				<3 15 RK_FUNC_GPIO &pcfg_output_low>;
+		};
+	};
+
+	i2s1 {
+		i2s1_2ch_bus: i2s1-2ch-bus {
+			rockchip,pins =
+				<4 3 RK_FUNC_1 &pcfg_pull_none>,
+				<4 4 RK_FUNC_1 &pcfg_pull_none>,
+				//<4 5 RK_FUNC_1 &pcfg_pull_none>,
+				<4 6 RK_FUNC_1 &pcfg_pull_none>;
+				//<4 7 RK_FUNC_1 &pcfg_pull_none>;
+		};
+	};
+
+	i2s0 {
+		i2s0_8ch_bus: i2s0-8ch-bus {
+			rockchip,pins =
+				<3 24 RK_FUNC_1 &pcfg_pull_none>,
+				<3 25 RK_FUNC_1 &pcfg_pull_none>,
+				<3 26 RK_FUNC_1 &pcfg_pull_none>,
+				<3 27 RK_FUNC_1 &pcfg_pull_none>,
+				//<3 28 RK_FUNC_1 &pcfg_pull_none>,
+				//<3 29 RK_FUNC_1 &pcfg_pull_none>,
+				//<3 30 RK_FUNC_1 &pcfg_pull_none>,
+				<3 31 RK_FUNC_1 &pcfg_pull_none>;
 		};
 	};
 };
