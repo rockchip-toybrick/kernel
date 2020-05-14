@@ -371,7 +371,7 @@
 
                                 <4 24  RK_FUNC_GPIO &pcfg_output_low>,          //GPIO4_D0     OUTPUT_IO1
                                 <4 27  RK_FUNC_GPIO &pcfg_output_low>,          //GPIO4_D3     HDMI31_SEL1
-                                <4 28  RK_FUNC_GPIO &pcfg_output_low>,          //GPIO4_D4     FAN_CTL_H
+                                <4 28  RK_FUNC_GPIO &pcfg_output_high>,          //GPIO4_D4     FAN_CTL_H
                                 <4 29 RK_FUNC_GPIO  &pcfg_output_high>,         //GPIO4_D5     PS176_HDMI_EN
                                 <4 30 RK_FUNC_GPIO  &pcfg_output_low>,          //GPIO4_D6     OUTPUT_IO2
 
