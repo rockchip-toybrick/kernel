@@ -99,6 +99,20 @@
 	};
 };
 
+&rkisp1_1 {
+    status = "okay";
+
+    port {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        isp1_mipi_in: endpoint@0 {
+            reg = <0>;
+            remote-endpoint = <&dphy_tx1rx1_out>;
+        };
+    };
+};
+
 &mipi_dphy_rx0 {
 	status = "okay";
 
@@ -127,6 +141,38 @@
 			};
 		};
 	};
+};
+
+&mipi_dphy_tx1rx1 {
+	status = "okay";
+
+    ports {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        port@0 {
+            reg = <0>;
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            mipi_in_ucam1: endpoint@1 {
+                reg = <1>;
+                remote-endpoint = <&hdmiin2_out0>;
+                data-lanes = <1 2 3 4>;
+            };
+        };
+
+        port@1 {
+            reg = <1>;
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            dphy_tx1rx1_out: endpoint@0 {
+                reg = <0>;
+                remote-endpoint = <&isp1_mipi_in>;
+            };
+        };
+    };
 };
 
 &isp0_mmu {
@@ -345,6 +391,38 @@
 		pinctrl-0 = <&hdmiin2_gpios>;
 		status = "okay";
 	};*/
+
+    tc358749x_2: tc358749x@f {
+        compatible = "toshiba,tc358749";
+        //#sound-dai-cells = <0>;
+        reg = <0x0f>;
+        status = "okay";
+        clocks = <&ext_cam_clk>;
+        clock-names = "refclk";
+        reset-gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;
+        /* hardware irq-pin is dangling
+         * connect it to other gpio then configurate follow interrupt
+         * or del config just using software poll
+         */
+        //interrupt-parent = <&gpio2>;
+        //interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&hdmiin2_gpios>;
+        rockchip,camera-module-index = <0>;
+        rockchip,camera-module-facing = "back";
+        rockchip,camera-module-name = "CMK-CT0116";
+        rockchip,camera-module-lens-name = "Largan-50013A1";
+        port {
+            hdmiin2_out0: endpoint {
+                /* Unlinked mipi dphy rx1 */
+                remote-endpoint = <&mipi_in_ucam1>;
+                data-lanes = <1 2 3 4>;
+                clock-noncontinuous;
+                link-frequencies =
+                    /bits/ 64 <297000000>;
+            };
+        };
+    };
 };
 
 /*&i2c1 {
