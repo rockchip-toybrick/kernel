@@ -2577,7 +2577,7 @@ static void vcodec_set_freq_default(struct vpu_service_info *pservice,
 		return;
 
 	atomic_set(&pservice->freq_status, reg->freq);
-	switch (reg->freq) {
+	switch (VPU_FREQ_400M) {
 	case VPU_FREQ_200M: {
 		clk_set_rate(pservice->aclk_vcodec, 200 * MHZ);
 	} break;
