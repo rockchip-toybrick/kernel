@@ -56,6 +56,7 @@ allowed_warnings = set([
     "vdso.c:119", # arch/arm64/kernel/vdso.c:119:6: warning: 'memcmp' reading 4 bytes from a region of size 1 [-Wstringop-overflow=]
     "dhd_linux.c:6965", # drivers/net/wireless/rockchip_wlan/rkwifi/bcmdhd/dhd_linux.c:6965:39: warning: argument to 'sizeof' in 'strncpy' call is the same expression as the source; did you mean to use the size of the destination? [-Wsizeof-pointer-memaccess]
     "dhd_linux.c:9447", # drivers/net/wireless/rockchip_wlan/rkwifi/bcmdhd/dhd_linux.c:9447:4: warning: 'strncat' specified bound 2 equals source length [-Wstringop-overflow=]
+    "kern_levels.h:4", # include/linux/kern_levels.h:4:18: warning: format '%lx' expects argument of type 'long unsigned int', but argument 3 has type 'unsigned int' [-Wformat=]
  ])
 
 # Capture the name of the object file, can find it.
