@@ -49,6 +49,17 @@
 		regulator-boot-on;
 	};
 
+	vcc5v_ctr: vcc33-hdmiin-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc5v_ctr";
+		enable-active-high;
+		gpio = <&gpio6 7 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vcc5v_ctr_pwren>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
 	vcc_host_5v: usb-host-regulator {
 		compatible = "regulator-fixed";
 		enable-active-high;
@@ -704,6 +715,10 @@
 				<2 7 RK_FUNC_GPIO &pcfg_pull_none>; //HDMIIN_INT
 				
 		};
+	};
+
+	vcc5v_ctr_pwren: vcc5v-ctr-pwren {
+		rockchip,pins = <7 7 RK_FUNC_GPIO &pcfg_pull_up>;
 	};
 
 	sdmmc {
