@@ -142,46 +142,22 @@
 		clock-output-names = "ext_gmac";
 		#clock-cells = <0>;
 	};
-
-	sound: sound {
-		status = "okay";
-		compatible = "simple-audio-card";
-		simple-audio-card,format = "i2s";
-		simple-audio-card,name = "rockchip,rt5670-codec";
-		simple-audio-card,mclk-fs = <512>;
-		simple-audio-card,widgets =
-			"Microphone", "Microphone Jack",
-			"Headphone", "Headphone Jack";
-		simple-audio-card,routing =
-			"MIC1", "Microphone Jack",
-			"MIC2", "Microphone Jack",
-			"Microphone Jack", "micbias1",
-			"Headphone Jack", "HPOL",
-			"Headphone Jack", "HPOR";
-
-		simple-audio-card,dai-link@0 {
-			format = "i2s";
-			cpu {
-				sound-dai = <&i2s>;
+	
+	rockchip-rt5670 {
+		compatible = "rockchip-rt5670";
+		dais {
+			dai0 {
+				audio-codec = <&rt5670>;
+				audio-controller = <&i2s>;
+				format = "i2s";
 			};
-
-			codec {
-				sound-dai = <&rt5670>;
-			};
-		};
-
-		simple-audio-card,dai-link@1 {
-			format = "i2s";
-			cpu {
-				sound-dai = <&i2s>;
-			};
-
-			codec {
-				sound-dai = <&hdmi>;
+			dai1 {
+				audio-codec = <&rt5670>;
+				audio-controller = <&i2s>;
+				format = "i2s";
 			};
 		};
 	};
-
 };
 
 &sdio0 {
@@ -606,8 +582,12 @@
 };
 
 &i2s {
-	#sound-dai-cells = <0>;
 	status = "okay";
+	#sound-dai-cells = <0>;
+	clock-names = "i2s_clk","i2s_mclk", "i2s_hclk";
+	clocks = <&cru SCLK_I2S0>, <&cru SCLK_I2S0_OUT>, <&cru HCLK_I2S0>;
+	pinctrl-0 = <&i2s0_bus>,<&i2s0_mclk>;
+	power-domains = <&power RK3288_PD_VIO>;
 };
 
 &mipi_phy_rx0 {
