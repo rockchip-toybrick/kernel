@@ -144,11 +144,11 @@ struct arm_smccc_res sip_smc_vpu_reset(u32 arg0, u32 arg1, u32 arg2)
 }
 EXPORT_SYMBOL_GPL(sip_smc_vpu_reset);
 
-struct arm_smccc_res sip_smc_soc_bus_div(u32 arg0, u32 arg1, u32 arg2)
+struct arm_smccc_res sip_smc_bus_config(u32 arg0, u32 arg1, u32 arg2)
 {
 	struct arm_smccc_res res;
 
-	res = __invoke_sip_fn_smc(RK_SIP_SOC_BUS_DIV, arg0, arg1, arg2);
+	res = __invoke_sip_fn_smc(SIP_BUS_CFG, arg0, arg1, arg2);
 	return res;
 }
 
@@ -391,13 +391,14 @@ void sip_fiq_debugger_enable_fiq(bool enable, uint32_t tgt_cpu)
 }
 
 /******************************************************************************/
-#ifdef CONFIG_ARM
 static __init int sip_firmware_init(void)
 {
 	struct arm_smccc_res res;
 
+#ifdef CONFIG_ARM
 	if (!psci_smp_available())
 		return 0;
+#endif
 
 	/*
 	 * OP-TEE works on kernel 3.10 and 4.4 and we have different sip
@@ -408,6 +409,7 @@ static __init int sip_firmware_init(void)
 	if (IS_SIP_ERROR(res.a0))
 		pr_err("%s: set rockchip sip version v2 failed\n", __func__);
 
+#ifdef CONFIG_ARM
 	/*
 	 * Currently, we support:
 	 *
@@ -431,8 +433,8 @@ static __init int sip_firmware_init(void)
 		firmware_64_32bit = FIRMWARE_ATF_64BIT;
 		break;
 	}
+#endif
 
 	return 0;
 }
 arch_initcall(sip_firmware_init);
-#endif

@@ -726,11 +726,13 @@ struct dwc2_hregs_backup {
  * @hcd_enabled		Host mode sub-driver initialization indicator.
  * @gadget_enabled	Peripheral mode sub-driver initialization indicator.
  * @ll_hw_enabled	Status of low-level hardware resources.
+ * @ll_phy_enabled	Status of low-level PHY resources.
  * @phy:                The otg phy transceiver structure for phy control.
  * @uphy:               The otg phy transceiver structure for old USB phy control.
  * @plat:               The platform specific configuration data. This can be removed once
  *                      all SoCs support usb transceiver.
  * @supplies:           Definition of USB power supplies
+ * @vbus_supply:        Regulator supplying vbus.
  * @phyif:              PHY interface width
  * @lock:		Spinlock that protects all the driver data structures
  * @priv:		Stores a pointer to the struct usb_hcd
@@ -861,12 +863,14 @@ struct dwc2_hsotg {
 	unsigned int hcd_enabled:1;
 	unsigned int gadget_enabled:1;
 	unsigned int ll_hw_enabled:1;
+	unsigned int ll_phy_enabled:1;
 
 	struct phy *phy;
 	struct work_struct phy_rst_work;
 	struct usb_phy *uphy;
 	struct dwc2_hsotg_plat *plat;
 	struct regulator_bulk_data supplies[ARRAY_SIZE(dwc2_hsotg_supply_names)];
+	struct regulator *vbus_supply;
 	u32 phyif;
 
 	spinlock_t lock;
@@ -1259,6 +1263,9 @@ extern void dwc2_set_parameters(struct dwc2_hsotg *hsotg,
 extern void dwc2_set_all_params(struct dwc2_core_params *params, int value);
 
 extern int dwc2_get_hwparams(struct dwc2_hsotg *hsotg);
+
+extern int dwc2_lowlevel_phy_enable(struct dwc2_hsotg *hsotg);
+extern int dwc2_lowlevel_phy_disable(struct dwc2_hsotg *hsotg);
 
 extern int dwc2_lowlevel_hw_enable(struct dwc2_hsotg *hsotg);
 extern int dwc2_lowlevel_hw_disable(struct dwc2_hsotg *hsotg);

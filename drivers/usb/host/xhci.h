@@ -722,6 +722,8 @@ struct xhci_ep_ctx {
 #define EP_STATE_HALTED		2
 #define EP_STATE_STOPPED	3
 #define EP_STATE_ERROR		4
+#define GET_EP_CTX_STATE(ctx)	(le32_to_cpu((ctx)->ep_info) & EP_STATE_MASK)
+
 /* Mult - Max number of burtst within an interval, in EP companion desc. */
 #define EP_MULT(p)		(((p) & 0x3) << 8)
 #define CTX_TO_EP_MULT(p)	(((p) >> 8) & 0x3)
@@ -1222,6 +1224,11 @@ struct xhci_event_cmd {
 
 /* Stop Ring - Transfer State Preserve */
 #define TRB_TSP		(1<<9)
+
+enum xhci_ep_reset_type {
+	EP_HARD_RESET,
+	EP_SOFT_RESET,
+};
 
 /* Force Event */
 #define TRB_TO_VF_INTR_TARGET(p)	(((p) & (0x3ff << 22)) >> 22)
@@ -2087,7 +2094,8 @@ int xhci_queue_configure_endpoint(struct xhci_hcd *xhci,
 int xhci_queue_evaluate_context(struct xhci_hcd *xhci, struct xhci_command *cmd,
 		dma_addr_t in_ctx_ptr, u32 slot_id, bool command_must_succeed);
 int xhci_queue_reset_ep(struct xhci_hcd *xhci, struct xhci_command *cmd,
-		int slot_id, unsigned int ep_index);
+		int slot_id, unsigned int ep_index,
+		enum xhci_ep_reset_type reset_type);
 int xhci_queue_reset_device(struct xhci_hcd *xhci, struct xhci_command *cmd,
 		u32 slot_id);
 void xhci_find_new_dequeue_state(struct xhci_hcd *xhci,

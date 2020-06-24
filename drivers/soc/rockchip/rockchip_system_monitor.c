@@ -201,7 +201,7 @@ static struct video_info *rockchip_parse_video_info(const char *buf)
 {
 	struct video_info *video_info;
 	const char *cp = buf;
-	char *str;
+	char *str, *p;
 	int ntokens = 0;
 
 	while ((cp = strpbrk(cp + 1, ",")))
@@ -216,12 +216,13 @@ static struct video_info *rockchip_parse_video_info(const char *buf)
 	INIT_LIST_HEAD(&video_info->node);
 
 	str = kstrdup(buf, GFP_KERNEL);
-	strsep(&str, ",");
-	video_info->width = rockchip_get_video_param(&str);
-	video_info->height = rockchip_get_video_param(&str);
-	video_info->ishevc = rockchip_get_video_param(&str);
-	video_info->videoFramerate = rockchip_get_video_param(&str);
-	video_info->streamBitrate = rockchip_get_video_param(&str);
+	p = str;
+	strsep(&p, ",");
+	video_info->width = rockchip_get_video_param(&p);
+	video_info->height = rockchip_get_video_param(&p);
+	video_info->ishevc = rockchip_get_video_param(&p);
+	video_info->videoFramerate = rockchip_get_video_param(&p);
+	video_info->streamBitrate = rockchip_get_video_param(&p);
 	pr_debug("%c,width=%d,height=%d,ishevc=%d,videoFramerate=%d,streamBitrate=%d\n",
 		 buf[0],
 		 video_info->width,
@@ -597,6 +598,12 @@ static int monitor_device_parse_status_config(struct device_node *np,
 				   &info->video_4k_freq);
 	ret &= of_property_read_u32(np, "rockchip,reboot-freq",
 				    &info->reboot_freq);
+	if (info->devp->type == MONITOR_TPYE_CPU) {
+		if (!info->reboot_freq) {
+			info->reboot_freq = CPU_REBOOT_FREQ;
+			ret = 0;
+		}
+	}
 
 	return ret;
 }
@@ -669,11 +676,23 @@ static int monitor_device_parse_dt(struct device *dev,
 	return ret;
 }
 
+int rockchip_monitor_opp_set_rate(struct monitor_dev_info *info,
+				  unsigned long target_freq)
+{
+	int ret = 0;
+
+	mutex_lock(&info->volt_adjust_mutex);
+	ret = dev_pm_opp_set_rate(info->dev, target_freq);
+	mutex_unlock(&info->volt_adjust_mutex);
+
+	return ret;
+}
+EXPORT_SYMBOL(rockchip_monitor_opp_set_rate);
+
 int rockchip_monitor_cpu_low_temp_adjust(struct monitor_dev_info *info,
 					 bool is_low)
 {
 	struct device *dev = info->dev;
-	struct cpufreq_policy *policy;
 	unsigned int cpu = cpumask_any(&info->devp->allowed_cpus);
 
 	if (info->low_limit) {
@@ -684,13 +703,9 @@ int rockchip_monitor_cpu_low_temp_adjust(struct monitor_dev_info *info,
 		cpufreq_update_policy(cpu);
 	}
 
-	policy = cpufreq_cpu_get(cpu);
-	if (!policy)
-		return -ENODEV;
-	down_write(&policy->rwsem);
+	mutex_lock(&info->volt_adjust_mutex);
 	dev_pm_opp_check_rate_volt(dev, false);
-	up_write(&policy->rwsem);
-	cpufreq_cpu_put(policy);
+	mutex_unlock(&info->volt_adjust_mutex);
 
 	return 0;
 }
@@ -887,18 +902,36 @@ rockchip_system_monitor_wide_temp_init(struct monitor_dev_info *info)
 {
 	int ret, temp;
 
+	/*
+	 * set the init state to low temperature that the voltage will be enough
+	 * when cpu up at low temperature.
+	 */
+	if (!info->is_low_temp) {
+		if (info->opp_table)
+			rockchip_adjust_low_temp_opp_volt(info, true);
+		info->wide_temp_limit = info->low_limit;
+		info->is_low_temp = true;
+	}
+
 	ret = thermal_zone_get_temp(system_monitor->tz, &temp);
 	if (ret || temp == THERMAL_TEMP_INVALID) {
 		dev_err(info->dev,
 			"failed to read out thermal zone (%d)\n", ret);
 		return;
 	}
-	if (temp < info->low_temp) {
+
+	if (temp > info->high_temp) {
 		if (info->opp_table)
-			rockchip_adjust_low_temp_opp_volt(info, true);
-		info->wide_temp_limit = info->low_limit;
-	} else if (temp > info->high_temp) {
+			rockchip_adjust_low_temp_opp_volt(info, false);
+		info->is_low_temp = false;
+
 		info->wide_temp_limit = info->high_limit;
+		info->is_high_temp = true;
+	} else if (temp > (info->low_temp + info->temp_hysteresis)) {
+		if (info->opp_table)
+			rockchip_adjust_low_temp_opp_volt(info, false);
+		info->is_low_temp = false;
+		info->wide_temp_limit = 0;
 	}
 }
 
@@ -1055,6 +1088,7 @@ rockchip_system_monitor_register(struct device *dev,
 	}
 
 	rockchip_system_monitor_wide_temp_init(info);
+	mutex_init(&info->volt_adjust_mutex);
 
 	down_write(&mdev_list_sem);
 	list_add(&info->node, &monitor_dev_list);
@@ -1225,8 +1259,6 @@ static void rockchip_system_status_cpu_limit_freq(struct monitor_dev_info *info,
 	int cpu;
 
 	if (status & SYS_STATUS_REBOOT) {
-		if (!info->reboot_freq)
-			info->reboot_freq = CPU_REBOOT_FREQ;
 		info->status_min_limit = info->reboot_freq;
 		info->status_max_limit = info->reboot_freq;
 		info->is_status_freq_fixed = true;
@@ -1360,6 +1392,8 @@ static int rockchip_monitor_reboot_notifier(struct notifier_block *nb,
 					     unsigned long action, void *ptr)
 {
 	rockchip_set_system_status(SYS_STATUS_REBOOT);
+	if (system_monitor->tz)
+		cancel_delayed_work_sync(&system_monitor->thermal_work);
 
 	return NOTIFY_OK;
 }

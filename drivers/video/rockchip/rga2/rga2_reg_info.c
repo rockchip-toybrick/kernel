@@ -388,11 +388,11 @@ static void RGA2_set_reg_dst_info(u8 *base, struct rga2_req *msg)
         case RGA2_FORMAT_YCbCr_422_SP : dst_format = 0x8; x_div = 1; y_div = 1; break;
         case RGA2_FORMAT_YCbCr_422_P  : dst_format = 0x9; x_div = 2; y_div = 1; break;
         case RGA2_FORMAT_YCbCr_420_SP : dst_format = 0xa; x_div = 1; y_div = 2; break;
-        case RGA2_FORMAT_YCbCr_420_P  : dst_format = 0xb; x_div = 2; y_div = 2; break;
+        case RGA2_FORMAT_YCbCr_420_P  : dst_format = 0xb; dst_cbcr_swp = 1; x_div = 2; y_div = 2; break;
         case RGA2_FORMAT_YCrCb_422_SP : dst_format = 0x8; dst_cbcr_swp = 1; x_div = 1; y_div = 1; break;
         case RGA2_FORMAT_YCrCb_422_P  : dst_format = 0x9; dst_cbcr_swp = 1; x_div = 2; y_div = 1; break;
         case RGA2_FORMAT_YCrCb_420_SP : dst_format = 0xa; dst_cbcr_swp = 1; x_div = 1; y_div = 2; break;
-        case RGA2_FORMAT_YCrCb_420_P  : dst_format = 0xb; dst_cbcr_swp = 1; x_div = 2; y_div = 2; break;
+        case RGA2_FORMAT_YCrCb_420_P  : dst_format = 0xb; x_div = 2; y_div = 2; break;
 
 	case RGA2_FORMAT_YUYV_422     : dst_format = 0xc; dpw = 2; break;
 	case RGA2_FORMAT_YVYU_422     : dst_format = 0xc; dpw = 2; dst_cbcr_swp = 1; break;
@@ -423,7 +423,12 @@ static void RGA2_set_reg_dst_info(u8 *base, struct rga2_req *msg)
     d_uv_stride = (d_stride << 2) / x_div;
 
     *bRGA_DST_VIR_INFO = d_stride | (s_stride << 16);
-    *bRGA_DST_ACT_INFO = (msg->dst.act_w - 1) | ((msg->dst.act_h - 1) << 16);
+	if ((msg->dst.vir_w % 2 != 0) &&
+		(msg->dst.act_w == msg->src.act_w) && (msg->dst.act_h == msg->src.act_h) &&
+		(msg->dst.format == RGA2_FORMAT_BGR_888 || msg->dst.format == RGA2_FORMAT_RGB_888))
+		*bRGA_DST_ACT_INFO = (msg->dst.act_w) | ((msg->dst.act_h - 1) << 16);
+	else
+		*bRGA_DST_ACT_INFO = (msg->dst.act_w - 1) | ((msg->dst.act_h - 1) << 16);
     s_stride <<= 2;
 	d_stride <<= 2;
 

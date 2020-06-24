@@ -74,7 +74,6 @@ struct gadget_info {
 	struct config_group configs_group;
 	struct config_group strings_group;
 	struct config_group os_desc_group;
-	struct config_group *default_groups[5];
 
 	struct mutex lock;
 	struct usb_gadget_strings *gstrings[MAX_USB_STRING_LANGS + 1];
@@ -103,7 +102,6 @@ static inline struct gadget_info *to_gadget_info(struct config_item *item)
 struct config_usb_cfg {
 	struct config_group group;
 	struct config_group strings_group;
-	struct config_group *default_groups[2];
 	struct list_head string_list;
 	struct usb_configuration c;
 	struct list_head func_list;
@@ -439,7 +437,7 @@ out:
 	return ret;
 }
 
-static int config_usb_cfg_unlink(
+static void config_usb_cfg_unlink(
 	struct config_item *usb_cfg_ci,
 	struct config_item *usb_func_ci)
 {
@@ -468,12 +466,11 @@ static int config_usb_cfg_unlink(
 			list_del(&f->list);
 			usb_put_function(f);
 			mutex_unlock(&gi->lock);
-			return 0;
+			return;
 		}
 	}
 	mutex_unlock(&gi->lock);
 	WARN(1, "Unable to locate function to unbind\n");
-	return 0;
 }
 
 static struct configfs_item_operations gadget_config_item_ops = {
@@ -695,13 +692,12 @@ static struct config_group *config_desc_make(
 	INIT_LIST_HEAD(&cfg->string_list);
 	INIT_LIST_HEAD(&cfg->func_list);
 
-	cfg->group.default_groups = cfg->default_groups;
-	cfg->default_groups[0] = &cfg->strings_group;
-
 	config_group_init_type_name(&cfg->group, name,
 				&gadget_config_type);
+
 	config_group_init_type_name(&cfg->strings_group, "strings",
 			&gadget_config_name_strings_type);
+	configfs_add_default_group(&cfg->strings_group, &cfg->group);
 
 	ret = usb_add_config_only(&gi->cdev, &cfg->c);
 	if (ret)
@@ -897,7 +893,7 @@ out:
 	return ret;
 }
 
-static int os_desc_unlink(struct config_item *os_desc_ci,
+static void os_desc_unlink(struct config_item *os_desc_ci,
 			  struct config_item *usb_cfg_ci)
 {
 	struct gadget_info *gi = container_of(to_config_group(os_desc_ci),
@@ -910,7 +906,6 @@ static int os_desc_unlink(struct config_item *os_desc_ci,
 	cdev->os_desc_config = NULL;
 	WARN_ON(gi->udc_name);
 	mutex_unlock(&gi->lock);
-	return 0;
 }
 
 static struct configfs_item_operations os_desc_ops = {
@@ -1178,15 +1173,11 @@ int usb_os_desc_prepare_interf_dir(struct config_group *parent,
 				   char **names,
 				   struct module *owner)
 {
-	struct config_group **f_default_groups, *os_desc_group,
-				**interface_groups;
+	struct config_group *os_desc_group;
 	struct config_item_type *os_desc_type, *interface_type;
 
 	vla_group(data_chunk);
-	vla_item(data_chunk, struct config_group *, f_default_groups, 2);
 	vla_item(data_chunk, struct config_group, os_desc_group, 1);
-	vla_item(data_chunk, struct config_group *, interface_groups,
-		 n_interf + 1);
 	vla_item(data_chunk, struct config_item_type, os_desc_type, 1);
 	vla_item(data_chunk, struct config_item_type, interface_type, 1);
 
@@ -1194,18 +1185,14 @@ int usb_os_desc_prepare_interf_dir(struct config_group *parent,
 	if (!vlabuf)
 		return -ENOMEM;
 
-	f_default_groups = vla_ptr(vlabuf, data_chunk, f_default_groups);
 	os_desc_group = vla_ptr(vlabuf, data_chunk, os_desc_group);
 	os_desc_type = vla_ptr(vlabuf, data_chunk, os_desc_type);
-	interface_groups = vla_ptr(vlabuf, data_chunk, interface_groups);
 	interface_type = vla_ptr(vlabuf, data_chunk, interface_type);
 
-	parent->default_groups = f_default_groups;
 	os_desc_type->ct_owner = owner;
 	config_group_init_type_name(os_desc_group, "os_desc", os_desc_type);
-	f_default_groups[0] = os_desc_group;
+	configfs_add_default_group(os_desc_group, parent);
 
-	os_desc_group->default_groups = interface_groups;
 	interface_type->ct_group_ops = &interf_grp_ops;
 	interface_type->ct_attrs = interf_grp_attrs;
 	interface_type->ct_owner = owner;
@@ -1218,7 +1205,7 @@ int usb_os_desc_prepare_interf_dir(struct config_group *parent,
 		config_group_init_type_name(&d->group, "", interface_type);
 		config_item_set_name(&d->group.cg_item, "interface.%s",
 				     names[n_interf]);
-		interface_groups[n_interf] = &d->group;
+		configfs_add_default_group(&d->group, os_desc_group);
 	}
 
 	return 0;
@@ -1669,20 +1656,24 @@ static struct config_group *gadgets_make(
 	gi = kzalloc(sizeof(*gi), GFP_KERNEL);
 	if (!gi)
 		return ERR_PTR(-ENOMEM);
-	gi->group.default_groups = gi->default_groups;
-	gi->group.default_groups[0] = &gi->functions_group;
-	gi->group.default_groups[1] = &gi->configs_group;
-	gi->group.default_groups[2] = &gi->strings_group;
-	gi->group.default_groups[3] = &gi->os_desc_group;
+
+	config_group_init_type_name(&gi->group, name, &gadget_root_type);
 
 	config_group_init_type_name(&gi->functions_group, "functions",
 			&functions_type);
+	configfs_add_default_group(&gi->functions_group, &gi->group);
+
 	config_group_init_type_name(&gi->configs_group, "configs",
 			&config_desc_type);
+	configfs_add_default_group(&gi->configs_group, &gi->group);
+
 	config_group_init_type_name(&gi->strings_group, "strings",
 			&gadget_strings_strings_type);
+	configfs_add_default_group(&gi->strings_group, &gi->group);
+
 	config_group_init_type_name(&gi->os_desc_group, "os_desc",
 			&os_desc_type);
+	configfs_add_default_group(&gi->os_desc_group, &gi->group);
 
 	gi->composite.bind = configfs_do_nothing;
 	gi->composite.unbind = configfs_do_nothing;
@@ -1710,8 +1701,6 @@ static struct config_group *gadgets_make(
 	if (android_device_create(gi) < 0)
 		goto err;
 
-	config_group_init_type_name(&gi->group, name,
-				&gadget_root_type);
 	return &gi->group;
 
 err:

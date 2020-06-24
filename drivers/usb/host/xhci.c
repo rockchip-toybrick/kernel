@@ -1679,8 +1679,7 @@ int xhci_drop_endpoint(struct usb_hcd *hcd, struct usb_device *udev,
 	/* If the HC already knows the endpoint is disabled,
 	 * or the HCD has noted it is disabled, ignore this request
 	 */
-	if (((ep_ctx->ep_info & cpu_to_le32(EP_STATE_MASK)) ==
-	     cpu_to_le32(EP_STATE_DISABLED)) ||
+	if ((GET_EP_CTX_STATE(ep_ctx) == EP_STATE_DISABLED) ||
 	    le32_to_cpu(ctrl_ctx->drop_flags) &
 	    xhci_get_endpoint_flag(&ep->desc)) {
 		/* Do not warn when called after a usb_device_reset */
@@ -1860,7 +1859,7 @@ static int xhci_configure_endpoint_result(struct xhci_hcd *xhci,
 
 	switch (*cmd_status) {
 	case COMP_COMMAND_ABORTED:
-	case COMP_STOPPED:
+	case COMP_COMMAND_RING_STOPPED:
 		xhci_warn(xhci, "Timeout while waiting for configure endpoint command\n");
 		ret = -ETIME;
 		break;
@@ -1910,7 +1909,7 @@ static int xhci_evaluate_context_result(struct xhci_hcd *xhci,
 
 	switch (*cmd_status) {
 	case COMP_COMMAND_ABORTED:
-	case COMP_STOPPED:
+	case COMP_COMMAND_RING_STOPPED:
 		xhci_warn(xhci, "Timeout while waiting for evaluate context command\n");
 		ret = -ETIME;
 		break;
@@ -3525,7 +3524,7 @@ int xhci_discover_or_reset_device(struct usb_hcd *hcd, struct usb_device *udev)
 	ret = reset_device_cmd->status;
 	switch (ret) {
 	case COMP_COMMAND_ABORTED:
-	case COMP_STOPPED:
+	case COMP_COMMAND_RING_STOPPED:
 		xhci_warn(xhci, "Timeout waiting for reset device command\n");
 		ret = -ETIME;
 		goto command_cleanup;
@@ -3907,7 +3906,7 @@ static int xhci_setup_device(struct usb_hcd *hcd, struct usb_device *udev,
 	 */
 	switch (command->status) {
 	case COMP_COMMAND_ABORTED:
-	case COMP_STOPPED:
+	case COMP_COMMAND_RING_STOPPED:
 		xhci_warn(xhci, "Timeout while waiting for setup device command\n");
 		ret = -ETIME;
 		break;
