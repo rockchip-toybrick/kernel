@@ -135,6 +135,28 @@ static void rga2_try_set_reg(void);
 #define INFO(format, args...)
 #endif
 
+static unsigned long
+rga_copy_from(void *to, const void *from, unsigned long n)
+{
+	if(virt_addr_valid(from)) {
+		memcpy(to, from, n);
+		return 0;
+	} else{
+		return copy_from_user(to, from, n);
+	}
+}
+
+static unsigned long
+rga_copy_to(void *to, const void *from, unsigned long n)
+{
+	if(virt_addr_valid(to)) {
+		memcpy(to, from, n);
+		return 0;
+	} else{
+		return copy_to_user(to, from, n);
+	}
+}
+
 #if RGA2_DEBUGFS
 static const char *rga2_get_cmd_mode_str(u32 cmd)
 {
@@ -752,8 +774,8 @@ static int rga2_get_result(rga2_session *session, unsigned long arg)
 	int num_done;
 
 	num_done = atomic_read(&session->num_done);
-	if (unlikely(copy_to_user((void __user *)arg, &num_done, sizeof(int)))) {
-	    printk("copy_to_user failed\n");
+	if (unlikely(rga_copy_to((void __user *)arg, &num_done, sizeof(int)))) {
+	    printk("rga_copy_to failed\n");
 	    ret =  -EFAULT;
 	}
 	return ret;
@@ -1667,9 +1689,9 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 	switch (cmd)
 	{
 		case RGA_BLIT_SYNC:
-			if (unlikely(copy_from_user(&req_rga, (struct rga_req*)arg, sizeof(struct rga_req))))
+			if (unlikely(rga_copy_from(&req_rga, (struct rga_req*)arg, sizeof(struct rga_req))))
 			{
-				ERR("copy_from_user failed\n");
+				ERR("rga_copy_from failed\n");
 				ret = -EFAULT;
 				break;
 			}
@@ -1693,9 +1715,9 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 			}
 			break;
 		case RGA_BLIT_ASYNC:
-			if (unlikely(copy_from_user(&req_rga, (struct rga_req*)arg, sizeof(struct rga_req))))
+			if (unlikely(rga_copy_from(&req_rga, (struct rga_req*)arg, sizeof(struct rga_req))))
 			{
-				ERR("copy_from_user failed\n");
+				ERR("rga_copy_from failed\n");
 				ret = -EFAULT;
 				break;
 			}
@@ -1744,9 +1766,9 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 			}
 			break;
 		case RGA_CACHE_FLUSH:
-			if (unlikely(copy_from_user(&req_rga, (struct rga_req*)arg, sizeof(struct rga_req))))
+			if (unlikely(rga_copy_from(&req_rga, (struct rga_req*)arg, sizeof(struct rga_req))))
 			{
-				ERR("copy_from_user failed\n");
+				ERR("rga_copy_from failed\n");
 				ret = -EFAULT;
 				break;
 			}
@@ -1754,18 +1776,18 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 			ret = rga2_blit_flush_cache(session, &req);
 			break;
 		case RGA2_BLIT_SYNC:
-			if (unlikely(copy_from_user(&req, (struct rga2_req*)arg, sizeof(struct rga2_req))))
+			if (unlikely(rga_copy_from(&req, (struct rga2_req*)arg, sizeof(struct rga2_req))))
 			{
-				ERR("copy_from_user failed\n");
+				ERR("rga_copy_from failed\n");
 				ret = -EFAULT;
 				break;
 			}
 			ret = rga2_blit_sync(session, &req);
 			break;
 		case RGA2_BLIT_ASYNC:
-			if (unlikely(copy_from_user(&req, (struct rga2_req*)arg, sizeof(struct rga2_req))))
+			if (unlikely(rga_copy_from(&req, (struct rga2_req*)arg, sizeof(struct rga2_req))))
 			{
-				ERR("copy_from_user failed\n");
+				ERR("rga_copy_from failed\n");
 				ret = -EFAULT;
 				break;
 			}
@@ -1790,9 +1812,9 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 		case RGA_GET_VERSION:
 		case RGA2_GET_VERSION:
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
-			ret = copy_to_user((void *)arg, rga->version, 16);
+			ret = rga_copy_to((void *)arg, rga->version, 16);
 #else
-			ret = copy_to_user((void *)arg, RGA2_VERSION, sizeof(RGA2_VERSION));
+			ret = rga_copy_to((void *)arg, RGA2_VERSION, sizeof(RGA2_VERSION));
 #endif
 			break;
 		default:
@@ -1840,9 +1862,9 @@ static long compat_rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 
 	switch (cmd) {
 		case RGA_BLIT_SYNC:
-			if (unlikely(copy_from_user(&req_rga, compat_ptr((compat_uptr_t)arg), sizeof(struct rga_req_32))))
+			if (unlikely(rga_copy_from(&req_rga, compat_ptr((compat_uptr_t)arg), sizeof(struct rga_req_32))))
 			{
-				ERR("copy_from_user failed\n");
+				ERR("rga_copy_from failed\n");
 				ret = -EFAULT;
 				break;
 			}
@@ -1867,9 +1889,9 @@ static long compat_rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 			}
 			break;
 		case RGA_BLIT_ASYNC:
-			if (unlikely(copy_from_user(&req_rga, compat_ptr((compat_uptr_t)arg), sizeof(struct rga_req_32))))
+			if (unlikely(rga_copy_from(&req_rga, compat_ptr((compat_uptr_t)arg), sizeof(struct rga_req_32))))
 			{
-				ERR("copy_from_user failed\n");
+				ERR("rga_copy_from failed\n");
 				ret = -EFAULT;
 				break;
 			}
@@ -1899,18 +1921,18 @@ static long compat_rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 
 			break;
 		case RGA2_BLIT_SYNC:
-			if (unlikely(copy_from_user(&req, compat_ptr((compat_uptr_t)arg), sizeof(struct rga2_req))))
+			if (unlikely(rga_copy_from(&req, compat_ptr((compat_uptr_t)arg), sizeof(struct rga2_req))))
 			{
-				ERR("copy_from_user failed\n");
+				ERR("rga_copy_from failed\n");
 				ret = -EFAULT;
 				break;
 			}
 			ret = rga2_blit_sync(session, &req);
 			break;
 		case RGA2_BLIT_ASYNC:
-			if (unlikely(copy_from_user(&req, compat_ptr((compat_uptr_t)arg), sizeof(struct rga2_req))))
+			if (unlikely(rga_copy_from(&req, compat_ptr((compat_uptr_t)arg), sizeof(struct rga2_req))))
 			{
-				ERR("copy_from_user failed\n");
+				ERR("rga_copy_from failed\n");
 				ret = -EFAULT;
 				break;
 			}
@@ -1932,9 +1954,9 @@ static long compat_rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 		case RGA_GET_VERSION:
 		case RGA2_GET_VERSION:
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
-				ret = copy_to_user((void *)arg, rga->version, 16);
+				ret = rga_copy_to((void *)arg, rga->version, 16);
 #else
-				ret = copy_to_user((void *)arg, RGA2_VERSION, sizeof(RGA2_VERSION));
+				ret = rga_copy_to((void *)arg, RGA2_VERSION, sizeof(RGA2_VERSION));
 #endif
 			break;
 		default:
@@ -2236,7 +2258,7 @@ static ssize_t rga2_debug_write(struct file *file, const char __user *ubuf,
 
 	if (len > sizeof(buf) - 1)
 		return -EINVAL;
-	if (copy_from_user(buf, ubuf, len))
+	if (rga_copy_from(buf, ubuf, len))
 		return -EFAULT;
 	buf[len - 1] = '\0';
 
