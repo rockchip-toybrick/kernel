@@ -249,6 +249,17 @@
 		irq_gpio_number = <&gpio2 RK_PB4 IRQ_TYPE_LEVEL_LOW>;
 		rst_gpio_number = <&gpio2 RK_PA2 GPIO_ACTIVE_HIGH>;
 	};
+
+	hym8563: hym8563@51 {
+		status ="okay";
+		compatible ="rtc,hym8563";
+		//compatible = "nxp,pcf8563";
+		irq-gpios = <&gpio1 RK_PB2 GPIO_ACTIVE_LOW>;
+		reg = <0x51>;
+		#clock-cells = <0>;
+		clock-frequency = <32768>;
+		clock-output-names = "pcf8563-clkout";
+	};
 };
 
 &i2c8 {
