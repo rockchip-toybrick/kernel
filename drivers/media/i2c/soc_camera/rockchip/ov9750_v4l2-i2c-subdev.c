@@ -20,6 +20,7 @@
 #include <linux/slab.h>
 #include <media/v4l2-controls_rockchip.h>
 #include "ov_camera_module.h"
+//#define NPU_TEST
 #define OV9750_DRIVER_NAME "ov9750"
 
 #define OV9750_FETCH_LSB_GAIN(VAL) (VAL & 0xFF)
@@ -321,7 +322,7 @@ static struct ov_camera_module_config ov9750_configs[] = {
 #ifndef NPU_TEST
 			.code = MEDIA_BUS_FMT_SBGGR10_1X10
 #else
-			.code = MEDIA_BUS_FMT_YVYU8_2X8
+			.code = MEDIA_BUS_FMT_YUYV8_2X8
 #endif
 		},
 		.frm_intrvl = {

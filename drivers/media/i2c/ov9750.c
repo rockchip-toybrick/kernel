@@ -23,7 +23,7 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
 #include <linux/pinctrl/consumer.h>
-
+//#define NPU_TEST
 #define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x3)
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -536,7 +536,7 @@ static int ov9750_set_fmt(struct v4l2_subdev *sd,
 #ifndef NPU_TEST
 	fmt->format.code = MEDIA_BUS_FMT_SBGGR10_1X10;
 #else
-	fmt->format.code = MEDIA_BUS_FMT_YVYU8_2X8;
+	fmt->format.code = MEDIA_BUS_FMT_YUYV8_2X8;
 #endif
 	fmt->format.width = mode->width;
 	fmt->format.height = mode->height;
@@ -585,7 +585,7 @@ static int ov9750_get_fmt(struct v4l2_subdev *sd,
 #ifndef NPU_TEST
 		fmt->format.code = MEDIA_BUS_FMT_SBGGR10_1X10;
 #else
-		fmt->format.code = MEDIA_BUS_FMT_YVYU8_2X8;
+		fmt->format.code = MEDIA_BUS_FMT_YUYV8_2X8;
 #endif
 		fmt->format.field = V4L2_FIELD_NONE;
 	}
@@ -604,7 +604,7 @@ static int ov9750_enum_mbus_code(struct v4l2_subdev *sd,
 	code->code = MEDIA_BUS_FMT_SBGGR10_1X10;
 
 #else
-	code->code = MEDIA_BUS_FMT_YVYU8_2X8;
+	code->code = MEDIA_BUS_FMT_YUYV8_2X8;
 #endif
 	return 0;
 }
@@ -619,7 +619,7 @@ static int ov9750_enum_frame_sizes(struct v4l2_subdev *sd,
 #ifndef NPU_TEST
 	if (fse->code != MEDIA_BUS_FMT_SBGGR10_1X10)
 #else
-	if (fse->code != MEDIA_BUS_FMT_YVYU8_2X8)
+	if (fse->code != MEDIA_BUS_FMT_YUYV8_2X8)
 #endif
 		return -EINVAL;
 
@@ -922,7 +922,7 @@ static int ov9750_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 #ifndef NPU_TEST
 	try_fmt->code = MEDIA_BUS_FMT_SBGGR10_1X10;
 #else
-	try_fmt->code = MEDIA_BUS_FMT_YVYU8_2X8;
+	try_fmt->code = MEDIA_BUS_FMT_YUYV8_2X8;
 #endif
 	try_fmt->field = V4L2_FIELD_NONE;
 
@@ -943,7 +943,7 @@ static int ov9750_enum_frame_interval(struct v4l2_subdev *sd,
 #ifndef NPU_TEST
 	if (fie->code != MEDIA_BUS_FMT_SBGGR10_1X10)
 #else
-	if (fie->code != MEDIA_BUS_FMT_YVYU8_2X8)
+	if (fie->code != MEDIA_BUS_FMT_YUYV8_2X8)
 #endif
 		return -EINVAL;
 
