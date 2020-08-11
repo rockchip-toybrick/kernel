@@ -25,14 +25,21 @@
 #include <linux/pinctrl/consumer.h>
 
 #define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x3)
-
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
 #endif
-
+#ifndef NPU_TEST
+#define OV9750_LANES			2
+#define OV9750_BITS_PER_SAMPLE		10
 #define OV9750_LINK_FREQ_400MHZ		400000000
+#else
+#define OV9750_LANES			4
+#define OV9750_BITS_PER_SAMPLE		8
+#define OV9750_LINK_FREQ_400MHZ     320000000
+#endif
 /* pixel rate = link frequency * 2 * lanes / BITS_PER_SAMPLE */
-#define OV9750_PIXEL_RATE		(OV9750_LINK_FREQ_400MHZ * 2 * 2 / 10)
+#define OV9750_PIXEL_RATE       (OV9750_LINK_FREQ_400MHZ * 2 / OV9750_BITS_PER_SAMPLE * OV9750_LANES)
+
 #define OV9750_XVCLK_FREQ		24000000
 
 #define CHIP_ID				0x9750
@@ -69,8 +76,6 @@
 #define OV9750_REG_VALUE_16BIT		2
 #define OV9750_REG_VALUE_24BIT		3
 
-#define OV9750_LANES			2
-#define OV9750_BITS_PER_SAMPLE		10
 
 #define OF_CAMERA_PINCTRL_STATE_DEFAULT	"rockchip,camera_default"
 #define OF_CAMERA_PINCTRL_STATE_SLEEP	"rockchip,camera_sleep"
@@ -405,6 +410,7 @@ static const char * const ov9750_test_pattern_menu[] = {
 static int ov9750_write_reg(struct i2c_client *client, u16 reg,
 			    u32 len, u32 val)
 {
+#ifndef NPU_TEST
 	u32 buf_i, val_i;
 	u8 buf[6];
 	u8 *val_p;
@@ -427,12 +433,15 @@ static int ov9750_write_reg(struct i2c_client *client, u16 reg,
 	if (i2c_master_send(client, buf, len + 2) != len + 2)
 		return -EIO;
 
+#endif
 	return 0;
 }
 
 static int ov9750_write_array(struct i2c_client *client,
 			      const struct regval *regs)
 {
+#ifndef NPU_TEST
+
 	u32 i;
 	int ret = 0;
 
@@ -444,12 +453,16 @@ static int ov9750_write_array(struct i2c_client *client,
 				OV9750_REG_VALUE_08BIT, regs[i].val);
 	}
 	return ret;
+#else
+	return 0;
+#endif
 }
 
 /* Read registers up to 4 at a time */
 static int ov9750_read_reg(struct i2c_client *client, u16 reg, unsigned int len,
 			   u32 *val)
 {
+#ifndef NPU_TEST
 	struct i2c_msg msgs[2];
 	u8 *data_be_p;
 	__be32 data_be = 0;
@@ -478,6 +491,7 @@ static int ov9750_read_reg(struct i2c_client *client, u16 reg, unsigned int len,
 
 	*val = be32_to_cpu(data_be);
 
+#endif
 	return 0;
 }
 
@@ -519,7 +533,11 @@ static int ov9750_set_fmt(struct v4l2_subdev *sd,
 	mutex_lock(&ov9750->mutex);
 
 	mode = ov9750_find_best_fit(fmt);
+#ifndef NPU_TEST
 	fmt->format.code = MEDIA_BUS_FMT_SBGGR10_1X10;
+#else
+	fmt->format.code = MEDIA_BUS_FMT_YVYU8_2X8;
+#endif
 	fmt->format.width = mode->width;
 	fmt->format.height = mode->height;
 	fmt->format.field = V4L2_FIELD_NONE;
@@ -564,7 +582,11 @@ static int ov9750_get_fmt(struct v4l2_subdev *sd,
 	} else {
 		fmt->format.width = mode->width;
 		fmt->format.height = mode->height;
+#ifndef NPU_TEST
 		fmt->format.code = MEDIA_BUS_FMT_SBGGR10_1X10;
+#else
+		fmt->format.code = MEDIA_BUS_FMT_YVYU8_2X8;
+#endif
 		fmt->format.field = V4L2_FIELD_NONE;
 	}
 	mutex_unlock(&ov9750->mutex);
@@ -578,8 +600,12 @@ static int ov9750_enum_mbus_code(struct v4l2_subdev *sd,
 {
 	if (code->index != 0)
 		return -EINVAL;
+#ifndef NPU_TEST
 	code->code = MEDIA_BUS_FMT_SBGGR10_1X10;
 
+#else
+	code->code = MEDIA_BUS_FMT_YVYU8_2X8;
+#endif
 	return 0;
 }
 
@@ -590,7 +616,11 @@ static int ov9750_enum_frame_sizes(struct v4l2_subdev *sd,
 	if (fse->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
+#ifndef NPU_TEST
 	if (fse->code != MEDIA_BUS_FMT_SBGGR10_1X10)
+#else
+	if (fse->code != MEDIA_BUS_FMT_YVYU8_2X8)
+#endif
 		return -EINVAL;
 
 	fse->min_width  = supported_modes[fse->index].width;
@@ -889,7 +919,11 @@ static int ov9750_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	/* Initialize try_fmt */
 	try_fmt->width = def_mode->width;
 	try_fmt->height = def_mode->height;
+#ifndef NPU_TEST
 	try_fmt->code = MEDIA_BUS_FMT_SBGGR10_1X10;
+#else
+	try_fmt->code = MEDIA_BUS_FMT_YVYU8_2X8;
+#endif
 	try_fmt->field = V4L2_FIELD_NONE;
 
 	mutex_unlock(&ov9750->mutex);
@@ -906,7 +940,11 @@ static int ov9750_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
+#ifndef NPU_TEST
 	if (fie->code != MEDIA_BUS_FMT_SBGGR10_1X10)
+#else
+	if (fie->code != MEDIA_BUS_FMT_YVYU8_2X8)
+#endif
 		return -EINVAL;
 
 	fie->width = supported_modes[fie->index].width;
@@ -1092,8 +1130,10 @@ static int ov9750_check_sensor_id(struct ov9750 *ov9750,
 	ret = ov9750_read_reg(client, OV9750_REG_CHIP_ID,
 			      OV9750_REG_VALUE_16BIT, &id);
 	if (id != CHIP_ID) {
+#ifndef NPU_TEST
 		dev_err(dev, "Unexpected sensor id(%04x), ret(%d)\n", id, ret);
 		return -ENODEV;
+#endif
 	}
 
 	dev_info(dev, "Detected OV%04x sensor\n", id);
