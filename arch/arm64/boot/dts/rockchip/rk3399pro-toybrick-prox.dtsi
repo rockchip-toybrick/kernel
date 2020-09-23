@@ -414,7 +414,7 @@
 	};
 
 	lcd {
-		edp_bl_en: edp-bl-en {
+		lcd_bl_en_h: lcd-bl-en-h {
 			rockchip,pins =
 				<4 RK_PD4 RK_FUNC_GPIO &pcfg_output_high>;
 		};
