@@ -1450,6 +1450,10 @@ power_on_finish:
 	if (tcphy->mode == MODE_DISCONNECT)
 		tcphy_phy_deinit(tcphy);
 unlock_ret:
+	if (tcphy->force_usb2) {
+		if (tcphy->port_cfgs.typec_conn_dir.offset == 0xe580)
+			writel(0xd0ff, tcphy->base + PHY_ISOLATION_CTRL);
+	}
 	mutex_unlock(&tcphy->lock);
 	return ret;
 }
@@ -1604,6 +1608,11 @@ static int tcphy_parse_dt(struct rockchip_typec_phy *tcphy,
 		dev_err(dev, "no tcphy_rst reset control found\n");
 		return PTR_ERR(tcphy->tcphy_rst);
 	}
+
+	ret = of_property_read_u32(dev->of_node, "rockchip,force_usb2",
+			&tcphy->force_usb2);
+	if (ret)
+		tcphy->force_usb2 = 0;
 
 	/*
 	 * check if phy_config pass from dts, if no,
