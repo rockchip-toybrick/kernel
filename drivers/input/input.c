@@ -430,11 +430,34 @@ void input_event(struct input_dev *dev,
 		 unsigned int type, unsigned int code, int value)
 {
 	unsigned long flags;
+	struct input_queue *q;
 
 	if (is_event_supported(type, dev->evbit, EV_MAX)) {
-
 		spin_lock_irqsave(&dev->event_lock, flags);
-		input_handle_event(dev, type, code, value);
+		switch (dev->vhid.mode) {
+		case VHID_MODE_REAL:
+			input_handle_event(dev, type, code, value);
+			break;
+		case VHID_MODE_BOTH:
+			input_handle_event(dev, type, code, value);
+		case VHID_MODE_VHID:
+			if (dev->vevent_on) {
+				q = kzalloc(sizeof(struct input_queue),
+						GFP_KERNEL);
+				if (q) {
+					INIT_LIST_HEAD(&q->list);
+					q->val.type = type;
+					q->val.code = code;
+					q->val.value = value;
+					list_add_tail(&q->list, &dev->v_list);
+					wake_up_interruptible(&dev->wait);
+				}
+			}
+			break;
+		default:
+			input_handle_event(dev, type, code, value);
+			break;
+		}
 		spin_unlock_irqrestore(&dev->event_lock, flags);
 	}
 }
@@ -1390,12 +1413,146 @@ static ssize_t input_dev_show_properties(struct device *dev,
 }
 static DEVICE_ATTR(properties, S_IRUGO, input_dev_show_properties, NULL);
 
+static ssize_t input_dev_show_vhid(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
+{
+	struct input_dev *input_dev = to_input_dev(dev);
+	ssize_t count = sizeof(input_dev->vhid);
+	unsigned long flags;
+
+	mutex_lock(&dev->mutex);
+	spin_lock_irqsave(&input_dev->event_lock, flags);
+	memcpy(buf, &input_dev->vhid, count);
+	spin_unlock_irqrestore(&input_dev->event_lock, flags);
+	mutex_unlock(&dev->mutex);
+
+	return count;
+}
+
+static ssize_t input_dev_store_vhid(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf,
+				size_t count)
+{
+	struct input_dev *input_dev = to_input_dev(dev);
+	char *p;
+	int ret;
+	int mode = input_dev->vhid.mode;
+	int res_x = input_dev->vhid.res_x;
+	int res_y = input_dev->vhid.res_y;
+	int res_w = input_dev->vhid.res_w;
+	int res_h = input_dev->vhid.res_h;
+
+	p = strstr(buf, "mode");
+	if (p != NULL) {
+		ret = sscanf(p, "mode=%d", &mode);
+		if (ret != 1 || mode >= VHID_MODE_MAX) {
+			dev_err(dev, "Invalid vhid mode\n");
+			return -EINVAL;
+		}
+	}
+	p = strstr(buf, "res");
+	if (p != NULL) {
+		ret = sscanf(p, "res=%d,%d,%d,%d",
+		&res_x, &res_y, &res_w, &res_h);
+		if (ret != 4) {
+			dev_err(dev, "Invalid reserved rectangle\n");
+			return -EINVAL;
+		}
+	}
+
+	mutex_lock(&dev->mutex);
+	input_dev->vhid.mode = mode;
+	input_dev->vhid.res_x = res_x;
+	input_dev->vhid.res_y = res_y;
+	input_dev->vhid.res_w = res_w;
+	input_dev->vhid.res_h = res_h;
+	input_dev->vhid.mode = mode;
+	mutex_unlock(&dev->mutex);
+
+	return count;
+}
+
+static DEVICE_ATTR(vhid, 0644, input_dev_show_vhid, input_dev_store_vhid);
+
+static ssize_t input_dev_show_vevent(struct device *dev,
+                                         struct device_attribute *attr,
+                                         char *buf)
+{
+	struct input_dev *input_dev = to_input_dev(dev);
+	unsigned long flags;
+	struct input_queue *q = NULL;
+	struct input_vevent vevent;
+	int ret;
+	ssize_t count = sizeof(vevent);
+
+	spin_lock_irqsave(&input_dev->event_lock, flags);
+	if (list_empty(&input_dev->v_list)) {
+		spin_unlock_irqrestore(&input_dev->event_lock, flags);
+		ret = wait_event_interruptible_timeout(input_dev->wait,
+				!list_empty(&input_dev->v_list),
+				msecs_to_jiffies(100));
+		if (ret <= 0)
+			return (ret == 0) ? -ETIMEDOUT : ret;
+
+		spin_lock_irqsave(&input_dev->event_lock, flags);
+	}
+
+	q = list_first_entry(&input_dev->v_list, struct input_queue, list);
+	list_del(&q->list);
+	spin_unlock_irqrestore(&input_dev->event_lock, flags);
+
+	vevent.type = q->val.type;
+	vevent.code = q->val.code;
+	vevent.value = q->val.value;
+	kfree(q);
+
+	memcpy(buf, &vevent, count);
+	return count;
+}
+
+static ssize_t input_dev_store_vevent(struct device *dev,
+                                      struct device_attribute *attr,
+                                      const char *buf,
+                                      size_t count)
+{
+	unsigned long on;
+	struct input_queue *q = NULL, *temp = NULL;
+	struct input_dev *input_dev = to_input_dev(dev);
+	unsigned long flags;
+
+	if (kstrtoul(buf, 0, &on) < 0)
+		return -EINVAL;
+
+	spin_lock_irqsave(&input_dev->event_lock, flags);
+	if (on == 0) {
+		input_dev->vevent_on = false;
+		if (!list_empty(&input_dev->v_list)) {
+			list_for_each_entry_safe(q, temp,
+					&input_dev->v_list, list) {
+				list_del(&q->list);
+				kfree(q);
+			}
+		}
+	} else {
+		input_dev->vevent_on = true;
+	}
+
+	spin_unlock_irqrestore(&input_dev->event_lock, flags);
+	return count;
+}
+
+static DEVICE_ATTR(vevent, 0644, input_dev_show_vevent, input_dev_store_vevent);
+
 static struct attribute *input_dev_attrs[] = {
 	&dev_attr_name.attr,
 	&dev_attr_phys.attr,
 	&dev_attr_uniq.attr,
 	&dev_attr_modalias.attr,
 	&dev_attr_properties.attr,
+	&dev_attr_vhid.attr,
+	&dev_attr_vevent.attr,
 	NULL
 };
 
@@ -1791,9 +1948,12 @@ struct input_dev *input_allocate_device(void)
 		device_initialize(&dev->dev);
 		mutex_init(&dev->mutex);
 		spin_lock_init(&dev->event_lock);
+		init_waitqueue_head(&dev->wait);
 		init_timer(&dev->timer);
 		INIT_LIST_HEAD(&dev->h_list);
+		INIT_LIST_HEAD(&dev->v_list);
 		INIT_LIST_HEAD(&dev->node);
+		dev->vevent_on = false;
 
 		dev_set_name(&dev->dev, "input%lu",
 			     (unsigned long)atomic_inc_return(&input_no));
@@ -2015,8 +2175,20 @@ static void input_cleanse_bitmasks(struct input_dev *dev)
 static void __input_unregister_device(struct input_dev *dev)
 {
 	struct input_handle *handle, *next;
+	struct input_queue *q = NULL, *temp = NULL;
+	unsigned long flags;
 
 	input_disconnect_device(dev);
+
+	spin_lock_irqsave(&dev->event_lock, flags);
+        if (!list_empty(&dev->v_list)) {
+		list_for_each_entry_safe(q, temp,
+				&dev->v_list, list) {
+			list_del(&q->list);
+			kfree(q);
+		}
+	}
+	spin_unlock_irqrestore(&dev->event_lock, flags);
 
 	mutex_lock(&input_mutex);
 
@@ -2154,6 +2326,35 @@ int input_register_device(struct input_dev *dev)
 		input_attach_handler(dev, handler);
 
 	input_wakeup_procfs_readers();
+
+	if (test_bit(REL_WHEEL, dev->relbit) &&
+			test_bit(BTN_MOUSE, dev->keybit)) {
+		dev->vhid.type = VHID_TYPE_MOUSE;
+	} else if (test_bit(KEY_ESC, dev->keybit) &&
+			test_bit(KEY_ENTER, dev->keybit)) {
+		dev->vhid.type = VHID_TYPE_KEYBOARD;
+	} else if (test_bit(ABS_MT_POSITION_X, dev->absbit) &&
+			test_bit(ABS_MT_POSITION_Y, dev->absbit)) {
+		if (dev->phys && strstr(dev->phys, "usb") != NULL) {
+			dev->vhid.type = VHID_TYPE_TOUCH_USB;
+			dev->phys = "usb-input/ts";
+		} else {
+			dev->vhid.type = VHID_TYPE_TOUCH_I2C;
+		}
+	} else {
+		dev->vhid.type = VHID_TYPE_UNKNOWN;
+	}
+
+	if (dev->absinfo) {
+		dev->vhid.max_x = dev->absinfo[ABS_MT_POSITION_X].maximum;
+		dev->vhid.max_y = dev->absinfo[ABS_MT_POSITION_Y].maximum;
+		if (dev->absinfo[ABS_MT_SLOT].maximum == 0)
+			dev->vhid.max_point = 0;
+		else
+			dev->vhid.max_point =
+				dev->absinfo[ABS_MT_SLOT].maximum + 1;
+	}
+	dev->vhid.mode = VHID_MODE_REAL;
 
 	mutex_unlock(&input_mutex);
 
