@@ -55,6 +55,8 @@ case $1 in
 				DTB=rk3399pro-toybrick-prod-linux
 				make ARCH=arm64 ${DTB}-edp.img -j${JOB}
 				make ARCH=arm64 ${DTB}-mipi.img -j${JOB}
+				make ARCH=arm64 ${DTB}-u2.img -j${JOB}
+				cp -f arch/arm64/boot/dts/rockchip/${DTB}-u2.dtb boot_linux/extlinux/toybrick-u2.dtb
 				cp -f arch/arm64/boot/dts/rockchip/${DTB}-edp.dtb boot_linux/extlinux/toybrick-edp.dtb
 				cp -f arch/arm64/boot/dts/rockchip/${DTB}-mipi.dtb boot_linux/extlinux/toybrick-mipi.dtb
 				;;
@@ -65,7 +67,7 @@ case $1 in
 				DTB=rk3399pro-toybrick-96ai-linux
 				;;
 			prox)
-                DTB=rk3399pro-toybrick-prox-linux
+				DTB=rk3399pro-toybrick-prox-linux
 				make ARCH=arm64 ${DTB}-edp.img -j${JOB}
 				make ARCH=arm64 ${DTB}-mipi.img -j${JOB}
 				cp -f arch/arm64/boot/dts/rockchip/${DTB}-edp.dtb boot_linux/extlinux/toybrick-edp.dtb
