@@ -1,8 +1,0 @@
-config VIDEO_TOYBRICK_RTSP
-	tristate "Toybrick V4L2-RTSP Virtual Driver"
-	depends on MMU
-	select VIDEOBUF_GEN
-	select VIDEOBUF_DMA_CONTIG
-	default n
-	---help---
-	  V4L2 RTSP Virtual capture and output driver support for toybrick boards.
