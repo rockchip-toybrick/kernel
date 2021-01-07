@@ -1922,9 +1922,7 @@ static int rkisp_enum_framesizes(struct file *file, void *prov,
 {
 	struct rkisp1_stream *stream = video_drvdata(file);
 	const struct stream_config *config = stream->config;
-	struct v4l2_frmsize_stepwise *s = &fsize->stepwise;
 	struct v4l2_frmsize_discrete *d = &fsize->discrete;
-	const struct ispsd_out_fmt *input_isp_fmt;
 	struct v4l2_rect max_rsz;
 
 	if (fsize->index != 0)
@@ -1935,20 +1933,9 @@ static int rkisp_enum_framesizes(struct file *file, void *prov,
 
 	restrict_rsz_resolution(stream->ispdev, config, &max_rsz);
 
-	input_isp_fmt = rkisp1_get_ispsd_out_fmt(&stream->ispdev->isp_sdev);
-	if (input_isp_fmt->fmt_type == FMT_BAYER) {
-		fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
-		d->width = max_rsz.width;
-		d->height = max_rsz.height;
-	} else {
-		fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
-		s->min_width = STREAM_MIN_RSZ_OUTPUT_WIDTH;
-		s->min_height = STREAM_MIN_RSZ_OUTPUT_HEIGHT;
-		s->max_width = max_rsz.width;
-		s->max_height = max_rsz.height;
-		s->step_width = STREAM_OUTPUT_STEP_WISE;
-		s->step_height = STREAM_OUTPUT_STEP_WISE;
-	}
+	fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+	d->width = max_rsz.width;
+	d->height = max_rsz.height;
 
 	return 0;
 }
