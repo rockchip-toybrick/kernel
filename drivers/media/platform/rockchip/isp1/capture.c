@@ -203,7 +203,9 @@ static const struct capture_fmt mp_fmts[] = {
 		.mplanes = 1,
 		.uv_swap = 1,
 		.write_format = MI_CTRL_MP_WRITE_YUV_SPLA,
-	}, {
+	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
+	{
 		.fourcc = V4L2_PIX_FMT_YUV422M,
 		.fmt_type = FMT_YUV,
 		.bpp = { 8, 8, 8 },
@@ -212,6 +214,7 @@ static const struct capture_fmt mp_fmts[] = {
 		.uv_swap = 0,
 		.write_format = MI_CTRL_MP_WRITE_YUV_PLA_OR_RAW8,
 	},
+#endif
 	/* yuv420 */
 	{
 		.fourcc = V4L2_PIX_FMT_NV21,
@@ -229,7 +232,9 @@ static const struct capture_fmt mp_fmts[] = {
 		.mplanes = 1,
 		.uv_swap = 0,
 		.write_format = MI_CTRL_MP_WRITE_YUV_SPLA,
-	}, {
+	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
+	{
 		.fourcc = V4L2_PIX_FMT_NV21M,
 		.fmt_type = FMT_YUV,
 		.bpp = { 8, 16 },
@@ -245,7 +250,9 @@ static const struct capture_fmt mp_fmts[] = {
 		.mplanes = 2,
 		.uv_swap = 0,
 		.write_format = MI_CTRL_MP_WRITE_YUV_SPLA,
-	}, {
+	},
+#endif
+	{
 		.fourcc = V4L2_PIX_FMT_YUV420,
 		.fmt_type = FMT_YUV,
 		.bpp = { 8, 8, 8 },
@@ -254,6 +261,7 @@ static const struct capture_fmt mp_fmts[] = {
 		.uv_swap = 0,
 		.write_format = MI_CTRL_MP_WRITE_YUV_PLA_OR_RAW8,
 	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
 	/* yuv444 */
 	{
 		.fourcc = V4L2_PIX_FMT_YUV444M,
@@ -264,6 +272,7 @@ static const struct capture_fmt mp_fmts[] = {
 		.uv_swap = 0,
 		.write_format = MI_CTRL_MP_WRITE_YUV_PLA_OR_RAW8,
 	},
+#endif
 	/* raw */
 	{
 		.fourcc = V4L2_PIX_FMT_SRGGB8,
@@ -338,6 +347,7 @@ static const struct capture_fmt mp_fmts[] = {
 		.mplanes = 1,
 		.write_format = MI_CTRL_MP_WRITE_RAW12,
 	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
 	/* MP rgb24 only for sensor is output rgb24 */
 	{
 		.fourcc = V4L2_PIX_FMT_RGB24,
@@ -346,6 +356,7 @@ static const struct capture_fmt mp_fmts[] = {
 		.mplanes = 1,
 		.write_format = MI_CTRL_MP_WRITE_YUV_PLA_OR_RAW8,
 	}
+#endif
 };
 
 static const struct capture_fmt sp_fmts[] = {
@@ -386,7 +397,9 @@ static const struct capture_fmt sp_fmts[] = {
 		.uv_swap = 1,
 		.write_format = MI_CTRL_SP_WRITE_SPLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV422,
-	}, {
+	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
+	{
 		.fourcc = V4L2_PIX_FMT_YUV422M,
 		.fmt_type = FMT_YUV,
 		.bpp = { 8, 8, 8 },
@@ -396,6 +409,7 @@ static const struct capture_fmt sp_fmts[] = {
 		.write_format = MI_CTRL_SP_WRITE_PLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV422,
 	},
+#endif
 	/* yuv420 */
 	{
 		.fourcc = V4L2_PIX_FMT_NV21,
@@ -415,7 +429,9 @@ static const struct capture_fmt sp_fmts[] = {
 		.uv_swap = 0,
 		.write_format = MI_CTRL_SP_WRITE_SPLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV420,
-	}, {
+	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
+	{
 		.fourcc = V4L2_PIX_FMT_NV21M,
 		.fmt_type = FMT_YUV,
 		.bpp = { 8, 16 },
@@ -433,7 +449,9 @@ static const struct capture_fmt sp_fmts[] = {
 		.uv_swap = 0,
 		.write_format = MI_CTRL_SP_WRITE_SPLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV420,
-	}, {
+	},
+#endif
+	{
 		.fourcc = V4L2_PIX_FMT_YUV420,
 		.fmt_type = FMT_YUV,
 		.bpp = { 8, 8, 8 },
@@ -443,6 +461,7 @@ static const struct capture_fmt sp_fmts[] = {
 		.write_format = MI_CTRL_SP_WRITE_PLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV420,
 	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
 	/* yuv444 */
 	{
 		.fourcc = V4L2_PIX_FMT_YUV444M,
@@ -454,6 +473,7 @@ static const struct capture_fmt sp_fmts[] = {
 		.write_format = MI_CTRL_SP_WRITE_PLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV444,
 	},
+#endif
 	/* yuv400 */
 	{
 		.fourcc = V4L2_PIX_FMT_GREY,
@@ -465,6 +485,7 @@ static const struct capture_fmt sp_fmts[] = {
 		.write_format = MI_CTRL_SP_WRITE_PLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV400,
 	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
 	/* rgb */
 	{
 		.fourcc = V4L2_PIX_FMT_XBGR32,
@@ -481,6 +502,7 @@ static const struct capture_fmt sp_fmts[] = {
 		.write_format = MI_CTRL_SP_WRITE_PLA,
 		.output_format = MI_CTRL_SP_OUTPUT_RGB565,
 	}
+#endif
 };
 
 static const struct capture_fmt raw_fmts[] = {
@@ -2107,10 +2129,17 @@ static const struct v4l2_ioctl_ops rkisp1_v4l2_ioctl_ops = {
 	.vidioc_streamon = vb2_ioctl_streamon,
 	.vidioc_streamoff = vb2_ioctl_streamoff,
 	.vidioc_enum_input = rkisp1_enum_input,
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
 	.vidioc_try_fmt_vid_cap_mplane = rkisp1_try_fmt_vid_cap_mplane,
 	.vidioc_enum_fmt_vid_cap_mplane = rkisp1_enum_fmt_vid_cap_mplane,
 	.vidioc_s_fmt_vid_cap_mplane = rkisp1_s_fmt_vid_cap_mplane,
 	.vidioc_g_fmt_vid_cap_mplane = rkisp1_g_fmt_vid_cap_mplane,
+#else
+	.vidioc_try_fmt_vid_cap = rkisp1_try_fmt_vid_cap_mplane,
+	.vidioc_enum_fmt_vid_cap = rkisp1_enum_fmt_vid_cap_mplane,
+	.vidioc_s_fmt_vid_cap = rkisp1_s_fmt_vid_cap_mplane,
+	.vidioc_g_fmt_vid_cap = rkisp1_g_fmt_vid_cap_mplane,
+#endif
 	.vidioc_s_selection = rkisp1_s_selection,
 	.vidioc_g_selection = rkisp1_g_selection,
 	.vidioc_querycap = rkisp1_querycap,
@@ -2185,14 +2214,22 @@ static int rkisp1_register_stream_vdev(struct rkisp1_stream *stream)
 	vdev->minor = -1;
 	vdev->v4l2_dev = v4l2_dev;
 	vdev->lock = &dev->apilock;
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
 	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE_MPLANE |
+#else
+	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE |
+#endif
 				V4L2_CAP_STREAMING;
 	video_set_drvdata(vdev, stream);
 	vdev->vfl_dir = VFL_DIR_RX;
 	node->pad.flags = MEDIA_PAD_FL_SINK;
 
 	rkisp_init_vb2_queue(&node->buf_queue, stream,
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
 			     V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+#else
+			     V4L2_BUF_TYPE_VIDEO_CAPTURE);
+#endif
 	vdev->queue = &node->buf_queue;
 
 	ret = video_register_device(vdev, VFL_TYPE_GRABBER, -1);
