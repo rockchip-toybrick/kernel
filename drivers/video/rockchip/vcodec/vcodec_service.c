@@ -1681,6 +1681,8 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 	if (pservice->auto_freq && pservice->hw_ops->set_freq)
 		pservice->hw_ops->set_freq(pservice, reg);
 
+	clk_set_rate(pservice->aclk_vcodec, 400 * MHZ);
+
 	vcodec_enter_mode(data);
 
 	switch (reg->type) {
