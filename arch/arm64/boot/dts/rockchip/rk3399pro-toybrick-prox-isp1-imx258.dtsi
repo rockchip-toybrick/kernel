@@ -1,0 +1,152 @@
+ /*
+  * Copyright (c) 2018 Fuzhou Rockchip Electronics Co., Ltd
+  *
+  * This file is dual-licensed: you can use it either under the terms
+  * of the GPL or the X11 license, at your option. Note that this dual
+  * licensing only applies to this file, and not this project as a
+  * whole.
+  *
+  *  a) This file is free software; you can redistribute it and/or
+  * 	modify it under the terms of the GNU General Public License as
+  * 	published by the Free Software Foundation; either version 2 of the
+  * 	License, or (at your option) any later version.
+  *
+  * 	This file is distributed in the hope that it will be useful,
+  * 	but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * 	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  * 	GNU General Public License for more details.
+  *
+  * Or, alternatively,
+  *
+  *  b) Permission is hereby granted, free of charge, to any person
+  * 	obtaining a copy of this software and associated documentation
+  * 	files (the "Software"), to deal in the Software without
+  * 	restriction, including without limitation the rights to use,
+  * 	copy, modify, merge, publish, distribute, sublicense, and/or
+  * 	sell copies of the Software, and to permit persons to whom the
+  * 	Software is furnished to do so, subject to the following
+  * 	conditions:
+  *
+  * 	The above copyright notice and this permission notice shall be
+  * 	included in all copies or substantial portions of the Software.
+  *
+  * 	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  * 	EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+  * 	OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+  * 	NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  * 	HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+  * 	WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+  * 	FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+  * 	OTHER DEALINGS IN THE SOFTWARE.
+  */
+ &isp0 {
+	 status = "disabled";
+ };
+  
+ &isp1 {
+	 status = "disabled";
+ };
+ 
+ &isp0_mmu {
+	 status = "disabled";
+ };
+ 
+ &isp1_mmu {
+	 status = "okay";
+ };
+ 
+ &i2c1 {
+	 status = "okay";
+	 i2c-scl-rising-time-ns = <300>;
+	 i2c-scl-falling-time-ns = <15>;
+	 clock-frequency=<400000>;
+ 
+	 dw9714: dw9714@0c {
+		 compatible = "silicon touch,dw9714";
+		 status = "okay";
+		 reg = <0x0c>;
+		 rockchip,camera-module-index = <0>;
+		 rockchip,camera-module-facing = "back";
+		 rockchip,vcm-start-current = <20>;
+		 rockchip,vcm-rated-current = <120>;
+		 rockchip,vcm-step-mode = <13>;
+	 };
+	 imx258_eeprom: imx258_eeprom@0x50 {
+		 compatible = "otp,imx258_eeprom";
+		 status = "okay";
+		 reg = <0x50>;
+	 };
+	 imx258: imx258@10 {
+		 compatible = "sony,imx258";
+		 status = "okay";
+		 reg = <0x10>;
+		 clocks = <&cru SCLK_CIF_OUT>;
+		 clock-names = "xvclk";
+		 //conflict with csi-ctl-gpios
+		 reset-gpios = <&gpio3 RK_PD2 GPIO_ACTIVE_LOW>;
+		 pwdn-gpios = <&gpio3 RK_PD7 GPIO_ACTIVE_LOW>;
+		 pinctrl-names = "rockchip,camera_default";
+		 pinctrl-0 = <&cif_clkout>;
+		 rockchip,camera-module-index = <0>;
+		 rockchip,camera-module-facing = "back";
+		 rockchip,camera-module-name = "GEIR180089";
+		 rockchip,camera-module-lens-name = "LG500627G";
+		 eeprom-ctrl = <&imx258_eeprom>;
+		 lens-focus = <&dw9714>;
+		 //flash-leds = <&sgm3784_led0 &sgm3784_led1>;
+		 port {
+			 ucam_out1: endpoint {
+				 remote-endpoint = <&mipi_in_ucam1>;
+				 data-lanes = <1 2 3 4>;
+			 };
+		 };
+	 };
+ 
+ };
+ 
+ &mipi_dphy_tx1rx1 {
+	 status = "okay";
+ 
+	 ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+ 
+		 port@0 {
+			 reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+ 
+			 mipi_in_ucam1: endpoint@1 {
+				 reg = <1>;
+				 remote-endpoint = <&ucam_out1>;
+				 data-lanes = <1 2 3 4>;
+			 };
+		 };
+ 
+		 port@1 {
+			 reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+ 
+			 dphy_tx1rx1_out: endpoint@0 {
+				 reg = <0>;
+				 remote-endpoint = <&isp1_mipi_in>;
+			 };
+		 };
+	 };
+ };
+ 
+ &rkisp1_1 {
+	 status = "okay";
+ 
+	 port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+ 
+		 isp1_mipi_in: endpoint@0 {
+			 reg = <0>;
+			 remote-endpoint = <&dphy_tx1rx1_out>;
+		 };
+	 };
+ };
+ 

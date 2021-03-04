@@ -198,6 +198,8 @@ struct icn6211 {
 	struct regulator *vdd2; /* PLL power supply, can be 1.8V-3.3V */
 	struct regulator *vdd3;	/* RGB output power supply, can be 1.8V-3.3V */
 	struct gpio_desc *enable_gpio;	/* When EN is low, this chip is reset */
+	bool mipi_lane_pn_swap;
+	u32 rgb_color_swap_mode;
 };
 
 static inline struct icn6211 *bridge_to_icn6211(struct drm_bridge *b)
@@ -356,16 +358,26 @@ static void icn6211_bridge_pre_enable(struct drm_bridge *bridge)
 	regmap_write(icn6211->regmap, MIPI_PD_CK_LANE, 0xa0);
 	regmap_write(icn6211->regmap, PLL_CTRL_C, 0xff);
 	regmap_write(icn6211->regmap, BIST_POL, 0x01);
-	regmap_write(icn6211->regmap, PLL_CTRL_6, 0x90);
 
 	/*
 	 * FIXME:
 	 * fout = fin / pll_refdiv / pll_extra_div * pll_int / pll_dv / 2
 	 */
-	pll_refdiv = 13;
-	pll_extra_div = 1;
-	pll_dv = 4;
-	regmap_write(icn6211->regmap, PLL_REF_DIV, 0x4d);
+	if (refclk > 40000000) {
+		/* PLL reference clock source from mipi high speed byte clock */
+		regmap_write(icn6211->regmap, PLL_CTRL_6, 0x92);
+		pll_refdiv = 10;
+		pll_extra_div = 2;
+		pll_dv = 4;
+		regmap_write(icn6211->regmap, PLL_REF_DIV, 0x5a);
+	} else {
+		/* PLL reference clock source from 26MHz oscillator */
+		regmap_write(icn6211->regmap, PLL_CTRL_6, 0x90);
+		pll_refdiv = 13;
+		pll_extra_div = 1;
+		pll_dv = 4;
+		regmap_write(icn6211->regmap, PLL_REF_DIV, 0x4d);
+	}
 
 	pll_int = DIV_ROUND_UP(mode->clock * 1000 * 2 * pll_dv,
 			       refclk / pll_refdiv / pll_extra_div);
@@ -401,8 +413,11 @@ static void icn6211_bridge_pre_enable(struct drm_bridge *bridge)
 	 *	 Group_1[7:0] = DATA[15:8]
 	 *	 Group_2[7:0] = DATA[23:16]
 	 */
-	regmap_write(icn6211->regmap, SYS_CTRL_0, 0x45);
+	regmap_write(icn6211->regmap, SYS_CTRL_0, 0x40 |
+		     icn6211->rgb_color_swap_mode);
 	regmap_write(icn6211->regmap, SYS_CTRL_1, 0x88);
+	if (icn6211->mipi_lane_pn_swap)
+		regmap_write(icn6211->regmap, MIPI_PN_SWAP, 0x1f);
 	regmap_write(icn6211->regmap, MIPI_FORCE_0, 0x20);
 	regmap_write(icn6211->regmap, PLL_CTRL_1, 0x20);
 	regmap_write(icn6211->regmap, CONFIG_FINISH, 0x10);
@@ -463,6 +478,7 @@ static int icn6211_bridge_attach(struct drm_bridge *bridge)
 			return ret;
 		}
 
+		connector->port = icn6211->base.of_node;
 		drm_connector_helper_add(connector,
 					 &icn6211_connector_helper_funcs);
 		drm_mode_connector_attach_encoder(connector, bridge->encoder);
@@ -493,6 +509,7 @@ static int icn6211_i2c_probe(struct i2c_client *client,
 {
 	struct device *dev = &client->dev;
 	struct icn6211 *icn6211;
+	u32 val;
 	int ret;
 
 	icn6211 = devm_kzalloc(dev, sizeof(*icn6211), GFP_KERNEL);
@@ -533,6 +550,16 @@ static int icn6211_i2c_probe(struct i2c_client *client,
 		dev_err(dev, "failed to request enable GPIO: %d\n", ret);
 		return ret;
 	}
+
+	icn6211->mipi_lane_pn_swap = of_property_read_bool(dev->of_node,
+						"chipone,mipi-lane-pn-swap");
+
+	ret = of_property_read_u32(dev->of_node, "chipone,rgb-color-swap-mode",
+				   &val);
+	if (ret || val > 5)
+		icn6211->rgb_color_swap_mode = 5;
+	else
+		icn6211->rgb_color_swap_mode = val;
 
 	icn6211->regmap = devm_regmap_init_i2c(client, &icn6211_regmap_config);
 	if (IS_ERR(icn6211->regmap)) {

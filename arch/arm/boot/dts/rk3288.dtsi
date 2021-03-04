@@ -137,10 +137,10 @@
 		rockchip,max-volt = <1350000>;
 		nvmem-cells = <&cpu_leakage>, <&special_function>,
 			      <&performance>, <&process_version>,
-			      <&performance_w>;
+			      <&performance_w>, <&package_info>;
 		nvmem-cell-names = "leakage", "special",
 				   "performance", "process",
-				   "performance-w";
+				   "performance-w", "package";
 		rockchip,bin-scaling-sel = <
 			0               17
 			1               25
@@ -148,10 +148,10 @@
 			3               31
 		>;
 		rockchip,pvtm-voltage-sel = <
-			0        14300   0
-			14301    15000   1
-			15001    16000   2
-			16001    99999   3
+			0        15300   0
+			15301    16000   1
+			16001    17000   2
+			17001    99999   3
 		>;
 		rockchip,pvtm-freq = <408000>;
 		rockchip,pvtm-volt = <1000000>;
@@ -809,7 +809,7 @@
 	pwm3: pwm@ff680030 {
 		compatible = "rockchip,rk3288-pwm";
 		reg = <0x0 0xff680030 0x0 0x10>;
-		#pwm-cells = <2>;
+		#pwm-cells = <3>;
 		pinctrl-names = "active";
 		pinctrl-0 = <&pwm3_pin>;
 		clocks = <&cru PCLK_PWM>;
@@ -1199,6 +1199,31 @@
 		status = "disabled";
 	};
 
+	spdif_2ch: sound@ff880000 {
+		compatible = "rockchip,rk3288-spdif", "rockchip,rk3066-spdif";
+		reg = <0x0 0xff880000 0x0 0x10000>;
+		#sound-dai-cells = <0>;
+		clock-names = "hclk", "mclk";
+		clocks = <&cru HCLK_SPDIF>, <&cru SCLK_SPDIF>;
+		dmas = <&dmac_bus_s 2>;
+		dma-names = "tx";
+		interrupts = <GIC_SPI 54 IRQ_TYPE_LEVEL_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&spdif_tx>;
+		rockchip,grf = <&grf>;
+		status = "disabled";
+	};
+
+	rng: rng@ff8a0000 {
+		compatible = "rockchip,cryptov1-rng";
+		reg = <0x0 0xff8a0000 0x0 0x4000>;
+		clocks = <&cru SCLK_CRYPTO>, <&cru HCLK_CRYPTO>;
+		clock-names = "clk_crypto", "hclk_crypto";
+		assigned-clocks = <&cru SCLK_CRYPTO>, <&cru HCLK_CRYPTO>;
+		assigned-clock-rates = <150000000>, <100000000>;
+		status = "disabled";
+	};
+
 	crypto: cypto-controller@ff8a0000 {
 		compatible = "rockchip,rk3288-crypto";
 		reg = <0x0 0xff8a0000 0x0 0x4000>;
@@ -1208,7 +1233,7 @@
 		clock-names = "aclk", "hclk", "sclk", "apb_pclk";
 		resets = <&cru SRST_CRYPTO>;
 		reset-names = "crypto-rst";
-		status = "okay";
+		status = "disabled";
 	};
 
 	spdif: sound@ff8b0000 {
@@ -1807,7 +1832,7 @@
 		nvmem-cells = <&performance>, <&performance_w>;
 		nvmem-cell-names = "performance", "performance-w";
 		rockchip,bin-scaling-sel = <
-			0               59
+			0               55
 			1               59
 			2               61
 			3               61
@@ -1883,6 +1908,10 @@
 			reg = <0x5 0x1>;
 			bits = <4 4>;
 		};
+		package_info: package-info@5 {
+			reg = <0x5 0x1>;
+			bits = <2 2>;
+		};
 		process_version: process-version@6 {
 			reg = <0x6 0x1>;
 			bits = <0 4>;
@@ -1914,6 +1943,10 @@
 		      <0x0 0xffc04000 0x0 0x2000>,
 		      <0x0 0xffc06000 0x0 0x2000>;
 		interrupts = <GIC_PPI 9 0xf04>;
+	};
+
+	rockchip_system_monitor: rockchip-system-monitor {
+		compatible = "rockchip,system-monitor";
 	};
 
 	pinctrl: pinctrl {

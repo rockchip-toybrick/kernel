@@ -51,7 +51,7 @@
 		reset-delay-ms = <20>;
 
 		pinctrl-names = "default";
-		pinctrl-0 = <&edp_bl_en>;
+		pinctrl-0 = <&lcd_bl_en_h>;
 		display-timings {
 			native-mode = <&timing0>;
 

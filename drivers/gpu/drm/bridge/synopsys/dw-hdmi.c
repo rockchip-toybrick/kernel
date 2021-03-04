@@ -350,13 +350,6 @@ static void repo_hpd_event(struct work_struct *p_work)
 						  ktime_get());
 #endif
 	}
-
-#ifdef CONFIG_SWITCH
-	if (hdmi->hpd_state)
-		switch_set_state(&hdmi->switchdev, 1);
-	else
-		switch_set_state(&hdmi->switchdev, 0);
-#endif
 }
 
 static bool check_hdmi_irq(struct dw_hdmi *hdmi, int intr_stat,
@@ -2106,6 +2099,8 @@ static void hdmi_av_composer(struct dw_hdmi *hdmi,
 				    HDMI_MC_SWRSTZ);
 			drm_scdc_set_scrambling(hdmi->ddc, 0);
 		}
+	} else {
+		hdmi_writeb(hdmi, 0, HDMI_FC_SCRAMBLER_CTRL);
 	}
 
 	/* Set up horizontal active pixel width */
@@ -2430,7 +2425,6 @@ static void initialize_hdmi_ih_mutes(struct dw_hdmi *hdmi)
 	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_AS_STAT0);
 	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_PHY_STAT0);
 	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_I2CM_STAT0);
-	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_CEC_STAT0);
 	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_VP_STAT0);
 	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_I2CMPHY_STAT0);
 	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_AHBDMAAUD_STAT0);
@@ -2557,13 +2551,24 @@ dw_hdmi_connector_detect(struct drm_connector *connector, bool force)
 	struct dw_hdmi *hdmi = container_of(connector, struct dw_hdmi,
 					     connector);
 
+	int connect_status;
+
 	mutex_lock(&hdmi->mutex);
 	hdmi->force = DRM_FORCE_UNSPECIFIED;
 	dw_hdmi_update_power(hdmi);
 	dw_hdmi_update_phy_mask(hdmi);
 	mutex_unlock(&hdmi->mutex);
 
-	return hdmi->phy.ops->read_hpd(hdmi, hdmi->phy.data);
+	connect_status = hdmi->phy.ops->read_hpd(hdmi, hdmi->phy.data);
+
+#ifdef CONFIG_SWITCH
+	if (connect_status == connector_status_connected)
+		switch_set_state(&hdmi->switchdev, 1);
+	else
+		switch_set_state(&hdmi->switchdev, 0);
+#endif
+
+	return connect_status;
 }
 
 static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
@@ -2817,10 +2822,10 @@ static void dw_hdmi_connector_force(struct drm_connector *connector)
 
 	mutex_lock(&hdmi->mutex);
 #ifdef CONFIG_SWITCH
-	if (!hdmi->disabled && hdmi->force != connector->force) {
-		if (connector->force == DRM_FORCE_OFF)
+	if (hdmi->force != connector->force) {
+		if (!hdmi->disabled && connector->force == DRM_FORCE_OFF)
 			switch_set_state(&hdmi->switchdev, 0);
-		else if (connector->force == DRM_FORCE_ON)
+		else if (hdmi->disabled && connector->force == DRM_FORCE_ON)
 			switch_set_state(&hdmi->switchdev, 1);
 	}
 #endif

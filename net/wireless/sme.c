@@ -725,7 +725,7 @@ void __cfg80211_connect_result(struct net_device *dev, const u8 *bssid,
 		return;
 	}
 
-	if (WARN_ON(!bss))
+	if (!bss)
 		return;
 
 	wdev->current_bss = bss_from_pub(bss);

@@ -3232,7 +3232,7 @@ static struct configfs_attribute *fsg_lun_attrs[] = {
 	NULL,
 };
 
-static struct config_item_type fsg_lun_type = {
+static const struct config_item_type fsg_lun_type = {
 	.ct_item_ops	= &fsg_lun_item_ops,
 	.ct_attrs	= fsg_lun_attrs,
 	.ct_owner	= THIS_MODULE,
@@ -3428,7 +3428,7 @@ static struct configfs_group_operations fsg_group_ops = {
 	.drop_item	= fsg_lun_drop,
 };
 
-static struct config_item_type fsg_func_type = {
+static const struct config_item_type fsg_func_type = {
 	.ct_item_ops	= &fsg_item_ops,
 	.ct_group_ops	= &fsg_group_ops,
 	.ct_attrs	= fsg_attrs,
@@ -3477,11 +3477,11 @@ static struct usb_function_instance *fsg_alloc_inst(void)
 
 	opts->lun0.lun = opts->common->luns[0];
 	opts->lun0.lun_id = 0;
-	config_group_init_type_name(&opts->lun0.group, "lun.0", &fsg_lun_type);
-	opts->default_groups[0] = &opts->lun0.group;
-	opts->func_inst.group.default_groups = opts->default_groups;
 
 	config_group_init_type_name(&opts->func_inst.group, "", &fsg_func_type);
+
+	config_group_init_type_name(&opts->lun0.group, "lun.0", &fsg_lun_type);
+	configfs_add_default_group(&opts->lun0.group, &opts->func_inst.group);
 
 	return &opts->func_inst;
 

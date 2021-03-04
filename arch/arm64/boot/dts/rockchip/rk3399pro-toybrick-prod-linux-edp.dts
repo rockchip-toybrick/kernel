@@ -45,7 +45,7 @@
 #include "rk3399-android.dtsi"
 #include "rk3399pro-toybrick-edp.dtsi"
 #include "rk3399pro-toybrick-extboard.dtsi"
-//#include "rk3399pro-toybrick-ov9750.dtsi"
+#include "rk3399pro-toybrick-isp1-ov13850.dtsi"
 
 / {
 	compatible = "rockchip,rk3399pro-toybrick-prod-linux","rockchip,rk3399pro";

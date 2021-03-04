@@ -10,6 +10,7 @@
 #include <linux/hw_random.h>
 #include <linux/iopoll.h>
 #include <linux/module.h>
+#include <linux/mod_devicetable.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
@@ -83,6 +84,11 @@ static void rk_rng_writel(struct rk_rng *rng, u32 val, u32 offset)
 	__raw_writel(val, rng->mem + offset);
 }
 
+static u32 rk_rng_readl(struct rk_rng *rng, u32 offset)
+{
+	return __raw_readl(rng->mem + offset);
+}
+
 static int rk_rng_init(struct hwrng *rng)
 {
 	int ret;
@@ -107,13 +113,26 @@ static void rk_rng_cleanup(struct hwrng *rng)
 	clk_bulk_disable_unprepare(rk_rng->clk_num, rk_rng->clk_bulks);
 }
 
+static void rk_rng_read_regs(struct rk_rng *rng, u32 offset, void *buf,
+			     size_t size)
+{
+	u32 i;
+
+	for (i = 0; i < size; i += 4)
+		*(u32 *)(buf + i) = be32_to_cpu(rk_rng_readl(rng, offset + i));
+}
+
 static int rk_rng_v1_read(struct hwrng *rng, void *buf, size_t max, bool wait)
 {
 	int ret = 0;
 	u32 reg_ctrl = 0;
 	struct rk_rng *rk_rng = container_of(rng, struct rk_rng, rng);
 
-	pm_runtime_get_sync(rk_rng->dev);
+	ret = pm_runtime_get_sync(rk_rng->dev);
+	if (ret < 0) {
+		pm_runtime_put_noidle(rk_rng->dev);
+		return ret;
+	}
 
 	/* enable osc_ring to get entropy, sample period is set as 100 */
 	reg_ctrl = CRYPTO_V1_OSC_ENABLE | CRYPTO_V1_TRNG_SAMPLE_PERIOD(100);
@@ -132,7 +151,7 @@ static int rk_rng_v1_read(struct hwrng *rng, void *buf, size_t max, bool wait)
 
 	ret = min_t(size_t, max, RK_MAX_RNG_BYTE);
 
-	memcpy_fromio(buf, rk_rng->mem + CRYPTO_V1_TRNG_DOUT_0, ret);
+	rk_rng_read_regs(rk_rng, CRYPTO_V1_TRNG_DOUT_0, buf, ret);
 
 out:
 	/* close TRNG */
@@ -151,7 +170,11 @@ static int rk_rng_v2_read(struct hwrng *rng, void *buf, size_t max, bool wait)
 	u32 reg_ctrl = 0;
 	struct rk_rng *rk_rng = container_of(rng, struct rk_rng, rng);
 
-	pm_runtime_get_sync(rk_rng->dev);
+	ret = pm_runtime_get_sync(rk_rng->dev);
+	if (ret < 0) {
+		pm_runtime_put_noidle(rk_rng->dev);
+		return ret;
+	}
 
 	/* enable osc_ring to get entropy, sample period is set as 100 */
 	rk_rng_writel(rk_rng, 100, CRYPTO_V2_RNG_SAMPLE_CNT);
@@ -173,7 +196,7 @@ static int rk_rng_v2_read(struct hwrng *rng, void *buf, size_t max, bool wait)
 
 	ret = min_t(size_t, max, RK_MAX_RNG_BYTE);
 
-	memcpy_fromio(buf, rk_rng->mem + CRYPTO_V2_RNG_DOUT_0, ret);
+	rk_rng_read_regs(rk_rng, CRYPTO_V2_RNG_DOUT_0, buf, ret);
 
 out:
 	/* close TRNG */

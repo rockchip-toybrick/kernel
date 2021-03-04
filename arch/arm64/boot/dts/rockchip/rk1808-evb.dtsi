@@ -117,7 +117,7 @@
 			reg = <0x0 0x0 0x0 0x0>;
 		};
 
-		ramoops_mem: region@110000 {
+		ramoops_mem: ramoops@110000 {
 			reg = <0x0 0x110000 0x0 0xf0000>;
 		};
 	};
@@ -242,7 +242,6 @@
 &emmc {
 	bus-width = <8>;
 	cap-mmc-highspeed;
-	max-frequency = <200000000>;
 	mmc-hs200-1_8v;
 	supports-emmc;
 	non-removable;

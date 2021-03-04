@@ -82,6 +82,12 @@
 #define STREAM_MIN_MP_SP_INPUT_WIDTH		32
 #define STREAM_MIN_MP_SP_INPUT_HEIGHT		32
 
+/*
+ * Round up height when allocate memory so that Rockchip encoder can
+ * use DMA buffer directly, though this may waste a bit of memory.
+ */
+#define MEMORY_ALIGN_ROUND_UP_HEIGHT		16
+
 /* Get xsubs and ysubs for fourcc formats
  *
  * @xsubs: horizontal color samples in a 4*4 matrix, for yuv
@@ -197,7 +203,9 @@ static const struct capture_fmt mp_fmts[] = {
 		.mplanes = 1,
 		.uv_swap = 1,
 		.write_format = MI_CTRL_MP_WRITE_YUV_SPLA,
-	}, {
+	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
+	{
 		.fourcc = V4L2_PIX_FMT_YUV422M,
 		.fmt_type = FMT_YUV,
 		.bpp = { 8, 8, 8 },
@@ -206,6 +214,7 @@ static const struct capture_fmt mp_fmts[] = {
 		.uv_swap = 0,
 		.write_format = MI_CTRL_MP_WRITE_YUV_PLA_OR_RAW8,
 	},
+#endif
 	/* yuv420 */
 	{
 		.fourcc = V4L2_PIX_FMT_NV21,
@@ -223,7 +232,9 @@ static const struct capture_fmt mp_fmts[] = {
 		.mplanes = 1,
 		.uv_swap = 0,
 		.write_format = MI_CTRL_MP_WRITE_YUV_SPLA,
-	}, {
+	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
+	{
 		.fourcc = V4L2_PIX_FMT_NV21M,
 		.fmt_type = FMT_YUV,
 		.bpp = { 8, 16 },
@@ -239,7 +250,9 @@ static const struct capture_fmt mp_fmts[] = {
 		.mplanes = 2,
 		.uv_swap = 0,
 		.write_format = MI_CTRL_MP_WRITE_YUV_SPLA,
-	}, {
+	},
+#endif
+	{
 		.fourcc = V4L2_PIX_FMT_YUV420,
 		.fmt_type = FMT_YUV,
 		.bpp = { 8, 8, 8 },
@@ -248,6 +261,7 @@ static const struct capture_fmt mp_fmts[] = {
 		.uv_swap = 0,
 		.write_format = MI_CTRL_MP_WRITE_YUV_PLA_OR_RAW8,
 	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
 	/* yuv444 */
 	{
 		.fourcc = V4L2_PIX_FMT_YUV444M,
@@ -258,6 +272,7 @@ static const struct capture_fmt mp_fmts[] = {
 		.uv_swap = 0,
 		.write_format = MI_CTRL_MP_WRITE_YUV_PLA_OR_RAW8,
 	},
+#endif
 	/* raw */
 	{
 		.fourcc = V4L2_PIX_FMT_SRGGB8,
@@ -332,6 +347,16 @@ static const struct capture_fmt mp_fmts[] = {
 		.mplanes = 1,
 		.write_format = MI_CTRL_MP_WRITE_RAW12,
 	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
+	/* MP rgb24 only for sensor is output rgb24 */
+	{
+		.fourcc = V4L2_PIX_FMT_RGB24,
+		.fmt_type = FMT_BAYER,
+		.bpp = { 24 },
+		.mplanes = 1,
+		.write_format = MI_CTRL_MP_WRITE_YUV_PLA_OR_RAW8,
+	}
+#endif
 };
 
 static const struct capture_fmt sp_fmts[] = {
@@ -372,7 +397,9 @@ static const struct capture_fmt sp_fmts[] = {
 		.uv_swap = 1,
 		.write_format = MI_CTRL_SP_WRITE_SPLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV422,
-	}, {
+	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
+	{
 		.fourcc = V4L2_PIX_FMT_YUV422M,
 		.fmt_type = FMT_YUV,
 		.bpp = { 8, 8, 8 },
@@ -382,6 +409,7 @@ static const struct capture_fmt sp_fmts[] = {
 		.write_format = MI_CTRL_SP_WRITE_PLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV422,
 	},
+#endif
 	/* yuv420 */
 	{
 		.fourcc = V4L2_PIX_FMT_NV21,
@@ -401,7 +429,9 @@ static const struct capture_fmt sp_fmts[] = {
 		.uv_swap = 0,
 		.write_format = MI_CTRL_SP_WRITE_SPLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV420,
-	}, {
+	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
+	{
 		.fourcc = V4L2_PIX_FMT_NV21M,
 		.fmt_type = FMT_YUV,
 		.bpp = { 8, 16 },
@@ -419,7 +449,9 @@ static const struct capture_fmt sp_fmts[] = {
 		.uv_swap = 0,
 		.write_format = MI_CTRL_SP_WRITE_SPLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV420,
-	}, {
+	},
+#endif
+	{
 		.fourcc = V4L2_PIX_FMT_YUV420,
 		.fmt_type = FMT_YUV,
 		.bpp = { 8, 8, 8 },
@@ -429,6 +461,7 @@ static const struct capture_fmt sp_fmts[] = {
 		.write_format = MI_CTRL_SP_WRITE_PLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV420,
 	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
 	/* yuv444 */
 	{
 		.fourcc = V4L2_PIX_FMT_YUV444M,
@@ -440,6 +473,7 @@ static const struct capture_fmt sp_fmts[] = {
 		.write_format = MI_CTRL_SP_WRITE_PLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV444,
 	},
+#endif
 	/* yuv400 */
 	{
 		.fourcc = V4L2_PIX_FMT_GREY,
@@ -451,6 +485,7 @@ static const struct capture_fmt sp_fmts[] = {
 		.write_format = MI_CTRL_SP_WRITE_PLA,
 		.output_format = MI_CTRL_SP_OUTPUT_YUV400,
 	},
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
 	/* rgb */
 	{
 		.fourcc = V4L2_PIX_FMT_XBGR32,
@@ -467,6 +502,7 @@ static const struct capture_fmt sp_fmts[] = {
 		.write_format = MI_CTRL_SP_WRITE_PLA,
 		.output_format = MI_CTRL_SP_OUTPUT_RGB565,
 	}
+#endif
 };
 
 static const struct capture_fmt raw_fmts[] = {
@@ -1307,9 +1343,10 @@ static int rkisp1_queue_setup(struct vb2_queue *queue,
 
 	for (i = 0; i < isp_fmt->mplanes; i++) {
 		const struct v4l2_plane_pix_format *plane_fmt;
+		int h = round_up(pixm->height, MEMORY_ALIGN_ROUND_UP_HEIGHT);
 
 		plane_fmt = &pixm->plane_fmt[i];
-		sizes[i] = plane_fmt->sizeimage;
+		sizes[i] = plane_fmt->sizeimage / pixm->height * h;
 		alloc_ctxs[i] = dev->alloc_ctx;
 	}
 
@@ -1855,6 +1892,23 @@ static int rkisp1_enum_input(struct file *file, void *priv,
 	return 0;
 }
 
+static int rkisp1_s_input(struct file *file, void *priv,
+			     unsigned int i)
+{
+	if (i > 0)
+		return -EINVAL;
+
+	return 0;
+}
+
+static int rkisp1_g_input(struct file *file, void *priv,
+			     unsigned int *i)
+{
+	*i = 0;
+
+	return 0;
+}
+
 static int rkisp1_try_fmt_vid_cap_mplane(struct file *file, void *fh,
 					 struct v4l2_format *f)
 {
@@ -1868,9 +1922,7 @@ static int rkisp_enum_framesizes(struct file *file, void *prov,
 {
 	struct rkisp1_stream *stream = video_drvdata(file);
 	const struct stream_config *config = stream->config;
-	struct v4l2_frmsize_stepwise *s = &fsize->stepwise;
 	struct v4l2_frmsize_discrete *d = &fsize->discrete;
-	const struct ispsd_out_fmt *input_isp_fmt;
 	struct v4l2_rect max_rsz;
 
 	if (fsize->index != 0)
@@ -1881,20 +1933,9 @@ static int rkisp_enum_framesizes(struct file *file, void *prov,
 
 	restrict_rsz_resolution(stream->ispdev, config, &max_rsz);
 
-	input_isp_fmt = rkisp1_get_ispsd_out_fmt(&stream->ispdev->isp_sdev);
-	if (input_isp_fmt->fmt_type == FMT_BAYER) {
-		fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
-		d->width = max_rsz.width;
-		d->height = max_rsz.height;
-	} else {
-		fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
-		s->min_width = STREAM_MIN_RSZ_OUTPUT_WIDTH;
-		s->min_height = STREAM_MIN_RSZ_OUTPUT_HEIGHT;
-		s->max_width = max_rsz.width;
-		s->max_height = max_rsz.height;
-		s->step_width = STREAM_OUTPUT_STEP_WISE;
-		s->step_height = STREAM_OUTPUT_STEP_WISE;
-	}
+	fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+	d->width = max_rsz.width;
+	d->height = max_rsz.height;
 
 	return 0;
 }
@@ -2092,10 +2133,19 @@ static const struct v4l2_ioctl_ops rkisp1_v4l2_ioctl_ops = {
 	.vidioc_streamon = vb2_ioctl_streamon,
 	.vidioc_streamoff = vb2_ioctl_streamoff,
 	.vidioc_enum_input = rkisp1_enum_input,
+	.vidioc_g_input = rkisp1_g_input,
+	.vidioc_s_input = rkisp1_s_input,
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
 	.vidioc_try_fmt_vid_cap_mplane = rkisp1_try_fmt_vid_cap_mplane,
 	.vidioc_enum_fmt_vid_cap_mplane = rkisp1_enum_fmt_vid_cap_mplane,
 	.vidioc_s_fmt_vid_cap_mplane = rkisp1_s_fmt_vid_cap_mplane,
 	.vidioc_g_fmt_vid_cap_mplane = rkisp1_g_fmt_vid_cap_mplane,
+#else
+	.vidioc_try_fmt_vid_cap = rkisp1_try_fmt_vid_cap_mplane,
+	.vidioc_enum_fmt_vid_cap = rkisp1_enum_fmt_vid_cap_mplane,
+	.vidioc_s_fmt_vid_cap = rkisp1_s_fmt_vid_cap_mplane,
+	.vidioc_g_fmt_vid_cap = rkisp1_g_fmt_vid_cap_mplane,
+#endif
 	.vidioc_s_selection = rkisp1_s_selection,
 	.vidioc_g_selection = rkisp1_g_selection,
 	.vidioc_querycap = rkisp1_querycap,
@@ -2170,14 +2220,22 @@ static int rkisp1_register_stream_vdev(struct rkisp1_stream *stream)
 	vdev->minor = -1;
 	vdev->v4l2_dev = v4l2_dev;
 	vdev->lock = &dev->apilock;
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
 	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE_MPLANE |
+#else
+	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE |
+#endif
 				V4L2_CAP_STREAMING;
 	video_set_drvdata(vdev, stream);
 	vdev->vfl_dir = VFL_DIR_RX;
 	node->pad.flags = MEDIA_PAD_FL_SINK;
 
 	rkisp_init_vb2_queue(&node->buf_queue, stream,
+#ifndef CONFIG_VIDEO_ROCKCHIP_ISP1_SPLANE
 			     V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+#else
+			     V4L2_BUF_TYPE_VIDEO_CAPTURE);
+#endif
 	vdev->queue = &node->buf_queue;
 
 	ret = video_register_device(vdev, VFL_TYPE_GRABBER, -1);

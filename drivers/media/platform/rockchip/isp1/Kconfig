@@ -10,3 +10,10 @@ config VIDEO_ROCKCHIP_ISP1
 	default n
 	help
 	  Support for ISP1 on the rockchip SoC.
+
+config VIDEO_ROCKCHIP_ISP1_SPLANE
+	tristate "Rockchip Image Signal Processing v1 Unit driver with splane"
+	depends on VIDEO_ROCKCHIP_ISP1
+	default n
+	help
+	  ISP1 switch from mplane to splane on the rockchip SoC.

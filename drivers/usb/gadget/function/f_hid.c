@@ -20,6 +20,7 @@
 #include <linux/wait.h>
 #include <linux/sched.h>
 #include <linux/usb/g_hid.h>
+#include <uapi/linux/input_vhid.h>
 
 #include "u_f.h"
 #include "u_hid.h"
@@ -463,6 +464,7 @@ static int hidg_setup(struct usb_function *f,
 	struct usb_request		*req  = cdev->req;
 	int status = 0;
 	__u16 value, length;
+	char feature_report[2] = {VHID_FEATURE_ID, VHID_POINTS};
 
 	value	= __le16_to_cpu(ctrl->wValue);
 	length	= __le16_to_cpu(ctrl->wLength);
@@ -479,6 +481,9 @@ static int hidg_setup(struct usb_function *f,
 		/* send an empty report */
 		length = min_t(unsigned, length, hidg->report_length);
 		memset(req->buf, 0x0, length);
+
+		if (length == 2)
+			memcpy(req->buf, feature_report, 2);
 
 		goto respond;
 		break;
@@ -898,7 +903,7 @@ static struct configfs_attribute *hid_attrs[] = {
 	NULL,
 };
 
-static struct config_item_type hid_func_type = {
+static const struct config_item_type hid_func_type = {
 	.ct_item_ops	= &hidg_item_ops,
 	.ct_attrs	= hid_attrs,
 	.ct_owner	= THIS_MODULE,

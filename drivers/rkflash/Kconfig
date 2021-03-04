@@ -41,8 +41,18 @@ config RK_SFC_NAND
 	  Say Y when you have a board with Spi Nand Flash supported by Rockchip
 	  Serial Flash Controller(SFC).
 
+config RK_SFC_NAND_MTD
+	bool "RK SFC NAND mtd Interface Support"
+	default n
+	depends on RK_SFC_NAND
+	help
+	  Enable mtd interface for SFC_NAND device.
+
+	  Say Y when you wanna use mtd interface for SFC_NAND flash.
+
 config RK_SFC_NOR
 	tristate "Rockchip SFC Spi Nor Devices Support"
+	select CRYPTO_ARC4
 	default n
 	help
 	  This enables support for Rockchip SFC Spi Nor Devices.

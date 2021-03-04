@@ -5,6 +5,7 @@
  * Copyright (C) 2019 Fuzhou Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X01 add poweron function.
+ * V0.0X01.0X02 add enum_frame_interval function.
  */
 
 #include <linux/clk.h>
@@ -22,7 +23,7 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -90,7 +91,7 @@ struct regval {
 struct jx_h65_mode {
 	u32 width;
 	u32 height;
-	u32 max_fps;
+	struct v4l2_fract max_fps;
 	u32 hts_def;
 	u32 vts_def;
 	u32 exp_def;
@@ -268,7 +269,7 @@ static const struct regval jx_h65_1280x960_regs[] = {
 	{0x70, 0x89},
 	{0x71, 0x8A},
 	{0x72, 0x68},
-	{0x73, 0x33},
+	{0x73, 0x53},
 	{0x74, 0x52},
 	{0x75, 0x2B},
 	{0x76, 0x40},
@@ -321,11 +322,12 @@ static const struct regval jx_h65_1280x960_regs[] = {
 	{0x90, 0x00},
 	{0x79, 0x00},
 	{0x13, 0x81},
+	{0x12, 0x00},
 	{0x45, 0x89},
 	{0x93, 0x68},
 	{REG_DELAY, 0x00},
 	{0x45, 0x19},
-	{0x1F, 0x11},
+	{0x1F, 0x01},
 	{REG_NULL, 0x00}
 };
 
@@ -333,7 +335,10 @@ static const struct jx_h65_mode supported_modes[] = {
 	{
 		.width = 1280,
 		.height = 960,
-		.max_fps = 30,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
 		.exp_def = 0x0384,
 		.hts_def = 0x02d0,
 		.vts_def = 0x03e8,
@@ -342,7 +347,10 @@ static const struct jx_h65_mode supported_modes[] = {
 	{
 		.width = 1280,
 		.height = 720,
-		.max_fps = 30,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
 		.exp_def = 0x0384,
 		.hts_def = 0x02d0,
 		.vts_def = 0x03e8,
@@ -652,8 +660,7 @@ static int jx_h65_g_frame_interval(struct v4l2_subdev *sd,
 	const struct jx_h65_mode *mode = jx_h65->cur_mode;
 
 	mutex_lock(&jx_h65->mutex);
-	fi->interval.numerator = 10000;
-	fi->interval.denominator = mode->max_fps * 10000;
+	fi->interval = mode->max_fps;
 	mutex_unlock(&jx_h65->mutex);
 
 	return 0;
@@ -731,6 +738,12 @@ static int jx_h65_s_power(struct v4l2_subdev *sd, int on)
 					 jx_h65->cur_mode->reg_list);
 		if (ret)
 			goto unlock_and_return;
+
+		/*
+		 * Enter sleep state to make sure not mipi output
+		 * during rkisp init.
+		 */
+		__jx_h65_stop_stream(jx_h65);
 
 		mutex_unlock(&jx_h65->mutex);
 		/* In case these controls are set before streaming */
@@ -852,6 +865,22 @@ static int jx_h65_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 }
 #endif
 
+static int jx_h65_enum_frame_interval(struct v4l2_subdev *sd,
+				       struct v4l2_subdev_pad_config *cfg,
+				       struct v4l2_subdev_frame_interval_enum *fie)
+{
+	if (fie->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
+
+	if (fie->code != MEDIA_BUS_FMT_SBGGR10_1X10)
+		return -EINVAL;
+
+	fie->width = supported_modes[fie->index].width;
+	fie->height = supported_modes[fie->index].height;
+	fie->interval = supported_modes[fie->index].max_fps;
+	return 0;
+}
+
 static const struct dev_pm_ops jx_h65_pm_ops = {
 	SET_RUNTIME_PM_OPS(jx_h65_runtime_suspend,
 			   jx_h65_runtime_resume, NULL)
@@ -879,6 +908,7 @@ static const struct v4l2_subdev_video_ops jx_h65_video_ops = {
 static const struct v4l2_subdev_pad_ops jx_h65_pad_ops = {
 	.enum_mbus_code = jx_h65_enum_mbus_code,
 	.enum_frame_size = jx_h65_enum_frame_sizes,
+	.enum_frame_interval = jx_h65_enum_frame_interval,
 	.get_fmt = jx_h65_get_fmt,
 	.set_fmt = jx_h65_set_fmt,
 };

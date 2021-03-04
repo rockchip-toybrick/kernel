@@ -230,6 +230,7 @@
 			/*system status		freq(KHz)*/
 			SYS_STATUS_NORMAL	456000
 			SYS_STATUS_SUSPEND	200000
+			SYS_STATUS_REBOOT	396000
 		>;
 		auto-min-freq = <300000>;
 		auto-freq-en = <0>;
@@ -289,11 +290,6 @@
 					temperature = <90000>;
 					hysteresis = <2000>;
 					type = "passive";
-				};
-				soc_crit: soc-crit {
-					temperature = <115000>;
-					hysteresis = <2000>;
-					type = "critical";
 				};
 			};
 
@@ -463,18 +459,6 @@
 			mode-recovery = <BOOT_RECOVERY>;
 			mode-ums = <BOOT_UMS>;
 		};
-	};
-
-	rng: rng@100fc000 {
-		compatible = "rockchip,cryptov1-rng";
-		reg = <0x100fc000 0x4000>;
-		clocks = <&cru SCLK_CRYPTO>, <&cru HCLK_CRYPTO>;
-		clock-names = "clk_crypto", "hclk_crypto";
-		assigned-clocks = <&cru SCLK_CRYPTO>, <&cru HCLK_CRYPTO>;
-		assigned-clock-rates = <150000000>, <100000000>;
-		resets = <&cru SRST_CRYPTO>;
-		reset-names = "reset";
-		status = "disabled";
 	};
 
 	hevc: hevc_service@10104000 {
@@ -1223,6 +1207,10 @@
 		};
 	};
 
+	rockchip_system_monitor: rockchip-system-monitor {
+		compatible = "rockchip,system-monitor";
+	};
+
 	pinctrl: pinctrl {
 		compatible = "rockchip,rk3128-pinctrl";
 		rockchip,grf = <&grf>;
@@ -1288,6 +1276,10 @@
 
 		pcfg_output_high: pcfg-output-high {
 			output-high;
+		};
+
+		pcfg_pull_up: pcfg-output-up {
+			bias-pull-up;
 		};
 
 		pcfg_pull_none: pcfg-pull-none {

@@ -23,6 +23,7 @@
 #include <linux/fs.h>
 #include <linux/timer.h>
 #include <linux/mod_devicetable.h>
+#include <uapi/linux/input_vhid.h>
 
 /**
  * struct input_value - input value representation
@@ -34,6 +35,11 @@ struct input_value {
 	__u16 type;
 	__u16 code;
 	__s32 value;
+};
+
+struct input_queue {
+	struct list_head list;
+	struct input_value val;
 };
 
 /**
@@ -187,6 +193,10 @@ struct input_dev {
 	struct input_value *vals;
 
 	bool devres_managed;
+	struct input_vhid vhid;
+	wait_queue_head_t wait;
+	struct list_head v_list;
+	bool vevent_on;
 };
 #define to_input_dev(d) container_of(d, struct input_dev, dev)
 

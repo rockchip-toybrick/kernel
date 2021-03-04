@@ -42,6 +42,7 @@ struct rockchip_typec_phy {
 	/* mutex to protect access to individual PHYs */
 	struct mutex lock;
 
+	int force_usb2;
 	bool flip;
 	u8 mode;
 	struct phy_config config[3][4];

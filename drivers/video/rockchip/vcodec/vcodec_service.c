@@ -1681,6 +1681,8 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 	if (pservice->auto_freq && pservice->hw_ops->set_freq)
 		pservice->hw_ops->set_freq(pservice, reg);
 
+	clk_set_rate(pservice->aclk_vcodec, 400 * MHZ);
+
 	vcodec_enter_mode(data);
 
 	switch (reg->type) {
@@ -4015,12 +4017,13 @@ static void get_hw_info(struct vpu_subdev_data *data)
 		dec->max_dec_pic_width = 4096;
 	}
 
-	/* in 3399 3228 and 3229 chips, avoid vpu timeout
+	/* in 3399 3228 3229 and 1808 chips, avoid vpu timeout
 	 * and can't recover problem
 	 */
 	if (of_machine_is_compatible("rockchip,rk3399") ||
 		of_machine_is_compatible("rockchip,rk3228") ||
-		of_machine_is_compatible("rockchip,rk3229"))
+		of_machine_is_compatible("rockchip,rk3229") ||
+		of_machine_is_compatible("rockchip,rk1808"))
 		pservice->soft_reset = true;
 	else
 		pservice->soft_reset = false;
