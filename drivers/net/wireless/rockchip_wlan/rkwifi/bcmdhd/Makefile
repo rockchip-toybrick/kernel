@@ -345,7 +345,7 @@ ifeq  ($(CONFIG_BCMDHD_STATIC_BUF_IN_DHD),y)
 	DHDOFILES += dhd_static_buf.o
 	DHDCFLAGS += -DDHD_STATIC_IN_DRIVER
 else
-	obj-m += dhd_static_buf.o
+	obj-y += dhd_static_buf.o
 endif
 	DHDCFLAGS += -DSTATIC_WL_PRIV_STRUCT -DENHANCED_STATIC_BUF
 	DHDCFLAGS += -DCONFIG_DHD_USE_STATIC_BUF
