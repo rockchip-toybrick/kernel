@@ -1825,7 +1825,7 @@ void rtk_update_altsettings(patch_info *patch_entry, const unsigned char* org_co
 
     if (config->data_len != org_config_len - sizeof(struct rtk_bt_vendor_config))
     {
-        RTKBT_ERR("rtk_update_altsettings: config len(%x) is not right(%lx)", config->data_len, org_config_len-sizeof(struct rtk_bt_vendor_config));
+        RTKBT_ERR("rtk_update_altsettings: config len(%x) is not right(%zx)", config->data_len, org_config_len-sizeof(struct rtk_bt_vendor_config));
         return;
     }
 
