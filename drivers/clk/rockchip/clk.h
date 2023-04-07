@@ -1193,4 +1193,7 @@ static inline void rockchip_register_softrst(struct device_node *np,
 #endif
 extern void (*rk_dump_cru)(void);
 
+int rockchip_clk_protect(struct rockchip_clk_provider *ctx,
+			 unsigned int *clocks, unsigned int nclocks);
+void rockchip_clk_unprotect(void);
 #endif
