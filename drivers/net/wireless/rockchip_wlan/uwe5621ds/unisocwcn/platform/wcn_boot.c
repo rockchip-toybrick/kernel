@@ -4320,6 +4320,12 @@ static void marlin_shutdown(struct platform_device *pdev)
 	MDrv_GPIO_Pull_High(RTL_REG_RST_GPIO);
 #endif
 
+#if ((defined(CONFIG_BT_WAKE_HOST_EN) && defined(CONFIG_AW_BOARD)) \
+	|| defined(CONFIG_RK_BOARD))
+	/* enable wcn wake host irq. */
+	marlin_bt_wake_int_en();
+#endif
+
 	WCN_INFO("marlin_shutdown end\n");
 }
 
