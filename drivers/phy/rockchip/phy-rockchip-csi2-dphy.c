@@ -289,8 +289,56 @@ static int csi2_dphy_get_selection(struct v4l2_subdev *sd,
 	return v4l2_subdev_call(sensor, pad, get_selection, NULL, sel);
 }
 
+static long rkcif_csi2_dphy_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct csi2_dphy *dphy = to_csi2_dphy(sd);
+	long ret = 0;
+	int on = 0;
+
+	switch (cmd) {
+	case RKMODULE_SET_QUICK_STREAM:
+		if (!dphy->dphy_hw ||
+		    !dphy->dphy_hw->quick_stream_off ||
+		    !dphy->dphy_hw->quick_stream_on) {
+			ret = -EINVAL;
+			break;
+		}
+		on = *(int *)arg;
+		if (on)
+			dphy->dphy_hw->quick_stream_on(dphy, sd);
+		else
+			dphy->dphy_hw->quick_stream_off(dphy, sd);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long rkcif_csi2_dphy_compat_ioctl32(struct v4l2_subdev *sd,
+				      unsigned int cmd, unsigned long arg)
+{
+	long ret;
+
+	switch (cmd) {
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static const struct v4l2_subdev_core_ops csi2_dphy_core_ops = {
 	.s_power = csi2_dphy_s_power,
+	.ioctl = rkcif_csi2_dphy_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = rkcif_csi2_dphy_compat_ioctl32,
+#endif
 };
 
 static const struct v4l2_subdev_video_ops csi2_dphy_video_ops = {
