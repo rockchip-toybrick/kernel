@@ -23,6 +23,9 @@
 #define RKCIF_CMD_SET_RESET \
 	_IOW('V', BASE_VIDIOC_PRIVATE + 6, int)
 
+#define RKCIF_CMD_SET_QUICK_STREAM \
+	 _IOWR('V', BASE_VIDIOC_PRIVATE + 8, struct rkcif_quick_stream_param)
+
 /* cif memory mode
  * 0: raw12/raw10/raw8 8bit memory compact
  * 1: raw12/raw10 16bit memory one pixel
@@ -47,6 +50,12 @@ enum cif_csi_lvds_memory {
 struct rkcif_reset_info {
 	int is_need_reset;
 	int reset_src;
+};
+
+struct rkcif_quick_stream_param {
+	int on;
+	__u32 frame_num;
+	int resume_mode;
 };
 
 #endif

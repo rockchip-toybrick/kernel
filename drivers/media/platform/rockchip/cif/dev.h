@@ -31,6 +31,11 @@
 #define OF_CIF_MONITOR_PARA	"rockchip,cif-monitor"
 #define OF_CIF_WAIT_LINE	"wait-line"
 
+/*
+ * max wait time for stream stop
+ */
+#define RKCIF_STOP_MAX_WAIT_TIME_MS	(500)
+
 #define CIF_MONITOR_PARA_NUM	(5)
 
 #define RKCIF_SINGLE_STREAM	1
@@ -411,6 +416,7 @@ struct rkcif_stream {
 	u64				line_int_cnt;
 	int				vc;
 	u64				streamon_timestamp;
+	struct completion		stop_complete;
 	bool				stopping;
 	bool				crop_enable;
 	bool				crop_dyn_en;
@@ -422,6 +428,8 @@ struct rkcif_stream {
 	bool				is_can_stop;
 	bool				is_buf_active;
 	bool				is_high_align;
+	bool				is_single_cap;
+	bool				is_wait_stop_complete;
 };
 
 struct rkcif_lvds_subdev {
@@ -473,6 +481,11 @@ static inline struct vb2_queue *to_vb2_queue(struct file *file)
 	return &vnode->buf_queue;
 }
 
+struct rkcif_sensor_work {
+	struct work_struct work;
+	int on;
+};
+
 /*
  * struct rkcif_device - ISP platform device
  * @base_addr: base register address
@@ -499,6 +512,7 @@ struct rkcif_device {
 	int				chip_id;
 	atomic_t			stream_cnt;
 	atomic_t			fh_cnt;
+	atomic_t			streamoff_cnt;
 	struct mutex			stream_lock; /* lock between streams */
 	enum rkcif_workmode		workmode;
 	bool				can_be_reset;
@@ -523,6 +537,8 @@ struct rkcif_device {
 	unsigned int			wait_line_bak;
 	unsigned int			wait_line_cache;
 	struct rkcif_dummy_buffer	dummy_buf;
+	struct rkcif_sensor_work	sensor_work;
+	int				resume_mode;
 	bool				is_start_hdr;
 	bool				iommu_en;
 	bool				is_use_dummybuf;

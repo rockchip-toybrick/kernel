@@ -1769,6 +1769,12 @@ struct rkisp_thunderboot_video_buf {
 	u32 bufsize;
 } __attribute__ ((packed));
 
+enum {
+	RKISP_RTT_MODE_NORMAL = 0,
+	RKISP_RTT_MODE_MULTI_FRAME,
+	RKISP_RTT_MODE_ONE_FRAME,
+};
+
 /**
  * struct rkisp_thunderboot_resmem_head
  */
