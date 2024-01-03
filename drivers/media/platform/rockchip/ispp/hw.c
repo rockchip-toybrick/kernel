@@ -142,8 +142,6 @@ static int enable_sys_clk(struct rkispp_hw_dev *dev)
 		i = dev->clk_rate_tbl_num - 1;
 	dev->core_clk_max = dev->clk_rate_tbl[i].clk_rate * 1000000;
 	dev->core_clk_min = dev->clk_rate_tbl[0].clk_rate * 1000000;
-	rkispp_set_clk_rate(dev->clks[0], dev->core_clk_min);
-	dev_dbg(dev->dev, "set ispp clk:%luHz\n", clk_get_rate(dev->clks[0]));
 	return 0;
 err:
 	for (--i; i >= 0; --i)
@@ -402,14 +400,28 @@ static int __maybe_unused rkispp_runtime_resume(struct device *dev)
 	enable_sys_clk(hw_dev);
 	rkispp_soft_reset(hw_dev);
 
-	for (i = 0; i < hw_dev->dev_num; i++) {
-		void *buf = hw_dev->ispp[i]->sw_base_addr;
+	if (dev->power.runtime_status) {
+		rkispp_set_clk_rate(hw_dev->clks[0], hw_dev->core_clk_min);
+		dev_dbg(hw_dev->dev, "set ispp clk:%luHz\n", clk_get_rate(hw_dev->clks[0]));
 
-		memset(buf, 0, RKISP_ISPP_SW_MAX_SIZE);
-		memcpy_fromio(buf, base, RKISP_ISPP_SW_REG_SIZE);
-		default_sw_reg_flag(hw_dev->ispp[i]);
+		for (i = 0; i < hw_dev->dev_num; i++) {
+			void *buf = hw_dev->ispp[i]->sw_base_addr;
+
+			memset(buf, 0, RKISP_ISPP_SW_MAX_SIZE);
+			memcpy_fromio(buf, base, RKISP_ISPP_SW_REG_SIZE);
+			default_sw_reg_flag(hw_dev->ispp[i]);
+		}
+		hw_dev->is_idle = true;
+	} else {
+		if (hw_dev->ispp[hw_dev->cur_dev_id]->is_suspend) {
+			rkispp_update_regs(hw_dev->ispp[hw_dev->cur_dev_id], RKISPP_CTRL, RKISPP_TNR_CORE_WEIGHT);
+			rkispp_update_regs(hw_dev->ispp[hw_dev->cur_dev_id], RKISPP_NR, RKISPP_ORB_MAX_FEATURE);
+			rkispp_update_regs(hw_dev->ispp[hw_dev->cur_dev_id], RKISPP_FEC, RKISPP_FEC_CROP);
+			rkispp_update_regs(hw_dev->ispp[hw_dev->cur_dev_id], RKISPP_SCL0, RKISPP_SCL2_FACTOR);
+			writel(ALL_FORCE_UPD, base + RKISPP_CTRL_UPDATE);
+		}
 	}
-	hw_dev->is_idle = true;
+
 	return 0;
 }
 
