@@ -19,11 +19,59 @@
 #include <linux/regmap.h>
 #include <media/videobuf2-dma-contig.h>
 #include <media/v4l2-fwnode.h>
+#include <media/v4l2-event.h>
 #include "dev.h"
 
 static inline struct sditf_priv *to_sditf_priv(struct v4l2_subdev *subdev)
 {
 	return container_of(subdev, struct sditf_priv, sd);
+}
+
+void sditf_event_inc_sof(struct sditf_priv *priv)
+{
+	if (priv) {
+		struct v4l2_event event = {
+			.type = V4L2_EVENT_FRAME_SYNC,
+			.u.frame_sync.frame_sequence =
+				atomic_inc_return(&priv->frm_sync_seq) - 1,
+		};
+		v4l2_event_queue(priv->sd.devnode, &event);
+		dev_err(priv->dev, "sof %d\n", atomic_read(&priv->frm_sync_seq) - 1);
+	}
+}
+
+void sditf_event_exposure_notifier(struct sditf_priv *priv,
+					   struct sditf_effect_exp *effect_exp)
+{
+	if (priv) {
+		struct v4l2_event event = {
+			.type = V4L2_EVENT_EXPOSURE,
+		};
+		v4l2_event_queue(priv->sd.devnode, &event);
+	}
+}
+
+u32 sditf_get_sof(struct sditf_priv *priv)
+{
+	if (priv)
+		return atomic_read(&priv->frm_sync_seq) - 1;
+
+	return 0;
+}
+
+void sditf_set_sof(struct sditf_priv *priv, u32 seq)
+{
+	if (priv)
+		atomic_set(&priv->frm_sync_seq, seq);
+}
+
+static int sditf_subscribe_event(struct v4l2_subdev *sd, struct v4l2_fh *fh,
+					     struct v4l2_event_subscription *sub)
+{
+	if (sub->type == V4L2_EVENT_FRAME_SYNC || sub->type == V4L2_EVENT_EXPOSURE)
+		return v4l2_event_subscribe(fh, sub, 0, NULL);
+	else
+		return -EINVAL;
 }
 
 static int sditf_g_frame_interval(struct v4l2_subdev *sd,
@@ -107,13 +155,68 @@ static long sditf_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	struct sditf_priv *priv = to_sditf_priv(sd);
 	struct rkcif_device *cif_dev = priv->cif_dev;
 	struct v4l2_subdev *sensor_sd;
+	struct rkcif_exp *exp;
+	struct rkcif_effect_exp *effect_exposure;
+	struct sditf_time *time;
+	struct sditf_gain *gain;
+	struct sditf_effect_exp *effect_exp;
+	int *connect_id = NULL;
+	int ret = 0;
 
 	if (!cif_dev->terminal_sensor.sd)
 		rkcif_update_sensor_info(&cif_dev->stream[0]);
 
-	if (cif_dev->terminal_sensor.sd) {
-		sensor_sd = cif_dev->terminal_sensor.sd;
-		return v4l2_subdev_call(sensor_sd, core, ioctl, cmd, arg);
+	switch (cmd) {
+	case RKCIF_CMD_SET_EXPOSURE:
+		exp = (struct rkcif_exp *)arg;
+		time = kzalloc(sizeof(*time), GFP_KERNEL);
+		if (!time) {
+			ret = -ENOMEM;
+			return ret;
+		}
+		gain = kzalloc(sizeof(*gain), GFP_KERNEL);
+		if (!gain) {
+			ret = -ENOMEM;
+			kfree(time);
+			return ret;
+		}
+		time->time = exp->time;
+		gain->gain = exp->gain;
+		mutex_lock(&priv->mutex);
+		list_add_tail(&time->list, &priv->time_head);
+		list_add_tail(&gain->list, &priv->gain_head);
+		mutex_unlock(&priv->mutex);
+		if (cif_dev->exp_dbg)
+			dev_info(priv->dev, "RKCIF_CMD_SET_EXPOSURE %d\n", ret);
+		return ret;
+	case RKCIF_CMD_GET_EFFECT_EXPOSURE:
+		if (!list_empty(&priv->effect_exp_head)) {
+			effect_exp = list_first_entry(&priv->effect_exp_head,
+						      struct sditf_effect_exp,
+						      list);
+			if (effect_exp) {
+				effect_exposure = (struct rkcif_effect_exp *)arg;
+				mutex_lock(&priv->mutex);
+				list_del(&effect_exp->list);
+				mutex_unlock(&priv->mutex);
+				*effect_exposure = effect_exp->exp;
+				kfree(effect_exp);
+			}
+		} else {
+			ret = -EINVAL;
+		}
+		if (cif_dev->exp_dbg)
+			dev_info(priv->dev, "RKCIF_CMD_GET_EFFECT_EXPOSURE %d\n", ret);
+		return ret;
+	case RKCIF_CMD_GET_CONNECT_ID:
+		connect_id = (int *)arg;
+		*connect_id = priv->connect_id;
+		return ret;
+	default:
+		if (cif_dev->terminal_sensor.sd) {
+			sensor_sd = cif_dev->terminal_sensor.sd;
+			return v4l2_subdev_call(sensor_sd, core, ioctl, cmd, arg);
+		}
 	}
 
 	return -EINVAL;
@@ -126,15 +229,56 @@ static long sditf_compat_ioctl32(struct v4l2_subdev *sd,
 	struct sditf_priv *priv = to_sditf_priv(sd);
 	struct rkcif_device *cif_dev = priv->cif_dev;
 	struct v4l2_subdev *sensor_sd;
+	struct rkcif_exp *exp;
+	struct rkcif_effect_exp *effect_expsure;
+	int connect_id = 0;
+	int ret = 0;
 
 	if (!cif_dev->terminal_sensor.sd)
 		rkcif_update_sensor_info(&cif_dev->stream[0]);
 
-	if (cif_dev->terminal_sensor.sd) {
-		sensor_sd = cif_dev->terminal_sensor.sd;
-		return v4l2_subdev_call(sensor_sd, core, compat_ioctl32, cmd, arg);
+	switch (cmd) {
+	case RKCIF_CMD_SET_EXPOSURE:
+		exp = kzalloc(sizeof(*exp), GFP_KERNEL);
+		if (!exp) {
+			ret = -ENOMEM;
+			return ret;
+		}
+		if (copy_from_user(exp, up, sizeof(*exp))) {
+			kfree(exp);
+			return -EFAULT;
+		}
+		ret = sditf_ioctl(sd, cmd, exp);
+		kfree(exp);
+		return ret;
+	case RKCIF_CMD_GET_EFFECT_EXPOSURE:
+		effect_expsure = kzalloc(sizeof(*effect_expsure), GFP_KERNEL);
+		if (!effect_expsure) {
+			ret = -ENOMEM;
+			return ret;
+		}
+		ret = sditf_ioctl(sd, cmd, effect_expsure);
+		if (!ret) {
+			ret = copy_to_user(up, effect_expsure, sizeof(*effect_expsure));
+			if (ret)
+				ret = -EFAULT;
+		}
+		kfree(effect_expsure);
+		return ret;
+	case RKCIF_CMD_GET_CONNECT_ID:
+		ret = sditf_ioctl(sd, cmd, &connect_id);
+		if (!ret) {
+			ret = copy_to_user(up, &connect_id, sizeof(int));
+			if (ret)
+				ret = -EFAULT;
+		}
+		return ret;
+	default:
+		if (cif_dev->terminal_sensor.sd) {
+			sensor_sd = cif_dev->terminal_sensor.sd;
+			return v4l2_subdev_call(sensor_sd, core, compat_ioctl32, cmd, arg);
+		}
 	}
-
 	return -EINVAL;
 }
 #endif
@@ -151,6 +295,8 @@ static const struct v4l2_subdev_video_ops sditf_video_ops = {
 };
 
 static const struct v4l2_subdev_core_ops sditf_core_ops = {
+	.subscribe_event = sditf_subscribe_event,
+	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
 	.ioctl = sditf_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = sditf_compat_ioctl32,
@@ -162,6 +308,32 @@ static const struct v4l2_subdev_ops sditf_subdev_ops = {
 	.video = &sditf_video_ops,
 	.pad = &sditf_subdev_pad_ops,
 };
+
+void sditf_get_default_exp(struct sditf_priv *sditf)
+{
+	struct v4l2_ctrl *ctrl = NULL;
+	struct rkcif_device *dev = sditf->cif_dev;
+
+	if (dev->terminal_sensor.sd == NULL)
+		return;
+	ctrl = v4l2_ctrl_find(dev->terminal_sensor.sd->ctrl_handler,
+			      V4L2_CID_EXPOSURE);
+	if (ctrl)
+		sditf->cur_time = ctrl->default_value;
+	else
+		sditf->cur_time = 16;
+
+	ctrl = v4l2_ctrl_find(dev->terminal_sensor.sd->ctrl_handler,
+			      V4L2_CID_ANALOGUE_GAIN);
+	if (ctrl)
+		sditf->cur_gain = ctrl->default_value;
+	else
+		sditf->cur_gain = 16;
+
+	if (dev->exp_dbg)
+		dev_info(sditf->dev, "get default time 0x%x gain 0x%x\n",
+			 sditf->cur_time, sditf->cur_gain);
+}
 
 static int rkcif_sditf_attach_cifdev(struct sditf_priv *sditf)
 {
@@ -188,8 +360,10 @@ static int rkcif_sditf_attach_cifdev(struct sditf_priv *sditf)
 		return -EINVAL;
 	}
 
-	cif_dev->sditf = sditf;
+	cif_dev->sditf[cif_dev->sditf_cnt] = sditf;
 	sditf->cif_dev = cif_dev;
+	sditf->connect_id = cif_dev->sditf_cnt;
+	cif_dev->sditf_cnt++;
 
 	return 0;
 }
@@ -206,6 +380,12 @@ static int rkcif_subdev_media_init(struct sditf_priv *priv)
 		return ret;
 
 	strncpy(priv->sd.name, dev_name(cif_dev->dev), sizeof(priv->sd.name));
+	INIT_LIST_HEAD(&priv->time_head);
+	INIT_LIST_HEAD(&priv->gain_head);
+	INIT_LIST_HEAD(&priv->effect_exp_head);
+	priv->frame_idx.cur_frame_idx = 0;
+	atomic_set(&priv->frm_sync_seq, 0);
+	mutex_init(&priv->mutex);
 
 	return 0;
 }
@@ -224,7 +404,8 @@ static int rkcif_subdev_probe(struct platform_device *pdev)
 
 	sd = &priv->sd;
 	v4l2_subdev_init(sd, &sditf_subdev_ops);
-	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+	sd->owner = THIS_MODULE;
+	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS;
 	snprintf(sd->name, sizeof(sd->name), "rockchip-cif-sditf");
 	sd->dev = dev;
 
