@@ -560,6 +560,7 @@ struct rkcif_device {
 	bool				iommu_en;
 	bool				is_use_dummybuf;
 	bool				is_alloc_buf_user;
+	bool				is_camera_over_bridge;
 };
 
 extern struct platform_driver rkcif_plat_drv;

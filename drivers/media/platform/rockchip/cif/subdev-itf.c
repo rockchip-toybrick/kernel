@@ -22,6 +22,12 @@
 #include <media/v4l2-event.h>
 #include "dev.h"
 
+struct sensor_async_subdev {
+	struct v4l2_async_subdev asd;
+	struct v4l2_mbus_config mbus;
+	int lanes;
+};
+
 static inline struct sditf_priv *to_sditf_priv(struct v4l2_subdev *subdev)
 {
 	return container_of(subdev, struct sditf_priv, sd);
@@ -368,14 +374,162 @@ static int rkcif_sditf_attach_cifdev(struct sditf_priv *sditf)
 	return 0;
 }
 
+static int sditf_fwnode_parse(struct device *dev,
+					  struct v4l2_fwnode_endpoint *vep,
+					  struct v4l2_async_subdev *asd)
+{
+	struct sensor_async_subdev *s_asd =
+			container_of(asd, struct sensor_async_subdev, asd);
+	struct v4l2_mbus_config *config = &s_asd->mbus;
+
+	if (vep->base.port != 0) {
+		dev_err(dev, "sditf has only port 0\n");
+		return -EINVAL;
+	}
+
+	if (vep->bus_type == V4L2_MBUS_CSI2) {
+		config->type = vep->bus_type;
+		config->flags = vep->bus.mipi_csi2.flags;
+		s_asd->lanes = vep->bus.mipi_csi2.num_data_lanes;
+	} else if (vep->bus_type == V4L2_MBUS_CCP2) {
+		config->type = vep->bus_type;
+		s_asd->lanes = vep->bus.mipi_csi1.data_lane;
+	} else {
+		dev_err(dev, "type is not supported\n");
+		return -EINVAL;
+	}
+
+	switch (s_asd->lanes) {
+	case 1:
+		config->flags |= V4L2_MBUS_CSI2_1_LANE;
+		break;
+	case 2:
+		config->flags |= V4L2_MBUS_CSI2_2_LANE;
+		break;
+	case 3:
+		config->flags |= V4L2_MBUS_CSI2_3_LANE;
+		break;
+	case 4:
+		config->flags |= V4L2_MBUS_CSI2_4_LANE;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int sditf_notifier_bound(struct v4l2_async_notifier *notifier,
+				 struct v4l2_subdev *subdev,
+				 struct v4l2_async_subdev *asd)
+{
+	struct sditf_priv *sditf = container_of(notifier,
+					struct sditf_priv, notifier);
+	struct media_entity *source_entity, *sink_entity;
+	int ret = 0;
+
+	sditf->sensor_sd = subdev;
+
+	if (sditf->num_sensors == 1) {
+		v4l2_err(subdev,
+			 "%s: the num of subdev is beyond %d\n",
+			 __func__, sditf->num_sensors);
+		return -EBUSY;
+	}
+
+	if (sditf->sd.entity.pads[0].flags & MEDIA_PAD_FL_SINK) {
+		source_entity = &subdev->entity;
+		sink_entity = &sditf->sd.entity;
+
+		ret = media_create_pad_link(source_entity,
+					    0,
+					    sink_entity,
+					    0,
+					    MEDIA_LNK_FL_ENABLED);
+		if (ret)
+			v4l2_err(&sditf->sd, "failed to create link for %s\n",
+				 sditf->sensor_sd->name);
+	}
+	sditf->sensor_sd = subdev;
+	++sditf->num_sensors;
+
+	v4l2_err(subdev, "Async registered subdev\n");
+
+	return 0;
+}
+
+static void sditf_notifier_unbind(struct v4l2_async_notifier *notifier,
+				       struct v4l2_subdev *sd,
+				       struct v4l2_async_subdev *asd)
+{
+	struct sditf_priv *sditf = container_of(notifier,
+						struct sditf_priv,
+						notifier);
+
+	sditf->sensor_sd = NULL;
+}
+
+static const struct v4l2_async_notifier_operations sditf_notifier_ops = {
+	.bound = sditf_notifier_bound,
+	.unbind = sditf_notifier_unbind,
+};
+
+static int sditf_subdev_notifier(struct sditf_priv *sditf)
+{
+	int ret;
+
+	ret = v4l2_async_notifier_parse_fwnode_endpoints_by_port(
+			sditf->dev, &sditf->notifier,
+			sizeof(struct sensor_async_subdev), 0,
+			sditf_fwnode_parse);
+		if (ret < 0)
+			return ret;
+
+	sditf->sd.subdev_notifier = &sditf->notifier;
+	sditf->notifier.ops = &sditf_notifier_ops;
+
+	ret = v4l2_async_subdev_notifier_register(&sditf->sd, &sditf->notifier);
+	if (ret) {
+		v4l2_err(&sditf->sd,
+			 "failed to register async notifier : %d\n",
+			 ret);
+		v4l2_async_notifier_cleanup(&sditf->notifier);
+		return ret;
+	}
+
+	return v4l2_async_register_subdev(&sditf->sd);
+}
+
+static int sditf_count_port_nodes(struct device_node *root_node)
+{
+	int count = 0;
+	struct device_node *node = NULL;
+
+	for_each_child_of_node(root_node, node) {
+		if (of_node_cmp(node->name, "port") == 0)
+			count++;
+		count += sditf_count_port_nodes(node);
+	}
+	return count;
+}
+
 static int rkcif_subdev_media_init(struct sditf_priv *priv)
 {
 	struct rkcif_device *cif_dev = priv->cif_dev;
 	int ret;
+	int pad_num = 0;
 
-	priv->pads.flags = MEDIA_PAD_FL_SOURCE;
+	priv->port_count = sditf_count_port_nodes(priv->dev->of_node);
+	if (priv->port_count > 1) {
+		priv->pads[0].flags = MEDIA_PAD_FL_SINK;
+		priv->pads[1].flags = MEDIA_PAD_FL_SOURCE;
+		pad_num = 2;
+	} else {
+		priv->pads[0].flags = MEDIA_PAD_FL_SOURCE;
+		pad_num = 1;
+	}
 	priv->sd.entity.function = MEDIA_ENT_F_PROC_VIDEO_COMPOSER;
-	ret = media_entity_pads_init(&priv->sd.entity, 1, &priv->pads);
+	ret = media_entity_pads_init(&priv->sd.entity, pad_num, priv->pads);
 	if (ret < 0)
 		return ret;
 
@@ -386,6 +540,8 @@ static int rkcif_subdev_media_init(struct sditf_priv *priv)
 	priv->frame_idx.cur_frame_idx = 0;
 	atomic_set(&priv->frm_sync_seq, 0);
 	mutex_init(&priv->mutex);
+	if (priv->port_count > 1)
+		sditf_subdev_notifier(priv);
 
 	return 0;
 }

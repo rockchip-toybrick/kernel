@@ -1618,6 +1618,11 @@ static void rkcif_parse_dts(struct rkcif_device *cif_dev)
 	if (ret != 0)
 		cif_dev->wait_line = 0;
 	dev_info(cif_dev->dev, "rkcif wait line %d\n", cif_dev->wait_line);
+
+	if (device_property_read_bool(cif_dev->dev, "camera-over-bridge"))
+		cif_dev->is_camera_over_bridge = true;
+	else
+		cif_dev->is_camera_over_bridge = false;
 }
 
 static int rkcif_plat_probe(struct platform_device *pdev)
@@ -1719,7 +1724,8 @@ static int __maybe_unused __rkcif_clr_unready_dev(void)
 
 	list_for_each_entry(cif_dev, &rkcif_device_list, list) {
 		v4l2_async_notifier_clr_unready_dev(&cif_dev->notifier);
-		subdev_asyn_register_itf(cif_dev);
+		if (!cif_dev->is_camera_over_bridge)
+			subdev_asyn_register_itf(cif_dev);
 	}
 
 	mutex_unlock(&rkcif_dev_mutex);

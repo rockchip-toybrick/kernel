@@ -52,11 +52,13 @@ struct sditf_effect_exp {
 
 struct sditf_priv {
 	struct device *dev;
+	struct v4l2_async_notifier notifier;
 	struct v4l2_subdev sd;
-	struct media_pad pads;
+	struct media_pad pads[2];
 	struct rkcif_device *cif_dev;
 	struct sditf_frame_idx frame_idx;
 	struct mutex mutex;
+	struct v4l2_subdev *sensor_sd;
 	atomic_t frm_sync_seq;
 	int connect_id;
 	struct list_head time_head;
@@ -65,6 +67,8 @@ struct sditf_priv {
 	u32 cur_time;
 	u32 cur_gain;
 	int one_to_multi_id;
+	int port_count;
+	int num_sensors;
 };
 
 extern struct platform_driver rkcif_subdev_driver;
