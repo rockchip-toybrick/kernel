@@ -231,3 +231,4 @@ obj-$(CONFIG_VIDEO_PREISP_DUMMY_SENSOR)	+= preisp-dummy.o
 obj-$(CONFIG_SDR_MAX2175) += max2175.o
 
 obj-$(CONFIG_VIDEO_OTP_EEPROM)	+= otp_eeprom.o
+obj-$(CONFIG_VIDEO_CAM_SLEEP_WAKEUP)	+= cam-sleep-wakeup.o
