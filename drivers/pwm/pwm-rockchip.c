@@ -411,13 +411,15 @@ static int rockchip_pwm_probe(struct platform_device *pdev)
 	pc->pinctrl = devm_pinctrl_get(&pdev->dev);
 	if (IS_ERR(pc->pinctrl)) {
 		dev_err(&pdev->dev, "Get pinctrl failed!\n");
-		return PTR_ERR(pc->pinctrl);
+		ret = PTR_ERR(pc->pinctrl);
+		goto err_pclk;
 	}
 
 	pc->active_state = pinctrl_lookup_state(pc->pinctrl, "active");
 	if (IS_ERR(pc->active_state)) {
 		dev_err(&pdev->dev, "No active pinctrl state\n");
-		return PTR_ERR(pc->active_state);
+		ret = PTR_ERR(pc->active_state);
+		goto err_pclk;
 	}
 
 	platform_set_drvdata(pdev, pc);
@@ -460,20 +462,6 @@ err_clk:
 static int rockchip_pwm_remove(struct platform_device *pdev)
 {
 	struct rockchip_pwm_chip *pc = platform_get_drvdata(pdev);
-
-	/*
-	 * Disable the PWM clk before unpreparing it if the PWM device is still
-	 * running. This should only happen when the last PWM user left it
-	 * enabled, or when nobody requested a PWM that was previously enabled
-	 * by the bootloader.
-	 *
-	 * FIXME: Maybe the core should disable all PWM devices in
-	 * pwmchip_remove(). In this case we'd only have to call
-	 * clk_unprepare() after pwmchip_remove().
-	 *
-	 */
-	if (pwm_is_enabled(pc->chip.pwms))
-		clk_disable(pc->clk);
 
 	clk_unprepare(pc->pclk);
 	clk_unprepare(pc->clk);

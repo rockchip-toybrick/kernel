@@ -134,8 +134,20 @@ config BMA2XX_ACC
 	  To have support for your specific gsesnor you will have to
 	  select the proper drivers which depend on this option.
 
+config GS_DA215S
+	tristate "gsensor da215s"
+	help
+	  To have support for your specific gsesnor you will have to
+	  select the proper drivers which depend on this option.
+
 config GS_DA223
 	tristate "gsensor da223"
+	help
+	  To have support for your specific gsesnor you will have to
+	  select the proper drivers which depend on this option.
+
+config GS_DA228E
+	tristate "gsensor da228e"
 	help
 	  To have support for your specific gsesnor you will have to
 	  select the proper drivers which depend on this option.

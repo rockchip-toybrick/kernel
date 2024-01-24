@@ -8,6 +8,7 @@
 #include <linux/completion.h>
 #include <linux/debugfs.h>
 #include <linux/device.h>
+#include <linux/extcon-provider.h>
 #include <linux/hrtimer.h>
 #include <linux/jiffies.h>
 #include <linux/kernel.h>
@@ -17,6 +18,7 @@
 #include <linux/power_supply.h>
 #include <linux/proc_fs.h>
 #include <linux/property.h>
+#include <linux/regulator/consumer.h>
 #include <linux/sched/clock.h>
 #include <linux/seq_file.h>
 #include <linux/slab.h>
@@ -29,6 +31,7 @@
 #include <linux/usb/role.h>
 #include <linux/usb/tcpm.h>
 #include <linux/usb/typec_altmode.h>
+#include <linux/usb/typec_dp.h>
 
 #include <uapi/linux/sched/types.h>
 
@@ -232,6 +235,24 @@ enum frs_typec_current {
 	FRS_5V_3A,
 };
 
+static const unsigned int tcpm_cable[] = {
+	EXTCON_USB,
+	EXTCON_USB_HOST,
+	EXTCON_USB_VBUS_EN,
+	EXTCON_CHG_USB_SDP,
+	EXTCON_CHG_USB_CDP,
+	EXTCON_CHG_USB_DCP,
+	EXTCON_CHG_USB_SLOW,
+	EXTCON_CHG_USB_FAST,
+	EXTCON_DISP_DP,
+	EXTCON_NONE,
+};
+
+/* Pin assignments where one channel is for USB */
+#define DP_PIN_ASSIGN_MULTI_FUNCTION_MASK	(BIT(DP_PIN_ASSIGN_B) | \
+						 BIT(DP_PIN_ASSIGN_D) | \
+						 BIT(DP_PIN_ASSIGN_F))
+
 /* Events from low level driver */
 
 #define TCPM_CC_EVENT		BIT(0)
@@ -249,6 +270,7 @@ enum frs_typec_current {
 #define ALTMODE_DISCOVERY_MAX	(SVID_DISCOVERY_MAX * MODE_DISCOVERY_MAX)
 
 #define GET_SINK_CAP_RETRY_MS	100
+#define SEND_NEW_MODE_NOTIFY_MS 20
 
 struct pd_mode_data {
 	int svid_index;		/* current SVID index		*/
@@ -289,6 +311,9 @@ struct tcpm_port {
 	struct typec_partner_desc partner_desc;
 	struct typec_partner *partner;
 
+	struct regulator *vbus;
+	struct extcon_dev *extcon;
+
 	enum typec_cc_status cc_req;
 
 	enum typec_cc_status cc1;
@@ -305,6 +330,7 @@ struct tcpm_port {
 
 	bool send_discover;
 	bool op_vsafe5v;
+	bool vbus_on;
 
 	int try_role;
 	int try_snk_count;
@@ -320,6 +346,7 @@ struct tcpm_port {
 	unsigned long delay_ms;
 
 	spinlock_t pd_event_lock;
+	struct mutex pd_handler_lock;
 	u32 pd_events;
 
 	struct kthread_work event_work;
@@ -329,6 +356,8 @@ struct tcpm_port {
 	struct kthread_work vdm_state_machine;
 	struct hrtimer enable_frs_timer;
 	struct kthread_work enable_frs;
+	struct kthread_work data_role_swap;
+	struct hrtimer data_role_swap_timer;
 	bool state_machine_running;
 	bool vdm_sm_running;
 
@@ -348,6 +377,10 @@ struct tcpm_port {
 	bool pd_capable;
 	bool explicit_contract;
 	unsigned int rx_msgid;
+
+	u32 dp_pin_assignment;
+	u32 dp_status;
+	bool dp_configured;
 
 	/* Partner capabilities/requests */
 	u32 sink_request;
@@ -483,9 +516,6 @@ static enum tcpm_state tcpm_default_state(struct tcpm_port *port)
 			return SNK_UNATTACHED;
 		else if (port->try_role == TYPEC_SOURCE)
 			return SRC_UNATTACHED;
-		else if (port->tcpc->config &&
-			 port->tcpc->config->default_role == TYPEC_SINK)
-			return SNK_UNATTACHED;
 		/* Fall through to return SRC_UNATTACHED */
 	} else if (port->port_type == TYPEC_PORT_SNK) {
 		return SNK_UNATTACHED;
@@ -718,6 +748,105 @@ static void tcpm_debugfs_init(const struct tcpm_port *port) { }
 static void tcpm_debugfs_exit(const struct tcpm_port *port) { }
 
 #endif
+
+static int tcpm_send_vbus_notify(struct tcpm_port *port, bool enable)
+{
+	int ret = 0;
+
+	if (port->vbus_on == enable) {
+		tcpm_log(port, "vbus is already %s", enable ? "on" : "Off");
+		goto done;
+	}
+
+	if (port->vbus) {
+		if (enable)
+			ret = regulator_enable(port->vbus);
+		else
+			ret = regulator_disable(port->vbus);
+		if (ret < 0) {
+			dev_err(port->dev, "failed to %s vbus supply(%d)\n",
+				enable ? "enable" : "disable", ret);
+			goto done;
+		}
+
+		/* Only set state here, don't sync notifier to PMIC */
+		extcon_set_state(port->extcon, EXTCON_USB_VBUS_EN, enable);
+	} else {
+		extcon_set_state(port->extcon, EXTCON_USB_VBUS_EN, enable);
+		extcon_sync(port->extcon, EXTCON_USB_VBUS_EN);
+		tcpm_log(port, "tcpm driver send extcon to %s vbus 5v\n",
+			 enable ? "enable" : "disable");
+	}
+
+	port->vbus_on = enable;
+
+done:
+	return ret;
+}
+
+static void tcpm_send_orientation_notify(struct tcpm_port *port)
+{
+	union extcon_property_value property;
+
+	property.intval = port->polarity;
+	extcon_set_property(port->extcon, EXTCON_USB,
+			    EXTCON_PROP_USB_TYPEC_POLARITY, property);
+	extcon_set_property(port->extcon, EXTCON_USB_HOST,
+			    EXTCON_PROP_USB_TYPEC_POLARITY, property);
+	extcon_set_property(port->extcon, EXTCON_DISP_DP,
+			    EXTCON_PROP_USB_TYPEC_POLARITY, property);
+}
+
+static void tcpm_send_data_role_notify(struct tcpm_port *port, bool attached,
+				  enum typec_data_role data)
+{
+	bool dfp = false;
+	bool ufp = false;
+
+	if (attached) {
+		if (data == TYPEC_HOST)
+			dfp = true;
+		else
+			ufp = true;
+	}
+	extcon_set_state(port->extcon, EXTCON_USB, ufp);
+	extcon_set_state(port->extcon, EXTCON_USB_HOST, dfp);
+	extcon_sync(port->extcon, EXTCON_USB);
+	extcon_sync(port->extcon, EXTCON_USB_HOST);
+}
+
+static void tcpm_send_dp_notify(struct tcpm_port *port)
+{
+	union extcon_property_value property;
+	bool usb_ss = false;
+	bool hpd = false;
+
+	if (port->dp_configured) {
+		usb_ss = (port->dp_pin_assignment &
+			  DP_PIN_ASSIGN_MULTI_FUNCTION_MASK) ? true : false;
+		hpd = !!(port->dp_status & DP_STATUS_HPD_STATE);
+	}
+	property.intval = usb_ss;
+	extcon_set_property(port->extcon, EXTCON_USB,
+			    EXTCON_PROP_USB_SS, property);
+	extcon_set_property(port->extcon, EXTCON_USB_HOST,
+			    EXTCON_PROP_USB_SS, property);
+	extcon_set_property(port->extcon, EXTCON_DISP_DP,
+			    EXTCON_PROP_USB_SS, property);
+	extcon_set_state(port->extcon, EXTCON_DISP_DP, port->dp_configured && hpd);
+	extcon_sync(port->extcon, EXTCON_DISP_DP);
+}
+
+static void tcpm_send_power_change_notify(struct tcpm_port *port)
+{
+	union extcon_property_value property;
+
+	property.intval = (port->current_limit << 15 | port->supply_voltage);
+	extcon_set_property(port->extcon, EXTCON_CHG_USB_FAST,
+			    EXTCON_PROP_USB_TYPEC_POLARITY, property);
+	extcon_set_state(port->extcon, EXTCON_CHG_USB_FAST, true);
+	extcon_sync(port->extcon, EXTCON_CHG_USB_FAST);
+}
 
 static void tcpm_set_cc(struct tcpm_port *port, enum typec_cc_status cc)
 {
@@ -1071,6 +1200,17 @@ static void mod_enable_frs_delayed_work(struct tcpm_port *port, unsigned int del
 	} else {
 		hrtimer_cancel(&port->enable_frs_timer);
 		kthread_queue_work(port->wq, &port->enable_frs);
+	}
+}
+
+static void mod_data_role_swap_work(struct tcpm_port *port, unsigned int delay_ms)
+{
+	if (delay_ms) {
+		hrtimer_start(&port->data_role_swap_timer,
+			      ms_to_ktime(delay_ms), HRTIMER_MODE_REL);
+	} else {
+		hrtimer_cancel(&port->data_role_swap_timer);
+		kthread_queue_work(port->wq, &port->data_role_swap);
 	}
 }
 
@@ -1878,6 +2018,13 @@ static int tcpm_altmode_enter(struct typec_altmode *altmode)
 {
 	struct tcpm_port *port = typec_altmode_get_drvdata(altmode);
 	u32 header;
+	int ret = 0;
+
+	mutex_lock(&port->pd_handler_lock);
+	if (tcpm_port_is_disconnected(port)) {
+		ret = -ENODEV;
+		goto unlock;
+	}
 
 	mutex_lock(&port->lock);
 	header = VDO(altmode->svid, 1, CMD_ENTER_MODE);
@@ -1886,14 +2033,22 @@ static int tcpm_altmode_enter(struct typec_altmode *altmode)
 	tcpm_queue_vdm(port, header, NULL, 0);
 	mod_vdm_delayed_work(port, 0);
 	mutex_unlock(&port->lock);
-
-	return 0;
+unlock:
+	mutex_unlock(&port->pd_handler_lock);
+	return ret;
 }
 
 static int tcpm_altmode_exit(struct typec_altmode *altmode)
 {
 	struct tcpm_port *port = typec_altmode_get_drvdata(altmode);
 	u32 header;
+	int ret = 0;
+
+	mutex_lock(&port->pd_handler_lock);
+	if (tcpm_port_is_disconnected(port)) {
+		ret = -ENODEV;
+		goto unlock;
+	}
 
 	mutex_lock(&port->lock);
 	header = VDO(altmode->svid, 1, CMD_EXIT_MODE);
@@ -1903,18 +2058,57 @@ static int tcpm_altmode_exit(struct typec_altmode *altmode)
 	mod_vdm_delayed_work(port, 0);
 	mutex_unlock(&port->lock);
 
-	return 0;
+unlock:
+	mutex_unlock(&port->pd_handler_lock);
+	return ret;
 }
 
 static int tcpm_altmode_vdm(struct typec_altmode *altmode,
 			    u32 header, const u32 *data, int count)
 {
 	struct tcpm_port *port = typec_altmode_get_drvdata(altmode);
+	int ret = 0;
+
+	mutex_lock(&port->pd_handler_lock);
+	if (tcpm_port_is_disconnected(port)) {
+		ret = -ENODEV;
+		goto unlock;
+	}
 
 	mutex_lock(&port->lock);
 	tcpm_queue_vdm(port, header, data, count - 1);
 	mod_vdm_delayed_work(port, 0);
 	mutex_unlock(&port->lock);
+
+unlock:
+	mutex_unlock(&port->pd_handler_lock);
+	return ret;
+}
+
+static int tcpm_altmode_notify(struct typec_altmode *altmode,
+			       unsigned long conf, void *data)
+{
+	struct tcpm_port *port = typec_altmode_get_drvdata(altmode);
+	struct typec_displayport_data *dp_data = data;
+
+	if ((conf >= TYPEC_DP_STATE_A) && (conf <= TYPEC_DP_STATE_F)) {
+		if (port->dp_configured) {
+			port->dp_status = dp_data->status;
+			tcpm_send_dp_notify(port);
+			dev_info(port->dev, "dp_status %x\n", dp_data->status);
+		} else {
+			port->dp_pin_assignment = dp_data->conf;
+			port->dp_configured = true;
+			dev_info(port->dev, "DP pin assignment 0x%x\n",
+				 port->dp_pin_assignment);
+		}
+	} else if ((conf == TYPEC_STATE_USB) && (port->dp_configured)) {
+		/* may receive ufp device response Exit Mode Command Ack */
+		port->dp_status = 0;
+		port->dp_pin_assignment = 0;
+		port->dp_configured = false;
+		tcpm_send_dp_notify(port);
+	}
 
 	return 0;
 }
@@ -1923,6 +2117,7 @@ static const struct typec_altmode_ops tcpm_altmode_ops = {
 	.enter = tcpm_altmode_enter,
 	.exit = tcpm_altmode_exit,
 	.vdm = tcpm_altmode_vdm,
+	.notify = tcpm_altmode_notify,
 };
 
 /*
@@ -2983,6 +3178,10 @@ static int tcpm_set_vbus(struct tcpm_port *port, bool enable)
 
 	tcpm_log(port, "vbus:=%d charge=%d", enable, port->vbus_charge);
 
+	ret = tcpm_send_vbus_notify(port, enable);
+	if (ret)
+		return ret;
+
 	ret = port->tcpc->set_vbus(port->tcpc, enable, port->vbus_charge);
 	if (ret < 0)
 		return ret;
@@ -3000,6 +3199,11 @@ static int tcpm_set_charge(struct tcpm_port *port, bool charge)
 
 	if (charge != port->vbus_charge) {
 		tcpm_log(port, "vbus=%d charge:=%d", port->vbus_source, charge);
+
+		ret = tcpm_send_vbus_notify(port, port->vbus_source);
+		if (ret < 0)
+			return ret;
+
 		ret = port->tcpc->set_vbus(port->tcpc, port->vbus_source,
 					   charge);
 		if (ret < 0)
@@ -3024,6 +3228,10 @@ static bool tcpm_start_toggling(struct tcpm_port *port, enum typec_cc_status cc)
 static int tcpm_init_vbus(struct tcpm_port *port)
 {
 	int ret;
+
+	ret = tcpm_send_vbus_notify(port, false);
+	if (ret)
+		return ret;
 
 	ret = port->tcpc->set_vbus(port->tcpc, false, false);
 	port->vbus_source = false;
@@ -3103,6 +3311,11 @@ static int tcpm_src_attach(struct tcpm_port *port)
 	port->attached = true;
 	port->send_discover = true;
 
+	dev_info(port->dev, "CC connected in %s as DFP\n",
+		 polarity ? "CC2" : "CC1");
+	tcpm_send_orientation_notify(port);
+	tcpm_send_data_role_notify(port, port->attached, port->data_role);
+
 	return 0;
 
 out_disable_vconn:
@@ -3144,7 +3357,17 @@ static void tcpm_reset_port(struct tcpm_port *port)
 	port->vdm_sm_running = false;
 	tcpm_unregister_altmodes(port);
 	tcpm_typec_disconnect(port);
-	port->attached = false;
+	if (port->attached) {
+		port->attached = false;
+		if (port->dp_configured) {
+			port->dp_configured = false;
+			port->dp_pin_assignment = 0;
+			port->dp_status = 0;
+			tcpm_send_dp_notify(port);
+		}
+		tcpm_send_data_role_notify(port, port->attached,
+					   port->data_role);
+	}
 	port->pd_capable = false;
 	port->pps_data.supported = false;
 
@@ -3212,6 +3435,11 @@ static int tcpm_snk_attach(struct tcpm_port *port)
 	port->attached = true;
 	port->send_discover = true;
 
+	dev_info(port->dev, "CC connected in %s as UFP\n",
+		 port->cc1 != TYPEC_CC_OPEN ? "CC1" : "CC2");
+	tcpm_send_orientation_notify(port);
+	tcpm_send_data_role_notify(port, port->attached, port->data_role);
+
 	return 0;
 }
 
@@ -3236,6 +3464,10 @@ static int tcpm_acc_attach(struct tcpm_port *port)
 	tcpm_typec_connect(port);
 
 	port->attached = true;
+
+	dev_info(port->dev, "CC connected as Audio Accessory\n");
+	tcpm_send_orientation_notify(port);
+	tcpm_send_data_role_notify(port, port->attached, port->data_role);
 
 	return 0;
 }
@@ -3565,11 +3797,7 @@ static void run_state_machine(struct tcpm_port *port)
 				       tcpm_try_src(port) ? SRC_TRY
 							  : SNK_ATTACHED,
 				       0);
-		else
-			/* Wait for VBUS, but not forever */
-			tcpm_set_state(port, PORT_RESET, PD_T_PS_SOURCE_ON);
 		break;
-
 	case SRC_TRY:
 		port->try_src_count++;
 		tcpm_set_cc(port, tcpm_rp_cc(port));
@@ -3754,6 +3982,9 @@ static void run_state_machine(struct tcpm_port *port)
 
 		tcpm_check_send_discover(port);
 		power_supply_changed(port->psy);
+		if (port->usb_type == POWER_SUPPLY_USB_TYPE_PD ||
+		    port->usb_type == POWER_SUPPLY_USB_TYPE_PD_PPS)
+			tcpm_send_power_change_notify(port);
 		break;
 
 	/* Accessory states */
@@ -3909,14 +4140,36 @@ static void run_state_machine(struct tcpm_port *port)
 		tcpm_set_state(port, ready_state(port), 0);
 		break;
 	case DR_SWAP_CHANGE_DR:
+		/*
+		 * After the DR_swap process is executed, for the
+		 * Rockchip platform, the tcpm framework needs to
+		 * send two notifications to the dwc3 driver, the
+		 * two notifications require a time interval.
+		 *
+		 * (a) For Type-C devices with DP function,
+		 * a notification will be sent here, another
+		 * notification can be sent after receiving
+		 * Attention cmd.
+		 * (b) But for Type-C devices without DP function,
+		 * the tcpm framework will only send a notification once.
+		 *
+		 * Based on the above reasons, it is necessary to start
+		 * the timer here, wait for 20 ms to start work and send
+		 * the notification again.
+		 */
+
 		if (port->data_role == TYPEC_HOST) {
 			tcpm_unregister_altmodes(port);
 			tcpm_set_roles(port, true, port->pwr_role,
 				       TYPEC_DEVICE);
+			tcpm_send_data_role_notify(port, false, TYPEC_HOST);
+			mod_data_role_swap_work(port, SEND_NEW_MODE_NOTIFY_MS);
 		} else {
 			tcpm_set_roles(port, true, port->pwr_role,
 				       TYPEC_HOST);
 			port->send_discover = true;
+			tcpm_send_data_role_notify(port, false, TYPEC_DEVICE);
+			mod_data_role_swap_work(port, SEND_NEW_MODE_NOTIFY_MS);
 		}
 		tcpm_set_state(port, ready_state(port), 0);
 		break;
@@ -4130,7 +4383,7 @@ static void run_state_machine(struct tcpm_port *port)
 		break;
 	case PORT_RESET:
 		tcpm_reset_port(port);
-		tcpm_set_cc(port, TYPEC_CC_OPEN);
+		tcpm_set_cc(port, TYPEC_CC_RD);
 		tcpm_set_state(port, PORT_RESET_WAIT_OFF,
 			       PD_T_ERROR_RECOVERY);
 		break;
@@ -4475,7 +4728,8 @@ static void _tcpm_pd_vbus_off(struct tcpm_port *port)
 	case SNK_TRYWAIT_DEBOUNCE:
 		break;
 	case SNK_ATTACH_WAIT:
-		tcpm_set_state(port, SNK_UNATTACHED, 0);
+	case SNK_DEBOUNCED:
+		/* Do nothing, as TCPM is still waiting for vbus to reaach VSAFE5V to connect */
 		break;
 
 	case SNK_NEGOTIATE_CAPABILITIES:
@@ -4543,6 +4797,7 @@ static void tcpm_pd_event_handler(struct kthread_work *work)
 					      event_work);
 	u32 events;
 
+	mutex_lock(&port->pd_handler_lock);
 	mutex_lock(&port->lock);
 
 	spin_lock(&port->pd_event_lock);
@@ -4596,6 +4851,7 @@ static void tcpm_pd_event_handler(struct kthread_work *work)
 	}
 	spin_unlock(&port->pd_event_lock);
 	mutex_unlock(&port->lock);
+	mutex_unlock(&port->pd_handler_lock);
 }
 
 void tcpm_cc_change(struct tcpm_port *port)
@@ -4673,6 +4929,17 @@ resched:
 	mod_enable_frs_delayed_work(port, GET_SINK_CAP_RETRY_MS);
 unlock:
 	mutex_unlock(&port->lock);
+}
+
+static void tcpm_data_role_swap_work(struct kthread_work *work)
+{
+	struct tcpm_port *port =
+		container_of(work, struct tcpm_port, data_role_swap);
+
+	if (tcpm_port_is_disconnected(port))
+		return;
+
+	tcpm_send_data_role_notify(port, true, port->data_role);
 }
 
 static int tcpm_dr_set(const struct typec_capability *cap,
@@ -4853,7 +5120,7 @@ static int tcpm_try_role(const struct typec_capability *cap, int role)
 	mutex_lock(&port->lock);
 	if (tcpc->try_role)
 		ret = tcpc->try_role(tcpc, role);
-	if (!ret && (!tcpc->config || !tcpc->config->try_role_hw))
+	if (!ret)
 		port->try_role = role;
 	port->try_src_count = 0;
 	port->try_snk_count = 0;
@@ -5123,20 +5390,6 @@ static int tcpm_copy_pdos(u32 *dest_pdo, const u32 *src_pdo,
 	return nr_pdo;
 }
 
-static int tcpm_copy_vdos(u32 *dest_vdo, const u32 *src_vdo,
-			  unsigned int nr_vdo)
-{
-	unsigned int i;
-
-	if (nr_vdo > VDO_MAX_OBJECTS)
-		nr_vdo = VDO_MAX_OBJECTS;
-
-	for (i = 0; i < nr_vdo; i++)
-		dest_vdo[i] = src_vdo[i];
-
-	return nr_vdo;
-}
-
 static int tcpm_fw_get_caps(struct tcpm_port *port,
 			    struct fwnode_handle *fwnode)
 {
@@ -5146,6 +5399,16 @@ static int tcpm_fw_get_caps(struct tcpm_port *port,
 
 	if (!fwnode)
 		return -EINVAL;
+
+	/* get vbus regulator */
+	port->vbus = devm_regulator_get_optional(port->dev, "vbus");
+	if (IS_ERR(port->vbus)) {
+		if (PTR_ERR(port->vbus) == -EPROBE_DEFER)
+			return PTR_ERR(port->vbus);
+
+		dev_info(port->dev, "may no need vbus regulator\n");
+		port->vbus = NULL;
+	}
 
 	/* USB data support is optional */
 	ret = fwnode_property_read_string(fwnode, "data-role", &cap_str);
@@ -5216,6 +5479,20 @@ sink:
 		ret = fwnode_property_read_u32(fwnode, "frs-typec-current", &frs_current);
 		if (ret >= 0 && frs_current <= FRS_5V_3A)
 			port->frs_current = frs_current;
+	}
+
+	/* sink-vdos is optional */
+	ret = fwnode_property_count_u32(fwnode, "sink-vdos");
+	if (ret < 0)
+		ret = 0;
+
+	port->nr_snk_vdo = min(ret, VDO_MAX_OBJECTS);
+	if (port->nr_snk_vdo) {
+		ret = fwnode_property_read_u32_array(fwnode, "sink-vdos",
+						     port->snk_vdo,
+						     port->nr_snk_vdo);
+		if (ret < 0)
+			return ret;
 	}
 
 	return 0;
@@ -5506,31 +5783,6 @@ static int devm_tcpm_psy_register(struct tcpm_port *port)
 	return PTR_ERR_OR_ZERO(port->psy);
 }
 
-static int tcpm_copy_caps(struct tcpm_port *port,
-			  const struct tcpc_config *tcfg)
-{
-	if (tcpm_validate_caps(port, tcfg->src_pdo, tcfg->nr_src_pdo) ||
-	    tcpm_validate_caps(port, tcfg->snk_pdo, tcfg->nr_snk_pdo))
-		return -EINVAL;
-
-	port->nr_src_pdo = tcpm_copy_pdos(port->src_pdo, tcfg->src_pdo,
-					  tcfg->nr_src_pdo);
-	port->nr_snk_pdo = tcpm_copy_pdos(port->snk_pdo, tcfg->snk_pdo,
-					  tcfg->nr_snk_pdo);
-
-	port->nr_snk_vdo = tcpm_copy_vdos(port->snk_vdo, tcfg->snk_vdo,
-					  tcfg->nr_snk_vdo);
-
-	port->operating_snk_mw = tcfg->operating_snk_mw;
-
-	port->typec_caps.prefer_role = tcfg->default_role;
-	port->typec_caps.type = tcfg->type;
-	port->typec_caps.data = tcfg->data;
-	port->self_powered = tcfg->self_powered;
-
-	return 0;
-}
-
 static enum hrtimer_restart state_machine_timer_handler(struct hrtimer *timer)
 {
 	struct tcpm_port *port = container_of(timer, struct tcpm_port, state_machine_timer);
@@ -5555,10 +5807,91 @@ static enum hrtimer_restart enable_frs_timer_handler(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
+static enum hrtimer_restart data_role_swap_timer_handler(struct hrtimer *timer)
+{
+	struct tcpm_port *port =
+		container_of(timer, struct tcpm_port, data_role_swap_timer);
+
+	kthread_queue_work(port->wq, &port->data_role_swap);
+	return HRTIMER_NORESTART;
+}
+
+static int tcpm_extcon_register(struct tcpm_port *port)
+{
+	struct extcon_dev *extcon;
+	int ret;
+
+	extcon = devm_extcon_dev_allocate(port->dev, tcpm_cable);
+	if (IS_ERR(extcon)) {
+		dev_err(port->dev, "allocate extcon failed\n");
+		return -ENOMEM;
+	}
+
+	ret = devm_extcon_dev_register(port->dev, extcon);
+	if (ret) {
+		dev_err(port->dev, "failed to register extcon: %d\n", ret);
+		goto init_err;
+	}
+
+	ret = extcon_set_property_capability(extcon, EXTCON_USB,
+					     EXTCON_PROP_USB_TYPEC_POLARITY);
+	if (ret) {
+		dev_err(port->dev, "failed to set USB property capability: %d\n", ret);
+		goto init_err;
+	}
+
+	ret = extcon_set_property_capability(extcon, EXTCON_USB_HOST,
+					     EXTCON_PROP_USB_TYPEC_POLARITY);
+	if (ret) {
+		dev_err(port->dev, "failed to set USB_HOST property capability: %d\n", ret);
+		goto init_err;
+	}
+
+	ret = extcon_set_property_capability(extcon, EXTCON_DISP_DP,
+					     EXTCON_PROP_USB_TYPEC_POLARITY);
+	if (ret) {
+		dev_err(port->dev, "failed to set DISP_DP property capability: %d\n", ret);
+		goto init_err;
+	}
+
+	ret = extcon_set_property_capability(extcon, EXTCON_USB, EXTCON_PROP_USB_SS);
+	if (ret) {
+		dev_err(port->dev, "failed to set USB USB_SS property capability: %d\n", ret);
+		goto init_err;
+	}
+
+	ret = extcon_set_property_capability(extcon, EXTCON_USB_HOST, EXTCON_PROP_USB_SS);
+	if (ret) {
+		dev_err(port->dev, "failed to set USB_HOST USB_SS property capability: %d", ret);
+		goto init_err;
+	}
+
+	ret = extcon_set_property_capability(extcon, EXTCON_DISP_DP, EXTCON_PROP_USB_SS);
+	if (ret) {
+		dev_err(port->dev, "failed to set DISP_DP USB_SS property capability: %d", ret);
+		goto init_err;
+	}
+
+	ret = extcon_set_property_capability(extcon, EXTCON_CHG_USB_FAST,
+					    EXTCON_PROP_USB_TYPEC_POLARITY);
+	if (ret) {
+		dev_err(port->dev, "failed to set USB_PD property capability: %d\n", ret);
+		goto init_err;
+	}
+
+	port->extcon = extcon;
+	tcpm_log(port, "init extcon finished\n");
+
+	return 0;
+
+init_err:
+	return ret;
+}
+
 struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 {
 	struct tcpm_port *port;
-	int i, err;
+	int err;
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
 
 	if (!dev || !tcpc ||
@@ -5576,6 +5909,7 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 
 	mutex_init(&port->lock);
 	mutex_init(&port->swap_lock);
+	mutex_init(&port->pd_handler_lock);
 
 	port->wq = kthread_create_worker(0, dev_name(dev));
 	if (IS_ERR(port->wq))
@@ -5586,12 +5920,15 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 	kthread_init_work(&port->vdm_state_machine, vdm_state_machine_work);
 	kthread_init_work(&port->event_work, tcpm_pd_event_handler);
 	kthread_init_work(&port->enable_frs, tcpm_enable_frs_work);
+	kthread_init_work(&port->data_role_swap, tcpm_data_role_swap_work);
 	hrtimer_init(&port->state_machine_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	port->state_machine_timer.function = state_machine_timer_handler;
 	hrtimer_init(&port->vdm_state_machine_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	port->vdm_state_machine_timer.function = vdm_state_machine_timer_handler;
 	hrtimer_init(&port->enable_frs_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	port->enable_frs_timer.function = enable_frs_timer_handler;
+	hrtimer_init(&port->data_role_swap_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	port->data_role_swap_timer.function = data_role_swap_timer_handler;
 
 	spin_lock_init(&port->pd_event_lock);
 
@@ -5600,16 +5937,16 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 	init_completion(&port->pps_complete);
 	tcpm_debugfs_init(port);
 
+	/* init extcon */
+	err = tcpm_extcon_register(port);
+	if (err)
+		goto out_destroy_wq;
+
 	err = tcpm_fw_get_caps(port, tcpc->fwnode);
-	if ((err < 0) && tcpc->config)
-		err = tcpm_copy_caps(port, tcpc->config);
 	if (err < 0)
 		goto out_destroy_wq;
 
-	if (!tcpc->config || !tcpc->config->try_role_hw)
-		port->try_role = port->typec_caps.prefer_role;
-	else
-		port->try_role = TYPEC_NO_PREFERRED_ROLE;
+	port->try_role = port->typec_caps.prefer_role;
 
 	port->typec_caps.fwnode = tcpc->fwnode;
 	port->typec_caps.revision = 0x0120;	/* Type-C spec release 1.2 */
@@ -5639,28 +5976,9 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 		goto out_destroy_wq;
 	}
 
-	if (tcpc->config && tcpc->config->alt_modes) {
-		const struct typec_altmode_desc *paltmode = tcpc->config->alt_modes;
-
-		i = 0;
-		while (paltmode->svid && i < ARRAY_SIZE(port->port_altmode)) {
-			struct typec_altmode *alt;
-
-			alt = typec_port_register_altmode(port->typec_port,
-							  paltmode);
-			if (IS_ERR(alt)) {
-				tcpm_log(port,
-					 "%s: failed to register port alternate mode 0x%x",
-					 dev_name(dev), paltmode->svid);
-				break;
-			}
-			typec_altmode_set_drvdata(alt, port);
-			alt->ops = &tcpm_altmode_ops;
-			port->port_altmode[i] = alt;
-			i++;
-			paltmode++;
-		}
-	}
+	typec_port_register_altmodes(port->typec_port,
+				     &tcpm_altmode_ops, port,
+				     port->port_altmode, ALTMODE_DISCOVERY_MAX);
 
 	mutex_lock(&port->lock);
 	tcpm_init(port);
@@ -5683,6 +6001,7 @@ void tcpm_unregister_port(struct tcpm_port *port)
 	hrtimer_cancel(&port->enable_frs_timer);
 	hrtimer_cancel(&port->vdm_state_machine_timer);
 	hrtimer_cancel(&port->state_machine_timer);
+	hrtimer_cancel(&port->data_role_swap_timer);
 
 	tcpm_reset_port(port);
 	for (i = 0; i < ARRAY_SIZE(port->port_altmode); i++)

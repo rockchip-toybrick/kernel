@@ -67,6 +67,8 @@ enum sensor_id {
 	ACCEL_ID_STK8BAXX,
 	ACCEL_ID_MIR3DA,
 	ACCEL_ID_ICM2060X,
+	ACCEL_ID_DA215S,
+	ACCEL_ID_DA228E,
 	COMPASS_ID_ALL,
 	COMPASS_ID_AK8975,
 	COMPASS_ID_AK8963,
@@ -216,6 +218,7 @@ struct sensor_platform_data {
 	short m_layout[4][3][3];
 	int *project_name;
 	int power_off_in_suspend;
+	int wake_enable;
 };
 
 struct gsensor_platform_data {

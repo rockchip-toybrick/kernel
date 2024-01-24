@@ -19,6 +19,7 @@
 #include <linux/phy/phy.h>
 #include <linux/pm_runtime.h>
 #include <linux/mfd/syscon.h>
+#include <linux/rockchip/cpu.h>
 
 #define PSEC_PER_SEC	1000000000000LL
 
@@ -196,6 +197,14 @@
 #define DSI_PHY_STATUS		0xb0
 #define PHY_LOCK		BIT(0)
 
+enum soc_type {
+	PX30,
+	PX30S,
+	RK3128,
+	RK3368,
+	RK3568,
+};
+
 enum phy_max_rate {
 	MAX_1GHZ,
 	MAX_2_5GHZ,
@@ -256,6 +265,7 @@ struct inno_video_phy {
 };
 
 struct inno_video_phy_plat_data {
+	enum soc_type soc_type;
 	const struct inno_mipi_dphy_timing *inno_mipi_dphy_timing_table;
 	const unsigned int num_timings;
 	enum phy_max_rate max_rate;
@@ -445,13 +455,13 @@ static void inno_mipi_dphy_timing_init(struct inno_video_phy *inno)
 	unsigned int i;
 
 	txbyteclkhs = inno->pll.rate / 8;
-	t_txbyteclkhs = DIV_ROUND_CLOSEST_ULL(PSEC_PER_SEC, txbyteclkhs);
+	t_txbyteclkhs = div_u64(PSEC_PER_SEC, txbyteclkhs);
 	sys_clk = clk_get_rate(inno->pclk_phy);
-	esc_clk_div = DIV_ROUND_CLOSEST_ULL(txbyteclkhs, 20000000);
+	esc_clk_div = DIV_ROUND_UP(txbyteclkhs, 20000000);
 	txclkesc = txbyteclkhs / esc_clk_div;
 	t_txclkesc = div_u64(PSEC_PER_SEC, txclkesc);
 
-	ui = DIV_ROUND_CLOSEST_ULL(PSEC_PER_SEC, inno->pll.rate);
+	ui = div_u64(PSEC_PER_SEC, inno->pll.rate);
 
 	memset(&gotp, 0, sizeof(gotp));
 	mipi_dphy_timing_get_default(&gotp, ui);
@@ -460,17 +470,17 @@ static void inno_mipi_dphy_timing_init(struct inno_video_phy *inno)
 	 * The value of counter for HS Ths-exit
 	 * Ths-exit = Tpin_txbyteclkhs * value
 	 */
-	hs_exit = DIV_ROUND_CLOSEST_ULL(gotp.hsexit, t_txbyteclkhs);
+	hs_exit = DIV_ROUND_UP(gotp.hsexit, t_txbyteclkhs);
 	/*
 	 * The value of counter for HS Tclk-post
 	 * Tclk-post = Tpin_txbyteclkhs * value
 	 */
-	clk_post = DIV_ROUND_CLOSEST_ULL(gotp.clkpost, t_txbyteclkhs);
+	clk_post = DIV_ROUND_UP(gotp.clkpost, t_txbyteclkhs);
 	/*
 	 * The value of counter for HS Tclk-pre
 	 * Tclk-pre = Tpin_txbyteclkhs * value
 	 */
-	clk_pre = DIV_ROUND_CLOSEST_ULL(gotp.clkpre, t_txbyteclkhs);
+	clk_pre = DIV_ROUND_UP(gotp.clkpre, t_txbyteclkhs);
 
 	wakeup = DIV_ROUND_CLOSEST_ULL(gotp.wakeup * sys_clk, PSEC_PER_SEC);
 	if (wakeup > 0x3ff)
@@ -480,19 +490,19 @@ static void inno_mipi_dphy_timing_init(struct inno_video_phy *inno)
 	 * Tta-go for turnaround
 	 * Tta-go = Ttxclkesc * value
 	 */
-	ta_go = DIV_ROUND_CLOSEST_ULL(gotp.tago, t_txclkesc);
+	ta_go = DIV_ROUND_UP(gotp.tago, t_txclkesc);
 	/*
 	 * The value of counter for HS Tta-sure
 	 * Tta-sure for turnaround
 	 * Tta-sure = Ttxclkesc * value
 	 */
-	ta_sure = DIV_ROUND_CLOSEST_ULL(gotp.tasure, t_txclkesc);
+	ta_sure = DIV_ROUND_UP(gotp.tasure, t_txclkesc);
 	/*
 	 * The value of counter for HS Tta-wait
 	 * Tta-wait for turnaround
 	 * Tta-wait = Ttxclkesc * value
 	 */
-	ta_wait = DIV_ROUND_CLOSEST_ULL(gotp.taget, t_txclkesc);
+	ta_wait = DIV_ROUND_UP(gotp.taget, t_txclkesc);
 
 	timing = inno_mipi_dphy_get_timing(inno);
 
@@ -501,7 +511,7 @@ static void inno_mipi_dphy_timing_init(struct inno_video_phy *inno)
 	 * Tlpx = Tpin_txbyteclkhs * (2 + value)
 	 */
 	if (inno->pdata->max_rate == MAX_1GHZ) {
-		lpx = DIV_ROUND_CLOSEST_ULL(gotp.lpx, t_txbyteclkhs);
+		lpx = DIV_ROUND_UP(gotp.lpx, t_txbyteclkhs);
 		if (lpx >= 2)
 			lpx -= 2;
 	} else
@@ -590,6 +600,12 @@ static void inno_video_phy_mipi_mode_enable(struct inno_video_phy *inno)
 	/* Select MIPI mode */
 	phy_update_bits(inno, REGISTER_PART_LVDS, 0x03,
 			MODE_ENABLE_MASK, MIPI_MODE_ENABLE);
+
+	/* set pin_txclkesc_0 pin_txbyteclk invert disable */
+	if (inno->pdata->soc_type == PX30S)
+		phy_update_bits(inno, REGISTER_PART_DIGITAL, 0x01,
+				INVERT_TXCLKESC_MASK, INVERT_TXCLKESC_DISABLE);
+
 	if (inno->pdata->max_rate == MAX_2_5GHZ)
 		inno_mipi_dphy_max_2_5GHz_pll_enable(inno);
 	else
@@ -614,6 +630,16 @@ static void inno_video_phy_lvds_mode_enable(struct inno_video_phy *inno)
 			SAMPLE_CLOCK_DIRECTION_MASK | LOWFRE_EN_MASK,
 			SAMPLE_CLOCK_DIRECTION_REVERSE |
 			PLL_OUTPUT_FREQUENCY_DIV_BY_1);
+
+	/* Reset LVDS digital logic */
+	phy_update_bits(inno, REGISTER_PART_LVDS, 0x00,
+			LVDS_DIGITAL_INTERNAL_RESET_MASK,
+			LVDS_DIGITAL_INTERNAL_RESET_ENABLE);
+	udelay(1);
+	phy_update_bits(inno, REGISTER_PART_LVDS, 0x00,
+			LVDS_DIGITAL_INTERNAL_RESET_MASK,
+			LVDS_DIGITAL_INTERNAL_RESET_DISABLE);
+
 	/* Select LVDS mode */
 	phy_update_bits(inno, REGISTER_PART_LVDS, 0x03,
 			MODE_ENABLE_MASK, LVDS_MODE_ENABLE);
@@ -638,14 +664,6 @@ static void inno_video_phy_lvds_mode_enable(struct inno_video_phy *inno)
 	phy_update_bits(inno, REGISTER_PART_ANALOG, 0x1e,
 			PLL_MODE_SEL_MASK, PLL_MODE_SEL_LVDS_MODE);
 
-	/* Reset LVDS digital logic */
-	phy_update_bits(inno, REGISTER_PART_LVDS, 0x00,
-			LVDS_DIGITAL_INTERNAL_RESET_MASK,
-			LVDS_DIGITAL_INTERNAL_RESET_ENABLE);
-	udelay(1);
-	phy_update_bits(inno, REGISTER_PART_LVDS, 0x00,
-			LVDS_DIGITAL_INTERNAL_RESET_MASK,
-			LVDS_DIGITAL_INTERNAL_RESET_DISABLE);
 	/* Enable LVDS digital logic */
 	phy_update_bits(inno, REGISTER_PART_LVDS, 0x01,
 			LVDS_DIGITAL_INTERNAL_ENABLE_MASK,
@@ -659,9 +677,6 @@ static void inno_video_phy_lvds_mode_enable(struct inno_video_phy *inno)
 
 static void inno_video_phy_ttl_mode_enable(struct inno_video_phy *inno)
 {
-	/* Select TTL mode */
-	phy_update_bits(inno, REGISTER_PART_LVDS, 0x03,
-			MODE_ENABLE_MASK, TTL_MODE_ENABLE);
 	/* Reset digital logic */
 	phy_update_bits(inno, REGISTER_PART_LVDS, 0x00,
 			LVDS_DIGITAL_INTERNAL_RESET_MASK,
@@ -670,6 +685,10 @@ static void inno_video_phy_ttl_mode_enable(struct inno_video_phy *inno)
 	phy_update_bits(inno, REGISTER_PART_LVDS, 0x00,
 			LVDS_DIGITAL_INTERNAL_RESET_MASK,
 			LVDS_DIGITAL_INTERNAL_RESET_DISABLE);
+
+	/* Select TTL mode */
+	phy_update_bits(inno, REGISTER_PART_LVDS, 0x03,
+			MODE_ENABLE_MASK, TTL_MODE_ENABLE);
 	/* Enable digital logic */
 	phy_update_bits(inno, REGISTER_PART_LVDS, 0x01,
 			LVDS_DIGITAL_INTERNAL_ENABLE_MASK,
@@ -929,6 +948,41 @@ static const struct regmap_config inno_video_phy_regmap_config = {
 	.max_register = 0x3ac,
 };
 
+static const struct inno_video_phy_plat_data px30_video_phy_plat_data = {
+	.soc_type = PX30,
+	.inno_mipi_dphy_timing_table = inno_mipi_dphy_timing_table_max_1GHz,
+	.num_timings = ARRAY_SIZE(inno_mipi_dphy_timing_table_max_1GHz),
+	.max_rate = MAX_1GHZ,
+};
+
+static const struct inno_video_phy_plat_data px30s_video_phy_plat_data = {
+	.soc_type = PX30S,
+	.inno_mipi_dphy_timing_table = inno_mipi_dphy_timing_table_max_2_5GHz,
+	.num_timings = ARRAY_SIZE(inno_mipi_dphy_timing_table_max_2_5GHz),
+	.max_rate = MAX_2_5GHZ,
+};
+
+static const struct inno_video_phy_plat_data rk3128_video_phy_plat_data = {
+	.soc_type = RK3128,
+	.inno_mipi_dphy_timing_table = inno_mipi_dphy_timing_table_max_1GHz,
+	.num_timings = ARRAY_SIZE(inno_mipi_dphy_timing_table_max_1GHz),
+	.max_rate = MAX_1GHZ,
+};
+
+static const struct inno_video_phy_plat_data rk3368_video_phy_plat_data = {
+	.soc_type = RK3368,
+	.inno_mipi_dphy_timing_table = inno_mipi_dphy_timing_table_max_1GHz,
+	.num_timings = ARRAY_SIZE(inno_mipi_dphy_timing_table_max_1GHz),
+	.max_rate = MAX_1GHZ,
+};
+
+static const struct inno_video_phy_plat_data rk3568_video_phy_plat_data = {
+	.soc_type = RK3568,
+	.inno_mipi_dphy_timing_table = inno_mipi_dphy_timing_table_max_2_5GHz,
+	.num_timings = ARRAY_SIZE(inno_mipi_dphy_timing_table_max_2_5GHz),
+	.max_rate = MAX_2_5GHZ,
+};
+
 static int inno_video_phy_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -945,6 +999,9 @@ static int inno_video_phy_probe(struct platform_device *pdev)
 
 	inno->dev = dev;
 	inno->pdata = of_device_get_match_data(inno->dev);
+	if (soc_is_px30s())
+		inno->pdata = &px30s_video_phy_plat_data;
+
 	platform_set_drvdata(pdev, inno);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -1041,31 +1098,22 @@ static int inno_video_phy_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct inno_video_phy_plat_data phy_max_1GHz_plat_data = {
-	.inno_mipi_dphy_timing_table = inno_mipi_dphy_timing_table_max_1GHz,
-	.num_timings = ARRAY_SIZE(inno_mipi_dphy_timing_table_max_1GHz),
-	.max_rate = MAX_1GHZ,
-};
-
-static const struct inno_video_phy_plat_data phy_max_2_5GHz_plat_data = {
-	.inno_mipi_dphy_timing_table = inno_mipi_dphy_timing_table_max_2_5GHz,
-	.num_timings = ARRAY_SIZE(inno_mipi_dphy_timing_table_max_2_5GHz),
-	.max_rate = MAX_2_5GHZ,
-};
-
 static const struct of_device_id inno_video_phy_of_match[] = {
 	{
 		.compatible = "rockchip,px30-video-phy",
-		.data = &phy_max_1GHz_plat_data,
+		.data = &px30_video_phy_plat_data,
+	}, {
+		.compatible = "rockchip,px30s-video-phy",
+		.data = &px30s_video_phy_plat_data,
 	}, {
 		.compatible = "rockchip,rk3128-video-phy",
-		.data = &phy_max_1GHz_plat_data,
+		.data = &rk3128_video_phy_plat_data,
 	}, {
 		.compatible = "rockchip,rk3368-video-phy",
-		.data = &phy_max_1GHz_plat_data,
+		.data = &rk3368_video_phy_plat_data,
 	}, {
 		.compatible = "rockchip,rk3568-video-phy",
-		.data = &phy_max_2_5GHz_plat_data,
+		.data = &rk3568_video_phy_plat_data,
 	},
 	{}
 };

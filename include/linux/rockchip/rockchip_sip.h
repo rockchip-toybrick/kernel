@@ -51,6 +51,7 @@
 #define SIP_SCMI_AGENT15		0x8200001f
 #define SIP_SDEI_FIQ_DBG_SWITCH_CPU	0x82000020
 #define SIP_SDEI_FIQ_DBG_GET_EVENT_ID	0x82000021
+#define RK_SIP_AMP_CFG			0x82000022
 
 /* Rockchip Sip version */
 #define SIP_IMPLEMENT_V1                (1)
@@ -109,6 +110,28 @@
 /* wakeup state */
 #define REMOTECTL_PWRKEY_WAKEUP		0xdeadbeaf
 
+/* AMP Ctrl */
+enum {
+	RK_AMP_SUB_FUNC_CFG_MODE = 0,
+	RK_AMP_SUB_FUNC_BOOT_ARG01,
+	RK_AMP_SUB_FUNC_BOOT_ARG23,
+	RK_AMP_SUB_FUNC_REQ_CPU_OFF,
+	RK_AMP_SUB_FUNC_GET_CPU_STATUS,
+	RK_AMP_SUB_FUNC_RSV, /* for RTOS */
+	RK_AMP_SUB_FUNC_CPU_ON,
+	RK_AMP_SUB_FUNC_END,
+};
+
+struct dram_addrmap_info {
+	u64 ch_mask[2];
+	u64 bk_mask[4];
+	u64 bg_mask[2];
+	u64 cs_mask[2];
+	u32 reserved[20];
+	u32 bank_bit_first;
+	u32 bank_bit_mask;
+};
+
 enum {
 	FIRMWARE_NONE,
 	FIRMWARE_TEE_32BIT,
@@ -124,9 +147,14 @@ typedef enum {
 	SHARE_PAGE_TYPE_DDR,
 	SHARE_PAGE_TYPE_DDRDBG,
 	SHARE_PAGE_TYPE_DDRECC,
+	SHARE_PAGE_TYPE_DDRFSP,
+	SHARE_PAGE_TYPE_DDR_ADDRMAP,
 	SHARE_PAGE_TYPE_LAST_LOG,
 	SHARE_PAGE_TYPE_MAX,
 } share_page_type_t;
+
+struct pt_regs;
+typedef void (*sip_fiq_debugger_uart_irq_tf_cb_t)(struct pt_regs *_pt_regs, unsigned long cpu);
 
 /*
  * Rules: struct arm_smccc_res contains result and data, details:
@@ -152,11 +180,14 @@ int sip_smc_remotectl_config(u32 func, u32 data);
 int sip_smc_secure_reg_write(u32 addr_phy, u32 val);
 u32 sip_smc_secure_reg_read(u32 addr_phy);
 struct arm_smccc_res sip_smc_bus_config(u32 arg0, u32 arg1, u32 arg2);
+int sip_smc_amp_config(u32 sub_func_id, u32 arg1, u32 arg2, u32 arg3);
+struct arm_smccc_res sip_smc_get_amp_info(u32 sub_func_id, u32 arg1);
+struct dram_addrmap_info *sip_smc_get_dram_map(void);
 
 /***************************fiq debugger **************************************/
 void sip_fiq_debugger_enable_fiq(bool enable, uint32_t tgt_cpu);
 void sip_fiq_debugger_enable_debug(bool enable);
-int sip_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback_fn);
+int sip_fiq_debugger_uart_irq_tf_init(u32 irq_id, sip_fiq_debugger_uart_irq_tf_cb_t callback_fn);
 int sip_fiq_debugger_set_print_port(u32 port_phyaddr, u32 baudrate);
 int sip_fiq_debugger_request_share_memory(void);
 int sip_fiq_debugger_get_target_cpu(void);
@@ -228,6 +259,26 @@ static inline int sip_smc_soc_bus_div(u32 arg0, u32 arg1, u32 arg2)
 {
 	return 0;
 }
+static inline struct dram_addrmap_info *sip_smc_get_dram_map(void)
+{
+	return NULL;
+}
+
+static inline int sip_smc_amp_config(u32 sub_func_id,
+				     u32 arg1,
+				     u32 arg2,
+				     u32 arg3)
+{
+	return 0;
+}
+
+static inline struct arm_smccc_res sip_smc_get_amp_info(u32 sub_func_id,
+							u32 arg1)
+{
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED, };
+
+	return tmp;
+}
 
 /***************************fiq debugger **************************************/
 static inline void sip_fiq_debugger_enable_fiq
@@ -235,7 +286,7 @@ static inline void sip_fiq_debugger_enable_fiq
 
 static inline void sip_fiq_debugger_enable_debug(bool enable) { return; }
 static inline int sip_fiq_debugger_uart_irq_tf_init(u32 irq_id,
-						    void *callback_fn)
+						    sip_fiq_debugger_uart_irq_tf_cb_t callback_fn)
 {
 	return 0;
 }

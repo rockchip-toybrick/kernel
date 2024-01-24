@@ -99,6 +99,12 @@ enum rockchip_cabc_mode {
 	ROCKCHIP_DRM_CABC_MODE_USERSPACE,
 };
 
+enum rockchip_color_bar_mode {
+	ROCKCHIP_COLOR_BAR_OFF = 0,
+	ROCKCHIP_COLOR_BAR_HORIZONTAL = 1,
+	ROCKCHIP_COLOR_BAR_VERTICAL = 2,
+};
+
 struct drm_rockchip_vcnt_event {
 	struct drm_pending_event	base;
 };

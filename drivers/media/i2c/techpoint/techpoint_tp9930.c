@@ -487,12 +487,15 @@ int tp9930_set_decoder_mode(struct i2c_client *client, int ch, int status)
 	return 0;
 }
 
-int tp9930_get_channel_input_status(struct i2c_client *client, u8 ch)
+int tp9930_get_channel_input_status(struct techpoint *techpoint, u8 ch)
 {
+	struct i2c_client *client = techpoint->client;
 	u8 val = 0;
 
+	mutex_lock(&techpoint->mutex);
 	techpoint_write_reg(client, PAGE_REG, ch);
 	techpoint_read_reg(client, INPUT_STATUS_REG, &val);
+	mutex_unlock(&techpoint->mutex);
 	dev_dbg(&client->dev, "input_status ch %d : %x\n", ch, val);
 
 #if 0				// inaccuracy
@@ -502,14 +505,15 @@ int tp9930_get_channel_input_status(struct i2c_client *client, u8 ch)
 #endif
 }
 
-int tp9930_get_all_input_status(struct i2c_client *client, u8 *detect_status)
+int tp9930_get_all_input_status(struct techpoint *techpoint, u8 *detect_status)
 {
+	struct i2c_client *client = techpoint->client;
 	u8 val = 0, i;
 
 	for (i = 0; i < PAD_MAX; i++) {
 		techpoint_write_reg(client, PAGE_REG, i);
 		techpoint_read_reg(client, INPUT_STATUS_REG, &val);
-		detect_status[i] = tp9930_get_channel_input_status(client, i);
+		detect_status[i] = tp9930_get_channel_input_status(techpoint, i);
 	}
 
 	return 0;
@@ -560,19 +564,15 @@ int tp9930_get_channel_reso(struct i2c_client *client, int ch)
 	case TP9930_CVSTD_1080P_30:
 		dev_err(&client->dev, "detect channel %d 1080P_30", ch);
 		return TECHPOINT_S_RESO_1080P_30;
-		break;
 	case TP9930_CVSTD_1080P_25:
 		dev_err(&client->dev, "detect channel %d 1080P_25", ch);
 		return TECHPOINT_S_RESO_1080P_25;
-		break;
 	case TP9930_CVSTD_720P_30:
 		dev_err(&client->dev, "detect channel %d 720P_30", ch);
 		return TECHPOINT_S_RESO_720P_30;
-		break;
 	case TP9930_CVSTD_720P_25:
 		dev_err(&client->dev, "detect channel %d 720P_25", ch);
 		return TECHPOINT_S_RESO_720P_25;
-		break;
 	case TP9930_CVSTD_720P_60:
 	case TP9930_CVSTD_720P_50:
 	default:
@@ -585,7 +585,6 @@ int tp9930_get_channel_reso(struct i2c_client *client, int ch)
 			"detect channel %d UNSUPPORT, default 720P_25", ch);
 		return TECHPOINT_S_RESO_720P_25;
 #endif
-		break;
 	}
 
 	return reso;

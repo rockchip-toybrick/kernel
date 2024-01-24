@@ -1,12 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2016, 2018-2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2016, 2018-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,8 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
- *
- * SPDX-License-Identifier: GPL-2.0
  *
  */
 
@@ -29,7 +27,7 @@
 #include <mali_kbase_reset_gpu.h>
 #include <mmu/mali_kbase_mmu.h>
 
-#if !defined(CONFIG_MALI_BIFROST_NO_MALI)
+#if !IS_ENABLED(CONFIG_MALI_BIFROST_NO_MALI)
 void kbase_reg_write(struct kbase_device *kbdev, u32 offset, u32 value)
 {
 	KBASE_DEBUG_ASSERT(kbdev->pm.backend.gpu_powered);
@@ -37,7 +35,7 @@ void kbase_reg_write(struct kbase_device *kbdev, u32 offset, u32 value)
 
 	writel(value, kbdev->reg + offset);
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	if (unlikely(kbdev->io_history.enabled))
 		kbase_io_history_add(&kbdev->io_history, kbdev->reg + offset,
 				value, 1);
@@ -56,7 +54,7 @@ u32 kbase_reg_read(struct kbase_device *kbdev, u32 offset)
 
 	val = readl(kbdev->reg + offset);
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	if (unlikely(kbdev->io_history.enabled))
 		kbase_io_history_add(&kbdev->io_history, kbdev->reg + offset,
 				val, 0);
@@ -76,7 +74,7 @@ bool kbase_is_gpu_removed(struct kbase_device *kbdev)
 
 	return val == 0;
 }
-#endif /* !defined(CONFIG_MALI_BIFROST_NO_MALI) */
+#endif /* !IS_ENABLED(CONFIG_MALI_BIFROST_NO_MALI) */
 
 void kbase_gpu_start_cache_clean_nolock(struct kbase_device *kbdev)
 {

@@ -36,26 +36,28 @@
 #define _RKISP_COMMON_H
 
 #include <linux/clk.h>
-#include <linux/mutex.h>
 #include <linux/media.h>
+#include <linux/mutex.h>
+#include <linux/slab.h>
 #include <media/media-device.h>
 #include <media/media-entity.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
+#include <media/v4l2-mc.h>
 #include <media/videobuf2-dma-contig.h>
 #include <media/videobuf2-v4l2.h>
-#include <media/v4l2-mc.h>
 
 #define RKISP_DEFAULT_WIDTH		800
 #define RKISP_DEFAULT_HEIGHT		600
 
-#define RKISP_MAX_STREAM		6
+#define RKISP_MAX_STREAM		7
 #define RKISP_STREAM_MP			0
 #define RKISP_STREAM_SP			1
 #define RKISP_STREAM_DMATX0		2
 #define RKISP_STREAM_DMATX1		3
 #define RKISP_STREAM_DMATX2		4
 #define RKISP_STREAM_DMATX3		5
+#define RKISP_STREAM_VIR		6
 
 #define RKISP_PLANE_Y			0
 #define RKISP_PLANE_CB			1

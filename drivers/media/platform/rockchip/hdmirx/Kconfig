@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config VIDEO_ROCKCHIP_HDMIRX_CLASS
+	tristate "Rockchip HDMI Receiver Devices Class Support"
+	help
+	  There are many hdmirx devices in Rockchip SOCs, eg.
+	  rkhdmirx rk628 lut6911 it6616
+	  This driver create a class for those hdmirx devices
+	  And hdmirx drivers can add hdmirx properties for those
+	  hdmirx devices
+
+	  To compile this driver as a module, choose M here.

@@ -6,14 +6,6 @@ config SND_SOC_ROCKCHIP
 	  the Rockchip SoCs' Audio interfaces. You will also need to
 	  select the audio interfaces to support below.
 
-config SND_SOC_ROCKCHIP_PREALLOC_BUFFER_SIZE
-	int "Default prealloc buffer size (kbytes)"
-	depends on SND_SOC_ROCKCHIP
-	default "512"
-	help
-	  The default value is 512 kilobytes. Only change this if you know
-	  what you are doing.
-
 config SND_SOC_ROCKCHIP_AUDIO_PWM
 	tristate "Rockchip Audio PWM Driver"
 	depends on CLKDEV_LOOKUP && SND_SOC_ROCKCHIP
@@ -21,6 +13,17 @@ config SND_SOC_ROCKCHIP_AUDIO_PWM
 	help
 	  Say Y or M if you want to add support for Audio PWM driver for
 	  Rockchip Audio PWM Controller.
+
+config SND_SOC_ROCKCHIP_DLP
+	tristate
+
+config SND_SOC_ROCKCHIP_DLP_PCM
+	tristate "Rockchip Digital Loopback PCM Driver"
+	depends on SND_SOC_ROCKCHIP
+	select SND_SOC_ROCKCHIP_DLP
+	help
+	  Say Y or M if you want to add support for DLP driver for
+	  Rockchip DMA-Based Digital Loopback.
 
 config SND_SOC_ROCKCHIP_I2S
 	tristate "Rockchip I2S Device Driver"
@@ -40,6 +43,21 @@ config SND_SOC_ROCKCHIP_I2S_TDM
 	  Rockchip I2S/TDM device. The device supports up to maximum of
 	  8 channels each for play and record.
 
+config SND_SOC_ROCKCHIP_I2S_TDM_MULTI_LANES
+	bool "Rockchip TDM Multi Lanes"
+	depends on SND_SOC_ROCKCHIP_I2S_TDM
+	help
+	  Say Y or M if you want to add support for TDM Multi Lanes
+	  based on I2S_TDM controller.
+
+config SND_SOC_ROCKCHIP_MULTI_DAIS
+	tristate "Rockchip Multi-DAIS Device Driver"
+	depends on CLKDEV_LOOKUP && SND_SOC_ROCKCHIP
+	select SND_SOC_ROCKCHIP_DLP
+	help
+	  Say Y or M if you want to add support for Multi-dais driver for
+	  Rockchip.
+
 config SND_SOC_ROCKCHIP_PDM
 	tristate "Rockchip PDM Controller Driver"
 	depends on CLKDEV_LOOKUP && SND_SOC_ROCKCHIP
@@ -49,9 +67,25 @@ config SND_SOC_ROCKCHIP_PDM
 	  Rockchip PDM Controller. The Controller supports up to maximum of
 	  8 channels record.
 
+config SND_SOC_ROCKCHIP_SAI
+	tristate "Rockchip SAI Controller Driver"
+	depends on CLKDEV_LOOKUP && SND_SOC_ROCKCHIP
+	select SND_SOC_GENERIC_DMAENGINE_PCM
+	help
+	  Say Y or M if you want to add support for SAI driver for
+	  Rockchip SAI Controller. The Controller supports up to maximum of
+	  128 channels each for play and record.
+
+config SND_SOC_ROCKCHIP_SAI_VERBOSE
+	bool "Rockchip SAI Verbose Controls"
+	depends on SND_SOC_ROCKCHIP_SAI
+	help
+	  Say Y if you want to export much more controls and info for SAI.
+
 config SND_SOC_ROCKCHIP_SPDIF
 	tristate "Rockchip SPDIF Device Driver"
 	depends on CLKDEV_LOOKUP && SND_SOC_ROCKCHIP
+	select SND_PCM_IEC958
 	select SND_SOC_GENERIC_DMAENGINE_PCM
 	help
 	  Say Y or M if you want to add support for SPDIF driver for
@@ -116,6 +150,14 @@ config SND_SOC_ROCKCHIP_RT5651_RK628
 	help
 	  Say Y or M here if you want to add support for SoC audio on Rockchip
 	  boards for RT5651 RK628 HDMIIn
+
+config SND_SOC_ROCKCHIP_HDMI
+	tristate "ASoC support for Rockchip HDMI audio"
+	depends on SND_SOC_ROCKCHIP && CLKDEV_LOOKUP
+	select SND_SOC_HDMI_CODEC
+	help
+	  Say Y or M here if you want to add support for SoC audio on Rockchip
+	  boards using built-in HDMI or external HDMI.
 
 config SND_SOC_RK3288_HDMI_ANALOG
 	tristate "ASoC support multiple codecs for Rockchip RK3288 boards"

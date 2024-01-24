@@ -855,12 +855,13 @@ fail:
 static void *rkvdec_prepare_with_reset(struct mpp_dev *mpp,
 				       struct mpp_task *mpp_task)
 {
+	unsigned long flags;
 	struct mpp_task *out_task = NULL;
 	struct rkvdec_dev *dec = to_rkvdec_dev(mpp);
 
-	mutex_lock(&mpp->queue->running_lock);
+	spin_lock_irqsave(&mpp->queue->running_lock, flags);
 	out_task = list_empty(&mpp->queue->running_list) ? mpp_task : NULL;
-	mutex_unlock(&mpp->queue->running_lock);
+	spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
 
 	if (out_task && !dec->had_reset) {
 		struct rkvdec_task *task = to_rkvdec_task(out_task);
@@ -943,11 +944,11 @@ static int rkvdec_3328_run(struct mpp_dev *mpp,
 	task = to_rkvdec_task(mpp_task);
 
 	/*
-	 * HW defeat workaround: VP9 power save optimization cause decoding
+	 * HW defeat workaround: VP9 and H.265 power save optimization cause decoding
 	 * corruption, disable optimization here.
 	 */
 	fmt = RKVDEC_GET_FORMAT(task->reg[RKVDEC_REG_SYS_CTRL_INDEX]);
-	if (fmt == RKVDEC_FMT_VP9D) {
+	if (fmt == RKVDEC_FMT_VP9D || fmt == RKVDEC_FMT_H265D) {
 		cfg = task->reg[RKVDEC_POWER_CTL_INDEX] | 0xFFFF;
 		task->reg[RKVDEC_POWER_CTL_INDEX] = cfg & (~(1 << 12));
 		mpp_write_relaxed(mpp, RKVDEC_POWER_CTL_BASE,
@@ -1170,6 +1171,10 @@ static int rkvdec_procfs_init(struct mpp_dev *mpp)
 		dec->procfs = NULL;
 		return -EIO;
 	}
+
+	/* for common mpp_dev options */
+	mpp_procfs_create_common(dec->procfs, mpp);
+
 	mpp_procfs_create_u32("aclk", 0644,
 			      dec->procfs, &dec->aclk_info.debug_rate_hz);
 	mpp_procfs_create_u32("clk_core", 0644,
@@ -1628,7 +1633,7 @@ static int rkvdec_reset(struct mpp_dev *mpp)
 
 	mpp_debug_enter();
 	if (dec->rst_a && dec->rst_h) {
-		rockchip_pmu_idle_request(mpp->dev, true);
+		mpp_pmu_idle_request(mpp, true);
 		mpp_safe_reset(dec->rst_niu_a);
 		mpp_safe_reset(dec->rst_niu_h);
 		mpp_safe_reset(dec->rst_a);
@@ -1644,7 +1649,7 @@ static int rkvdec_reset(struct mpp_dev *mpp)
 		mpp_safe_unreset(dec->rst_core);
 		mpp_safe_unreset(dec->rst_cabac);
 		mpp_safe_unreset(dec->rst_hevc_cabac);
-		rockchip_pmu_idle_request(mpp->dev, false);
+		mpp_pmu_idle_request(mpp, false);
 	}
 	mpp_debug_leave();
 
@@ -1899,6 +1904,8 @@ static int rkvdec_probe(struct platform_device *pdev)
 
 	mpp->session_max_buffers = RKVDEC_SESSION_MAX_BUFFERS;
 	rkvdec_procfs_init(mpp);
+	/* register current device to mpp service */
+	mpp_dev_register_srv(mpp, mpp->srv);
 	dev_info(dev, "probing finish\n");
 
 	return 0;

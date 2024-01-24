@@ -84,6 +84,9 @@ static int rockchip_drm_fb_create_handle(struct drm_framebuffer *fb,
 {
 	struct rockchip_drm_fb *rockchip_fb = to_rockchip_fb(fb);
 
+	if (rockchip_fb_is_logo(fb))
+		return -EOPNOTSUPP;
+
 	return drm_gem_handle_create(file_priv,
 				     rockchip_fb->obj[0], handle);
 }
@@ -111,8 +114,6 @@ rockchip_fb_alloc(struct drm_device *dev, const struct drm_mode_fb_cmd2 *mode_cm
 {
 	struct rockchip_drm_fb *rockchip_fb;
 	struct rockchip_gem_object *rk_obj;
-	struct rockchip_drm_private *private = dev->dev_private;
-	struct drm_fb_helper *fb_helper = private->fbdev_helper;
 	int ret = 0;
 	int i;
 
@@ -138,9 +139,6 @@ rockchip_fb_alloc(struct drm_device *dev, const struct drm_mode_fb_cmd2 *mode_cm
 			rk_obj = to_rockchip_obj(obj[i]);
 			rockchip_fb->dma_addr[i] = rk_obj->dma_addr;
 			rockchip_fb->kvaddr[i] = rk_obj->kvaddr;
-			private->fbdev_bo = &rk_obj->base;
-			if (fb_helper && fb_helper->fbdev && rk_obj->kvaddr)
-				fb_helper->fbdev->screen_base = rk_obj->kvaddr;
 		}
 #ifndef MODULE
 	} else if (logo) {
@@ -181,6 +179,14 @@ rockchip_user_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 	vsub = drm_format_vert_chroma_subsampling(mode_cmd->pixel_format);
 	num_planes = min(drm_format_num_planes(mode_cmd->pixel_format),
 			 ROCKCHIP_MAX_FB_BUFFER);
+
+	for (i = 0; i < num_planes; ++i) {
+		if (mode_cmd->pitches[i] % 4) {
+			DRM_DEV_ERROR_RATELIMITED(dev->dev,
+				"fb pitch[%d] must be 4 byte aligned: %d\n", i, mode_cmd->pitches[i]);
+			return ERR_PTR(-EINVAL);
+		}
+	}
 
 	for (i = 0; i < num_planes; i++) {
 		unsigned int width = mode_cmd->width / (i ? hsub : 1);
@@ -232,7 +238,8 @@ static void rockchip_drm_output_poll_changed(struct drm_device *dev)
 
 static int rockchip_drm_bandwidth_atomic_check(struct drm_device *dev,
 					       struct drm_atomic_state *state,
-					       size_t *bandwidth,
+					       size_t *line_bw_mbyte,
+					       size_t *frame_bw_mbyte,
 					       unsigned int *plane_num)
 {
 	struct rockchip_drm_private *priv = dev->dev_private;
@@ -241,14 +248,16 @@ static int rockchip_drm_bandwidth_atomic_check(struct drm_device *dev,
 	struct drm_crtc *crtc;
 	int i, ret = 0;
 
-	*bandwidth = 0;
+	*line_bw_mbyte = 0;
+	*frame_bw_mbyte = 0;
 	*plane_num = 0;
 	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
 		funcs = priv->crtc_funcs[drm_crtc_index(crtc)];
 
 		if (funcs && funcs->bandwidth)
-			*bandwidth += funcs->bandwidth(crtc, crtc_state,
-						       plane_num);
+			*line_bw_mbyte += funcs->bandwidth(crtc, crtc_state,
+							   frame_bw_mbyte,
+							   plane_num);
 	}
 
 	/*
@@ -262,7 +271,7 @@ static int rockchip_drm_bandwidth_atomic_check(struct drm_device *dev,
 
 	if (priv->devfreq)
 		ret = rockchip_dmcfreq_vop_bandwidth_request(priv->devfreq,
-							     *bandwidth);
+							     *line_bw_mbyte);
 
 	return ret;
 }
@@ -352,6 +361,24 @@ rockchip_drm_atomic_helper_wait_for_vblanks(struct drm_device *dev,
 	}
 }
 
+static void drm_atomic_helper_connector_commit(struct drm_device *dev,
+					       struct drm_atomic_state *old_state)
+{
+	struct drm_connector *connector;
+	struct drm_connector_state *new_conn_state;
+	int i;
+
+	for_each_new_connector_in_state(old_state, connector, new_conn_state, i) {
+		const struct drm_connector_helper_funcs *funcs;
+
+		funcs = connector->helper_private;
+		if (!funcs->atomic_commit)
+			continue;
+
+		funcs->atomic_commit(connector, new_conn_state);
+	}
+}
+
 static void
 rockchip_atomic_helper_commit_tail_rpm(struct drm_atomic_state *old_state)
 {
@@ -367,6 +394,8 @@ rockchip_atomic_helper_commit_tail_rpm(struct drm_atomic_state *old_state)
 					DRM_PLANE_COMMIT_ACTIVE_ONLY);
 
 	rockchip_drm_psr_inhibit_put_state(old_state);
+
+	drm_atomic_helper_connector_commit(dev, old_state);
 
 	drm_atomic_helper_commit_hw_done(old_state);
 
@@ -385,7 +414,8 @@ rockchip_atomic_commit_complete(struct rockchip_atomic_commit *commit)
 	struct drm_atomic_state *state = commit->state;
 	struct drm_device *dev = commit->dev;
 	struct rockchip_drm_private *prv = dev->dev_private;
-	size_t bandwidth = commit->bandwidth;
+	size_t line_bw_mbyte = commit->line_bw_mbyte;
+	size_t frame_bw_mbyte = commit->frame_bw_mbyte;
 	unsigned int plane_num = commit->plane_num;
 
 	/*
@@ -421,7 +451,7 @@ rockchip_atomic_commit_complete(struct rockchip_atomic_commit *commit)
 			prv->devfreq = NULL;
 	}
 	if (prv->devfreq)
-		rockchip_dmcfreq_vop_bandwidth_update(prv->devfreq, bandwidth,
+		rockchip_dmcfreq_vop_bandwidth_update(prv->devfreq, line_bw_mbyte, frame_bw_mbyte,
 						      plane_num);
 
 	mutex_lock(&prv->ovl_lock);
@@ -429,6 +459,8 @@ rockchip_atomic_commit_complete(struct rockchip_atomic_commit *commit)
 	mutex_unlock(&prv->ovl_lock);
 
 	rockchip_drm_psr_inhibit_put_state(state);
+
+	drm_atomic_helper_connector_commit(dev, state);
 
 	drm_atomic_helper_commit_hw_done(state);
 
@@ -458,7 +490,8 @@ static int rockchip_drm_atomic_commit(struct drm_device *dev,
 {
 	struct rockchip_drm_private *private = dev->dev_private;
 	struct rockchip_atomic_commit *commit;
-	size_t bandwidth;
+	size_t line_bw_mbyte;
+	size_t frame_bw_mbyte;
 	unsigned int plane_num;
 	int ret;
 
@@ -470,14 +503,16 @@ static int rockchip_drm_atomic_commit(struct drm_device *dev,
 	if (ret)
 		return ret;
 
-	ret = rockchip_drm_bandwidth_atomic_check(dev, state, &bandwidth,
+	ret = rockchip_drm_bandwidth_atomic_check(dev, state,
+						  &line_bw_mbyte,
+						  &frame_bw_mbyte,
 						  &plane_num);
 	if (ret) {
 		/*
 		 * TODO:
 		 * Just report bandwidth can't support now.
 		 */
-		DRM_ERROR("vop bandwidth too large %zd\n", bandwidth);
+		DRM_ERROR("vop bandwidth too large %zd\n", line_bw_mbyte);
 	}
 
 	ret = drm_atomic_helper_swap_state(state, true);
@@ -494,7 +529,8 @@ static int rockchip_drm_atomic_commit(struct drm_device *dev,
 
 	commit->dev = dev;
 	commit->state = state;
-	commit->bandwidth = bandwidth;
+	commit->line_bw_mbyte = line_bw_mbyte;
+	commit->frame_bw_mbyte = frame_bw_mbyte;
 	commit->plane_num = plane_num;
 
 	if (async) {

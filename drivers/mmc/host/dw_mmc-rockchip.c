@@ -50,8 +50,10 @@ static void dw_mci_rk3288_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	 * Note: div can only be 0 or 1, but div must be set to 1 for eMMC
 	 * DDR52 8-bit mode.
 	 */
-	if (ios->clock < priv->f_min)
+	if (ios->clock < priv->f_min) {
 		ios->clock = priv->f_min;
+		host->slot->clock = ios->clock;
+	}
 
 	if (ios->bus_width == MMC_BUS_WIDTH_8 &&
 	    ios->timing == MMC_TIMING_MMC_DDR52)
@@ -147,22 +149,29 @@ static int dw_mci_v2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 	struct dw_mci *host = slot->host;
 	struct dw_mci_rockchip_priv_data *priv = host->priv;
 	struct mmc_host *mmc = slot->mmc;
-	u32 degrees[4] = {90, 180, 270, 360};
+	u32 degrees[4] = {0, 90, 180, 270}, degree;
 	int i;
 	static bool inherit = true;
 
 	if (inherit) {
 		inherit = false;
-		i = clk_get_phase(priv->sample_clk) / 90 - 1;
+		i = clk_get_phase(priv->sample_clk) / 90;
+		degree = degrees[i];
 		goto done;
 	}
 
-	/* v2 only support 4 degrees in theory */
+	/*
+	 * v2 only support 4 degrees in theory.
+	 * First we inherit sample phases from firmware, which should
+	 * be able work fine, at least in the first place.
+	 * If retune is needed, we search forward to pick the last
+	 * one phase from degree list and loop around until we get one.
+	 * It's impossible all 4 fixed phase won't be able to work.
+	 */
 	for (i = 0; i < ARRAY_SIZE(degrees); i++) {
-		if (degrees[i] == priv->last_degree)
-			continue;
-
-		clk_set_phase(priv->sample_clk, degrees[i]);
+		degree = degrees[i] + priv->last_degree;
+		degree = degree % 360;
+		clk_set_phase(priv->sample_clk, degree);
 		if (!mmc_send_tuning(mmc, opcode, NULL))
 			break;
 	}
@@ -174,7 +183,7 @@ static int dw_mci_v2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 
 done:
 	dev_info(host->dev, "Successfully tuned phase to %d\n", degrees[i]);
-	priv->last_degree = degrees[i];
+	priv->last_degree = degree;
 	return 0;
 }
 
@@ -194,7 +203,7 @@ static int dw_mci_rk3288_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 	unsigned int range_count = 0;
 	int longest_range_len = -1;
 	int longest_range = -1;
-	int middle_phase;
+	int middle_phase, real_middle_phase;
 
 	if (IS_ERR(priv->sample_clk)) {
 		dev_err(host->dev, "Tuning clock (sample_clk) not defined.\n");
@@ -215,6 +224,9 @@ static int dw_mci_rk3288_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 
 	/* Try each phase and extract good ranges */
 	for (i = 0; i < priv->num_phases; ) {
+		/* Cannot guarantee any phases larger than 270 would work well */
+		if (TUNING_ITERATION_TO_PHASE(i, priv->num_phases) > 270)
+			break;
 		clk_set_phase(priv->sample_clk,
 			      TUNING_ITERATION_TO_PHASE(i, priv->num_phases));
 
@@ -299,12 +311,30 @@ static int dw_mci_rk3288_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 
 	middle_phase = ranges[longest_range].start + longest_range_len / 2;
 	middle_phase %= priv->num_phases;
-	dev_info(host->dev, "Successfully tuned phase to %d\n",
-		 TUNING_ITERATION_TO_PHASE(middle_phase, priv->num_phases));
+	real_middle_phase = TUNING_ITERATION_TO_PHASE(middle_phase, priv->num_phases);
 
-	clk_set_phase(priv->sample_clk,
-		      TUNING_ITERATION_TO_PHASE(middle_phase,
-						priv->num_phases));
+	/*
+	 * Since we cut out 270 ~ 360, the original algorithm
+	 * still rolling ranges before and after 270 together
+	 * in some corner cases, we should adjust it to avoid
+	 * using any middle phase located between 270 and 360.
+	 * By calculatiion, it happends due to the bad phases
+	 * lay between 90 ~ 180. So others are all fine to chose.
+	 * Pick 270 is a better choice in those cases. In case of
+	 * bad phases exceed 180, the middle phase of rollback
+	 * would be bigger than 315, so we chose 360.
+	 */
+	if (real_middle_phase > 270) {
+		if (real_middle_phase < 315)
+			real_middle_phase = 270;
+		else
+			real_middle_phase = 360;
+	}
+
+	dev_info(host->dev, "Successfully tuned phase to %d\n",
+		 real_middle_phase);
+
+	clk_set_phase(priv->sample_clk, real_middle_phase);
 
 free:
 	kfree(ranges);
@@ -408,8 +438,10 @@ static int dw_mci_rockchip_probe(struct platform_device *pdev)
 	if (!pdev->dev.of_node)
 		return -ENODEV;
 
-	if (!device_property_read_bool(&pdev->dev, "non-removable") &&
-	    !device_property_read_bool(&pdev->dev, "cd-gpios"))
+	if ((!device_property_read_bool(&pdev->dev, "non-removable") &&
+	     !device_property_read_bool(&pdev->dev, "cd-gpios")) ||
+	    (device_property_read_bool(&pdev->dev, "no-sd") &&
+	     device_property_read_bool(&pdev->dev, "no-mmc")))
 		use_rpm = false;
 
 	match = of_match_node(dw_mci_rockchip_match, pdev->dev.of_node);
@@ -466,6 +498,7 @@ static struct platform_driver dw_mci_rockchip_pltfm_driver = {
 	.remove		= dw_mci_rockchip_remove,
 	.driver		= {
 		.name		= "dwmmc_rockchip",
+		.probe_type	= PROBE_PREFER_ASYNCHRONOUS,
 		.of_match_table	= dw_mci_rockchip_match,
 		.pm		= &dw_mci_rockchip_dev_pm_ops,
 	},

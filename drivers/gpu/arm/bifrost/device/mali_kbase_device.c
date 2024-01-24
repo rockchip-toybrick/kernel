@@ -1,12 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,8 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
- *
- * SPDX-License-Identifier: GPL-2.0
  *
  */
 
@@ -32,12 +30,14 @@
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/types.h>
+#include <linux/oom.h>
 
 #include <mali_kbase.h>
 #include <mali_kbase_defs.h>
 #include <mali_kbase_hwaccess_instr.h>
 #include <mali_kbase_hw.h>
 #include <mali_kbase_config_defaults.h>
+#include <linux/priority_control_manager.h>
 
 #include <tl/mali_kbase_timeline.h>
 #include "mali_kbase_vinstr.h"
@@ -45,6 +45,7 @@
 #include "mali_kbase_hwcnt_virtualizer.h"
 
 #include "mali_kbase_device.h"
+#include "mali_kbase_device_internal.h"
 #include "backend/gpu/mali_kbase_pm_internal.h"
 #include "backend/gpu/mali_kbase_irq_internal.h"
 #include "mali_kbase_regs_history_debugfs.h"
@@ -106,16 +107,119 @@ static void kbase_device_all_as_term(struct kbase_device *kbdev)
 		kbase_mmu_as_term(kbdev, i);
 }
 
+int kbase_device_pcm_dev_init(struct kbase_device *const kbdev)
+{
+	int err = 0;
+
+#if IS_ENABLED(CONFIG_OF)
+	struct device_node *prio_ctrl_node;
+
+	/* Check to see whether or not a platform specific priority control manager
+	 * is available.
+	 */
+	prio_ctrl_node = of_parse_phandle(kbdev->dev->of_node,
+			"priority-control-manager", 0);
+	if (!prio_ctrl_node) {
+		dev_info(kbdev->dev,
+			"No priority control manager is configured");
+	} else {
+		struct platform_device *const pdev =
+			of_find_device_by_node(prio_ctrl_node);
+
+		if (!pdev) {
+			dev_err(kbdev->dev,
+				"The configured priority control manager was not found");
+		} else {
+			struct priority_control_manager_device *pcm_dev =
+						platform_get_drvdata(pdev);
+			if (!pcm_dev) {
+				dev_info(kbdev->dev, "Priority control manager is not ready");
+				err = -EPROBE_DEFER;
+			} else if (!try_module_get(pcm_dev->owner)) {
+				dev_err(kbdev->dev, "Failed to get priority control manager module");
+				err = -ENODEV;
+			} else {
+				dev_info(kbdev->dev, "Priority control manager successfully loaded");
+				kbdev->pcm_dev = pcm_dev;
+			}
+		}
+		of_node_put(prio_ctrl_node);
+	}
+#endif /* CONFIG_OF */
+
+	return err;
+}
+
+void kbase_device_pcm_dev_term(struct kbase_device *const kbdev)
+{
+	if (kbdev->pcm_dev)
+		module_put(kbdev->pcm_dev->owner);
+}
+
+#define KBASE_PAGES_TO_KIB(pages) (((unsigned int)pages) << (PAGE_SHIFT - 10))
+
+/**
+ * mali_oom_notifier_handler - Mali driver out-of-memory handler
+ *
+ * @nb - notifier block - used to retrieve kbdev pointer
+ * @action - action (unused)
+ * @data - data pointer (unused)
+ * This function simply lists memory usage by the Mali driver, per GPU device,
+ * for diagnostic purposes.
+ */
+static int mali_oom_notifier_handler(struct notifier_block *nb,
+				     unsigned long action, void *data)
+{
+	struct kbase_device *kbdev;
+	struct kbase_context *kctx = NULL;
+	unsigned long kbdev_alloc_total;
+
+	if (WARN_ON(nb == NULL))
+		return NOTIFY_BAD;
+
+	kbdev = container_of(nb, struct kbase_device, oom_notifier_block);
+
+	kbdev_alloc_total =
+		KBASE_PAGES_TO_KIB(atomic_read(&(kbdev->memdev.used_pages)));
+
+	dev_err(kbdev->dev, "OOM notifier: dev %s  %lu kB\n", kbdev->devname,
+		kbdev_alloc_total);
+
+	mutex_lock(&kbdev->kctx_list_lock);
+
+	list_for_each_entry (kctx, &kbdev->kctx_list, kctx_list_link) {
+		struct pid *pid_struct;
+		struct task_struct *task;
+		unsigned long task_alloc_total =
+			KBASE_PAGES_TO_KIB(atomic_read(&(kctx->used_pages)));
+
+		rcu_read_lock();
+		pid_struct = find_get_pid(kctx->pid);
+		task = pid_task(pid_struct, PIDTYPE_PID);
+
+		dev_err(kbdev->dev,
+			"OOM notifier: tsk %s  tgid (%u)  pid (%u) %lu kB\n",
+			task ? task->comm : "[null task]", kctx->tgid,
+			kctx->pid, task_alloc_total);
+
+		put_pid(pid_struct);
+		rcu_read_unlock();
+	}
+
+	mutex_unlock(&kbdev->kctx_list_lock);
+	return NOTIFY_OK;
+}
+
 int kbase_device_misc_init(struct kbase_device * const kbdev)
 {
 	int err;
-#ifdef CONFIG_ARM64
+#if IS_ENABLED(CONFIG_ARM64)
 	struct device_node *np = NULL;
 #endif /* CONFIG_ARM64 */
 
 	spin_lock_init(&kbdev->mmu_mask_change);
 	mutex_init(&kbdev->mmu_hw_mutex);
-#ifdef CONFIG_ARM64
+#if IS_ENABLED(CONFIG_ARM64)
 	kbdev->cci_snoop_enabled = false;
 	np = kbdev->dev->of_node;
 	if (np != NULL) {
@@ -136,6 +240,7 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 		}
 	}
 #endif /* CONFIG_ARM64 */
+
 	/* Get the list of workarounds for issues on the current HW
 	 * (identified by the GPU_ID register)
 	 */
@@ -151,11 +256,6 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 	err = kbase_gpuprops_set_features(kbdev);
 	if (err)
 		goto fail;
-
-	/* On Linux 4.0+, dma coherency is determined from device tree */
-#if defined(CONFIG_ARM64) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
-	set_dma_ops(kbdev->dev, &noncoherent_swiotlb_dma_ops);
-#endif
 
 	/* Workaround a pre-3.13 Linux issue, where dma_mask is NULL when our
 	 * device structure was created by device-tree
@@ -179,8 +279,6 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 	if (err)
 		goto dma_set_mask_failed;
 
-	spin_lock_init(&kbdev->hwcnt.lock);
-
 	err = kbase_ktrace_init(kbdev);
 	if (err)
 		goto term_as;
@@ -191,27 +289,26 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 
 	atomic_set(&kbdev->ctx_num, 0);
 
-	err = kbase_instr_backend_init(kbdev);
-	if (err)
-		goto term_trace;
-
 	kbdev->pm.dvfs_period = DEFAULT_PM_DVFS_PERIOD;
 
 	kbdev->reset_timeout_ms = DEFAULT_RESET_TIMEOUT_MS;
 
-	if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_AARCH64_MMU))
-		kbdev->mmu_mode = kbase_mmu_mode_get_aarch64();
-	else
-		kbdev->mmu_mode = kbase_mmu_mode_get_lpae();
+	kbdev->mmu_mode = kbase_mmu_mode_get_aarch64();
 
 	mutex_init(&kbdev->kctx_list_lock);
 	INIT_LIST_HEAD(&kbdev->kctx_list);
 
-	spin_lock_init(&kbdev->hwaccess_lock);
+	dev_dbg(kbdev->dev, "Registering mali_oom_notifier_handlern");
+	kbdev->oom_notifier_block.notifier_call = mali_oom_notifier_handler;
+	err = register_oom_notifier(&kbdev->oom_notifier_block);
 
+	if (err) {
+		dev_err(kbdev->dev,
+			"Unable to register OOM notifier for Mali - but will continue\n");
+		kbdev->oom_notifier_block.notifier_call = NULL;
+	}
 	return 0;
-term_trace:
-	kbase_ktrace_term(kbdev);
+
 term_as:
 	kbase_device_all_as_term(kbdev);
 dma_set_mask_failed:
@@ -229,11 +326,12 @@ void kbase_device_misc_term(struct kbase_device *kbdev)
 	kbase_debug_assert_register_hook(NULL, NULL);
 #endif
 
-	kbase_instr_backend_term(kbdev);
-
 	kbase_ktrace_term(kbdev);
 
 	kbase_device_all_as_term(kbdev);
+
+	if (kbdev->oom_notifier_block.notifier_call)
+		unregister_oom_notifier(&kbdev->oom_notifier_block);
 }
 
 void kbase_device_free(struct kbase_device *kbdev)
@@ -251,16 +349,6 @@ void kbase_device_id_init(struct kbase_device *kbdev)
 void kbase_increment_device_id(void)
 {
 	kbase_dev_nr++;
-}
-
-int kbase_device_hwcnt_backend_jm_init(struct kbase_device *kbdev)
-{
-	return kbase_hwcnt_backend_jm_create(kbdev, &kbdev->hwcnt_gpu_iface);
-}
-
-void kbase_device_hwcnt_backend_jm_term(struct kbase_device *kbdev)
-{
-	kbase_hwcnt_backend_jm_destroy(&kbdev->hwcnt_gpu_iface);
 }
 
 int kbase_device_hwcnt_context_init(struct kbase_device *kbdev)
@@ -307,6 +395,7 @@ void kbase_device_vinstr_term(struct kbase_device *kbdev)
 	kbase_vinstr_term(kbdev->vinstr_ctx);
 }
 
+#if defined(CONFIG_DEBUG_FS) && !IS_ENABLED(CONFIG_MALI_BIFROST_NO_MALI)
 int kbase_device_io_history_init(struct kbase_device *kbdev)
 {
 	return kbase_io_history_init(&kbdev->io_history,
@@ -317,6 +406,7 @@ void kbase_device_io_history_term(struct kbase_device *kbdev)
 {
 	kbase_io_history_term(&kbdev->io_history);
 }
+#endif
 
 int kbase_device_misc_register(struct kbase_device *kbdev)
 {
@@ -382,7 +472,18 @@ int kbase_device_early_init(struct kbase_device *kbdev)
 	/* We're done accessing the GPU registers for now. */
 	kbase_pm_register_access_disable(kbdev);
 
+	/* This spinlock has to be initialized before installing interrupt
+	 * handlers that require to hold it to process interrupts.
+	 */
+	spin_lock_init(&kbdev->hwaccess_lock);
+#ifdef CONFIG_MALI_ARBITER_SUPPORT
+	if (kbdev->arb.arb_if)
+		err = kbase_arbiter_pm_install_interrupts(kbdev);
+	else
+		err = kbase_install_interrupts(kbdev);
+#else
 	err = kbase_install_interrupts(kbdev);
+#endif
 	if (err)
 		goto fail_interrupts;
 
@@ -408,4 +509,18 @@ void kbase_device_early_term(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
 	kbase_pm_runtime_term(kbdev);
 	kbasep_platform_device_term(kbdev);
+}
+
+int kbase_device_late_init(struct kbase_device *kbdev)
+{
+	int err;
+
+	err = kbasep_platform_device_late_init(kbdev);
+
+	return err;
+}
+
+void kbase_device_late_term(struct kbase_device *kbdev)
+{
+	kbasep_platform_device_late_term(kbdev);
 }

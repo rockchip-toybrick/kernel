@@ -1,11 +1,12 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,11 +17,7 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
- * SPDX-License-Identifier: GPL-2.0
- *
  */
-
-
 
 /*
  * Definitions (types, defines, etcs) specific to Job Manager Kbase.
@@ -129,7 +126,7 @@
 /* Reset the GPU after each atom completion */
 #define KBASE_SERIALIZE_RESET (1 << 2)
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 /**
  * struct base_job_fault_event - keeps track of the atom which faulted or which
  *                               completed after the faulty atom but before the
@@ -409,6 +406,16 @@ struct kbase_ext_res {
  *                         sync through soft jobs and for the implicit
  *                         synchronization required on access to external
  *                         resources.
+ * @dma_fence.fence_in:    Input fence
+ * @dma_fence.fence:       Points to the dma-buf output fence for this atom.
+ * @dma_fence.context:     The dma-buf fence context number for this atom. A
+ *                         unique context number is allocated to each katom in
+ *                         the context on context creation.
+ * @dma_fence.seqno:       The dma-buf fence sequence number for this atom. This
+ *                         is increased every time this katom uses dma-buf fence
+ * @dma_fence.callbacks:   List of all callbacks set up to wait on other fences
+ * @dma_fence.dep_count:   Atomic counter of number of outstandind dma-buf fence
+ *                         dependencies for this atom.
  * @event_code:            Event code for the job chain represented by the atom,
  *                         both HW and low-level SW events are represented by
  *                         event codes.
@@ -443,6 +450,8 @@ struct kbase_ext_res {
  * @blocked:               flag indicating that atom's resubmission to GPU is
  *                         blocked till the work item is scheduled to return the
  *                         atom to JS.
+ * @seq_nr:                user-space sequence number, to order atoms in some
+ *                         temporal order
  * @pre_dep:               Pointer to atom that this atom has same-slot
  *                         dependency on
  * @post_dep:              Pointer to atom that has same-slot dependency on
@@ -477,11 +486,19 @@ struct kbase_ext_res {
  *                         when transitioning into or out of protected mode.
  *                         Atom will be either entering or exiting the
  *                         protected mode.
+ * @protected_state.enter: entering the protected mode.
+ * @protected_state.exit:  exiting the protected mode.
  * @runnable_tree_node:    The node added to context's job slot specific rb tree
  *                         when the atom becomes runnable.
  * @age:                   Age of atom relative to other atoms in the context,
  *                         is snapshot of the age_count counter in kbase
  *                         context.
+ * @jobslot: Job slot to use when BASE_JD_REQ_JOB_SLOT is specified.
+ * @renderpass_id:Renderpass identifier used to associate an atom that has
+ *                 BASE_JD_REQ_START_RENDERPASS set in its core requirements
+ *                 with an atom that has BASE_JD_REQ_END_RENDERPASS set.
+ * @jc_fragment:          Set of GPU fragment job chains
+ * @retry_count:          TODO: Not used,to be removed
  */
 struct kbase_jd_atom {
 	struct work_struct work;
@@ -516,7 +533,6 @@ struct kbase_jd_atom {
 		 * when working with this sub struct
 		 */
 #if defined(CONFIG_SYNC_FILE)
-		/* Input fence */
 #if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
 		struct fence *fence_in;
 #else
@@ -539,14 +555,7 @@ struct kbase_jd_atom {
 #else
 		struct dma_fence *fence;
 #endif
-		/* The dma-buf fence context number for this atom. A unique
-		 * context number is allocated to each katom in the context on
-		 * context creation.
-		 */
 		unsigned int context;
-		/* The dma-buf fence sequence number for this atom. This is
-		 * increased every time this katom uses dma-buf fence.
-		 */
 		atomic_t seqno;
 		/* This contains a list of all callbacks set up to wait on
 		 * other fences.  This atom must be held back from JS until all
@@ -593,7 +602,7 @@ struct kbase_jd_atom {
 
 	wait_queue_head_t completed;
 	enum kbase_jd_atom_state status;
-#ifdef CONFIG_GPU_TRACEPOINTS
+#if IS_ENABLED(CONFIG_GPU_TRACEPOINTS)
 	int work_id;
 #endif
 	int slot_nr;
@@ -608,7 +617,6 @@ struct kbase_jd_atom {
 
 	atomic_t blocked;
 
-	/* user-space sequence number, to order atoms in some temporal order */
 	u64 seq_nr;
 
 	struct kbase_jd_atom *pre_dep;
@@ -619,7 +627,7 @@ struct kbase_jd_atom {
 
 	u32 flush_id;
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct base_job_fault_event fault_event;
 #endif
 	struct list_head queue;
@@ -781,6 +789,7 @@ struct kbase_jd_renderpass {
  * @jit_pending_alloc:        A list of just-in-time memory allocation
  *                            soft-jobs which will be reattempted after the
  *                            impending free of other active allocations.
+ * @max_priority:             Max priority level allowed for this context.
  */
 struct kbase_jd_context {
 	struct mutex lock;
@@ -795,12 +804,13 @@ struct kbase_jd_context {
 	u32 job_nr;
 	size_t tb_wrap_offset;
 
-#ifdef CONFIG_GPU_TRACEPOINTS
+#if IS_ENABLED(CONFIG_GPU_TRACEPOINTS)
 	atomic_t work_id;
 #endif
 
 	struct list_head jit_atoms_head;
 	struct list_head jit_pending_alloc;
+	int max_priority;
 };
 
 /**

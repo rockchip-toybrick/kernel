@@ -221,6 +221,7 @@ struct rockchip_usb2phy_port {
  * @dev: pointer to our struct device.
  * @grf: General Register Files regmap.
  * @base: the base address of APB interface.
+ * @apb_reset: apb reset signal for phy.
  * @reset: power reset signal for phy.
  * @clks: array of input clocks.
  * @num_clks: number of input clocks.
@@ -239,6 +240,7 @@ struct rockchip_usb2phy {
 	struct device		*dev;
 	struct regmap		*grf;
 	void __iomem		*base;
+	struct reset_control	*apb_reset;
 	struct reset_control	*reset;
 	struct clk_bulk_data	*clks;
 	int			num_clks;
@@ -1507,6 +1509,10 @@ static int rockchip_usb2phy_probe(struct platform_device *pdev)
 	if (IS_ERR(rphy->reset))
 		return PTR_ERR(rphy->reset);
 
+	rphy->apb_reset = devm_reset_control_get(dev, "u2phy-apb");
+	if (IS_ERR(rphy->apb_reset))
+		return PTR_ERR(rphy->apb_reset);
+
 	rphy->vup_gpio = devm_gpiod_get_optional(dev, "vup", GPIOD_OUT_LOW);
 	if (IS_ERR(rphy->vup_gpio)) {
 		ret = PTR_ERR(rphy->vup_gpio);
@@ -1514,9 +1520,11 @@ static int rockchip_usb2phy_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	reset_control_assert(rphy->apb_reset);
 	reset_control_assert(rphy->reset);
 	udelay(1);
 	reset_control_deassert(rphy->reset);
+	reset_control_deassert(rphy->apb_reset);
 
 	match = of_match_device(dev->driver->of_match_table, dev);
 	if (!match || !match->data) {
@@ -1713,6 +1721,11 @@ static int rv1126_usb2phy_tuning(struct rockchip_usb2phy *rphy)
 		ret = regmap_write(rphy->grf, 0x1028c, 0x0f0f0100);
 		if (ret)
 			goto out;
+
+		/* Enable host port wakeup irq */
+		ret = regmap_write(rphy->grf, 0x0000, 0x00040004);
+		if (ret)
+			goto out;
 	}
 
 out:
@@ -1790,6 +1803,10 @@ static int rockchip_usb2phy_pm_suspend(struct device *dev)
 	if (rphy->phy_cfg->phy_lowpower)
 		ret = rphy->phy_cfg->phy_lowpower(rphy, true);
 
+	/* Set gpio output low to avoid leakage */
+	if (rphy->vup_gpio && !wakeup_enable)
+		gpiod_set_value(rphy->vup_gpio, 1);
+
 	return ret;
 }
 
@@ -1804,6 +1821,10 @@ static int rockchip_usb2phy_pm_resume(struct device *dev)
 
 	if (device_may_wakeup(rphy->dev))
 		wakeup_enable = true;
+
+	/* Set gpio output high to disable pull-up circuit on DM */
+	if (rphy->vup_gpio && !wakeup_enable)
+		gpiod_set_value(rphy->vup_gpio, 0);
 
 	/* exit low power state */
 	if (rphy->phy_cfg->phy_lowpower)

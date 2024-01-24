@@ -799,8 +799,8 @@
 		compatible = "rockchip,rk3288-timer";
 		reg = <0x0 0xff6b0000 0x0 0x20>;
 		interrupts = <GIC_SPI 66 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&xin24m>, <&cru PCLK_TIMER>;
-		clock-names = "timer", "pclk";
+		clocks = <&cru PCLK_TIMER>, <&xin24m>;
+		clock-names = "pclk", "timer";
 	};
 
 	bus_intmem@ff700000 {
@@ -1033,7 +1033,7 @@
 				<&cru ACLK_VIO0>, <&cru ACLK_VIO1>,
 				<&cru ACLK_GPU>;
 		assigned-clock-rates =
-				<594000000>, <1250000000>,
+				<594000000>, <500000000>,
 				<300000000>, <150000000>,
 				<75000000>, <300000000>,
 				<150000000>, <75000000>,
@@ -1390,7 +1390,8 @@
 
 	vopb: vop@ff930000 {
 		compatible = "rockchip,rk3288-vop-big";
-		reg = <0x0 0xff930000 0x0 0x19c>;
+		reg = <0x0 0xff930000 0x0 0x19c>, <0x0 0xff931000 0x0 0x1000>;
+		reg-names = "regs", "gamma_lut";
 		interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru ACLK_VOP0>, <&cru DCLK_VOP0>, <&cru HCLK_VOP0>;
 		clock-names = "aclk_vop", "dclk_vop", "hclk_vop";
@@ -1451,7 +1452,8 @@
 
 	vopl: vop@ff940000 {
 		compatible = "rockchip,rk3288-vop-lit";
-		reg = <0x0 0xff940000 0x0 0x19c>;
+		reg = <0x0 0xff940000 0x0 0x19c>, <0x0 0xff941000 0x0 0x1000>;
+		reg-names = "regs", "gamma_lut";
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru ACLK_VOP1>, <&cru DCLK_VOP1>, <&cru HCLK_VOP1>;
 		clock-names = "aclk_vop", "dclk_vop", "hclk_vop";
@@ -1647,7 +1649,8 @@
 		reg-io-width = <4>;
 		#sound-dai-cells = <0>;
 		rockchip,grf = <&grf>;
-		interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>, <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "hdmi", "hdmi_wakeup";
 		clocks = <&cru  PCLK_HDMI_CTRL>, <&cru SCLK_HDMI_HDCP>, <&cru SCLK_HDMI_CEC>;
 		clock-names = "iahb", "isfr", "cec";
 		pinctrl-names = "default", "sleep";
@@ -2092,7 +2095,7 @@
 			drive-strength = <12>;
 		};
 
-		sleep {
+		suspend {
 			global_pwroff: global-pwroff {
 				rockchip,pins = <0 RK_PA0 1 &pcfg_pull_none>;
 			};

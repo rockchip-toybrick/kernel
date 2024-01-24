@@ -505,6 +505,15 @@ struct phy_device *phy_device_create(struct mii_bus *bus, int addr, int phy_id,
 	INIT_DELAYED_WORK(&dev->state_queue, phy_state_machine);
 	INIT_WORK(&dev->phy_queue, phy_change_work);
 
+	/* Try to avoid __request_module warning */
+#define RK630_PHY_ID		0x00441400
+#define PHY_ID_YT8511		0x0000010a
+#define PHY_ID_YT8531S		0x4f51e91a
+#define PHY_ID_YT8531		0x4f51e91b
+	if ((IS_BUILTIN(CONFIG_RK630_PHY) && phy_id == RK630_PHY_ID) ||
+	    (IS_BUILTIN(CONFIG_MOTORCOMM_PHY) && (phy_id == PHY_ID_YT8511 || phy_id == PHY_ID_YT8531S || phy_id == PHY_ID_YT8531)))
+		goto skip_request_module;
+
 	/* Request the appropriate module unconditionally; don't
 	 * bother trying to do so only if it isn't already loaded,
 	 * because that gets complicated. A hotplug event would have
@@ -517,6 +526,7 @@ struct phy_device *phy_device_create(struct mii_bus *bus, int addr, int phy_id,
 	 */
 	request_module(MDIO_MODULE_PREFIX MDIO_ID_FMT, MDIO_ID_ARGS(phy_id));
 
+skip_request_module:
 	device_initialize(&mdiodev->dev);
 
 	return dev;
@@ -1224,6 +1234,9 @@ void phy_detach(struct phy_device *phydev)
 	    phydev->mdio.dev.driver == &genphy_driver.mdiodrv.driver)
 		device_release_driver(&phydev->mdio.dev);
 
+	/* Assert the reset signal */
+	phy_device_reset(phydev, 1);
+
 	/*
 	 * The phydev might go away on the put_device() below, so avoid
 	 * a use-after-free bug by reading the underlying bus first.
@@ -1233,9 +1246,6 @@ void phy_detach(struct phy_device *phydev)
 	put_device(&phydev->mdio.dev);
 	if (ndev_owner != bus->owner)
 		module_put(bus->owner);
-
-	/* Assert the reset signal */
-	phy_device_reset(phydev, 1);
 }
 EXPORT_SYMBOL(phy_detach);
 

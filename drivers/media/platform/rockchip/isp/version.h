@@ -152,6 +152,57 @@
  * 8.frame buffer done early
  * 9.fix set pdaf in dpcc error
  * 10.add v-blank to procfs
+ *
+ * v1.7.0:
+ * 1.off unused interrupt of csi
+ * 2.fix sp no output when hdr dynamic switch
+ * 3.check the output status of statistics v2x
+ * 4.selfpath bytesperline 16 align
+ * 5.compiled with differe hardware version
+ * 6.add frame loss info to procfs
+ * 7.remove associated of cproc and ie
+ * 8.fix input crop config for isp21 multi device
+ * 9.enable soft reset for other isp version
+ * 10.rawrd support uncompact mode
+ * 11.fix default params config for mode switch
+ * 12.before frame start to update bridge mi
+ * 13.disable tmo interrupt
+ * 14.fix bottom image for debayer with extend line
+ * 15.unregister dmarx at driver remove
+ *
+ * v1.8.0:
+ * 1.sync alloc buf with dma sg case
+ * 2.sync multi vir dev stream on/off
+ * 3.replace iommu detach/attach
+ * 4.fix CSI2RX_DATA_IDS_1 config err
+ * 5.improve snapshot feature(tb in RISC-V)
+ * 6.adjust params common api
+ * 7.fix first params config two times for readback mode
+ * 8.useless version return -EINVAL
+ * 9.fix first frame abnormal
+ * 10.dynamic memory alloc for params and stats function
+ * 11.fix rawhist weight config error for multi device
+ * 12.add csm params config for isp21
+ *
+ * v1.9.0: (AIQ v5.1.3)
+ * 1.add version to querycap
+ * 2.add cgc config
+ * 3.fix imx327 hdr mode for isp21
+ * 4.params buf alloc remove to first buf queue
+ * 5.fix ldch err
+ * 6.fix dhaz config for multi isp21
+ * 7.fill extend line data for fix dhaz bug
+ * 8.expand ispp dev max size
+ * 9.fix dmatx loss first buf
+ * 10.cif/isp support compat_ioctl32 for video
+ * 11.fix sensor off to enable reset
+ * 12.fix raw output fail for multi sensor
+ * 13.fix 3a wr no output with selfpath
+ * 14.fix isp no work due to irq_ends_mask error
+ * 15.remove dmatx lock by hw dev_lock
+ * 16.set MI_RD_CTRL2 default after reset
+ * 17.stats buf add application params frame id
+ * 18.fix open video during device register
  */
 
 #define RKISP_DRIVER_VERSION RKISP_API_VERSION

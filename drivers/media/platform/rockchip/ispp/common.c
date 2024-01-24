@@ -90,6 +90,7 @@ int rkispp_allow_buffer(struct rkispp_device *dev,
 	if (dev->hw_dev->is_dma_sg_ops) {
 		sg_tbl = (struct sg_table *)g_ops->cookie(mem_priv);
 		buf->dma_addr = sg_dma_address(sg_tbl->sgl);
+		g_ops->prepare(mem_priv);
 	} else {
 		buf->dma_addr = *((dma_addr_t *)g_ops->cookie(mem_priv));
 	}
@@ -370,7 +371,6 @@ static void rkispp_queue_dmabuf(struct rkispp_hw_dev *hw, struct rkisp_ispp_buf 
 		ispp = hw->ispp[buf->index];
 		vdev = &ispp->stream_vdev;
 		val = (vdev->module_ens & ISPP_MODULE_TNR) ? ISPP_MODULE_TNR : ISPP_MODULE_NR;
-		rkispp_params_cfg(&ispp->params_vdev, buf->frame_id);
 		rkispp_module_work_event(ispp, buf, NULL, val, false);
 	}
 

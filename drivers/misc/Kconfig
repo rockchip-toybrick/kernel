@@ -11,6 +11,8 @@ config ROCKCHIP_SCR
 	  say Y here to enable Rockchip Smartcard Reader Controller driver
 	  for Soc such as RK3128,RK322x,RK3288,RK3368,RK3366,RK356x and etc.
 
+source "drivers/misc/rockchip/Kconfig"
+
 config SENSORS_LIS3LV02D
 	tristate
 	depends on INPUT

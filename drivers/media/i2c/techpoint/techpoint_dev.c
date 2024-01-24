@@ -2,15 +2,17 @@
 /*
  * techpoint dev driver
  *
- * Copyright (C) 2021 Rockchip Electronics Co., Ltd.
+ * Copyright (C) 2022 Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X00 first version.
  */
 
 #include "techpoint_dev.h"
 #include "techpoint_tp9930.h"
+#include "techpoint_tp9950.h"
 #include "techpoint_tp2855.h"
 #include "techpoint_tp2815.h"
+#include "techpoint_tp9951.h"
 
 static struct semaphore reg_sem;
 
@@ -98,24 +100,38 @@ static int check_chip_id(struct techpoint *techpoint)
 	techpoint_read_reg(client, CHIP_ID_L_REG, &chip_id_l);
 	dev_err(dev, "chip_id_h:0x%2x chip_id_l:0x%2x\n", chip_id_h, chip_id_l);
 	if (chip_id_h == TP9930_CHIP_ID_H_VALUE &&
-	    chip_id_l == TP9930_CHIP_ID_L_VALUE) {
+	    chip_id_l == TP9930_CHIP_ID_L_VALUE) {		//tp2832
 		dev_info(&client->dev,
 			 "techpoint check chip id CHIP_TP9930 !\n");
 		techpoint->chip_id = CHIP_TP9930;
 		techpoint->input_type = TECHPOINT_DVP_BT1120;
 		return 0;
 	} else if (chip_id_h == TP2855_CHIP_ID_H_VALUE &&
-		   chip_id_l == TP2855_CHIP_ID_L_VALUE) {
+		   chip_id_l == TP2855_CHIP_ID_L_VALUE) {	//tp2855
 		dev_info(&client->dev,
 			 "techpoint check chip id CHIP_TP2855 !\n");
 		techpoint->chip_id = CHIP_TP2855;
 		techpoint->input_type = TECHPOINT_MIPI;
 		return 0;
 	} else if (chip_id_h == TP2815_CHIP_ID_H_VALUE &&
-		   chip_id_l == TP2815_CHIP_ID_L_VALUE) {
+		   chip_id_l == TP2815_CHIP_ID_L_VALUE) {	//tp2815
 		dev_info(&client->dev,
 			 "techpoint check chip id CHIP_TP2815 !\n");
 		techpoint->chip_id = CHIP_TP2855;
+		techpoint->input_type = TECHPOINT_MIPI;
+		return 0;
+	} else if (chip_id_h == TP9950_CHIP_ID_H_VALUE &&
+		   chip_id_l == TP9950_CHIP_ID_L_VALUE) {	//tp2850
+		dev_info(&client->dev,
+			 "techpoint check chip id CHIP_TP9950 !\n");
+		techpoint->chip_id = CHIP_TP9950;
+		techpoint->input_type = TECHPOINT_MIPI;
+		return 0;
+	} else if (chip_id_h == TP9951_CHIP_ID_H_VALUE &&
+		   chip_id_l == TP9951_CHIP_ID_L_VALUE) {	//tp2860
+		dev_info(&client->dev,
+			 "techpoint check chip id CHIP_TP9951 !\n");
+		techpoint->chip_id = CHIP_TP9951;
 		techpoint->input_type = TECHPOINT_MIPI;
 		return 0;
 	} else {
@@ -130,11 +146,14 @@ int techpoint_initialize_devices(struct techpoint *techpoint)
 	if (check_chip_id(techpoint))
 		return -1;
 
-	if (techpoint->chip_id == CHIP_TP9930) {
+	if (techpoint->chip_id == CHIP_TP9930)
 		tp9930_initialize(techpoint);
-	} else if (techpoint->chip_id == CHIP_TP2855) {
+	else if (techpoint->chip_id == CHIP_TP2855)
 		tp2855_initialize(techpoint);
-	}
+	else if (techpoint->chip_id == CHIP_TP9950)
+		tp9950_initialize(techpoint);
+	else if (techpoint->chip_id == CHIP_TP9951)
+		tp9951_initialize(techpoint);
 
 	sema_init(&reg_sem, 1);
 
@@ -151,14 +170,18 @@ static int detect_thread_function(void *data)
 	if (techpoint->power_on) {
 		down(&reg_sem);
 		if (techpoint->chip_id == CHIP_TP9930) {
-			tp9930_get_all_input_status(client,
+			tp9930_get_all_input_status(techpoint,
 						    techpoint->detect_status);
 			for (i = 0; i < PAD_MAX; i++)
 				tp9930_set_decoder_mode(client, i,
 							techpoint->detect_status[i]);
-		} else if (techpoint->chip_id == CHIP_TP2855)
-			tp2855_get_all_input_status(client,
+		} else if (techpoint->chip_id == CHIP_TP2855) {
+			tp2855_get_all_input_status(techpoint,
 						    techpoint->detect_status);
+			for (i = 0; i < PAD_MAX; i++)
+				tp2855_set_decoder_mode(client, i,
+							techpoint->detect_status[i]);
+		}
 		up(&reg_sem);
 		techpoint->do_reset = 0;
 	}
@@ -170,30 +193,33 @@ static int detect_thread_function(void *data)
 				if (techpoint->chip_id == CHIP_TP9930)
 					detect_status =
 					    tp9930_get_channel_input_status
-					    (client, i);
+					    (techpoint, i);
 				else if (techpoint->chip_id == CHIP_TP2855)
 					detect_status =
 					    tp2855_get_channel_input_status
-					    (client, i);
+					    (techpoint, i);
+				else if (techpoint->chip_id == CHIP_TP9951)
+					detect_status =
+					    tp9951_get_channel_input_status
+					    (techpoint, i);
 
 				if (techpoint->detect_status[i] !=
 				    detect_status) {
 					if (!detect_status)
-						dev_err(&client->dev,
+						dev_info(&client->dev,
 							"detect channel %d video plug out\n",
 							i);
 					else
-						dev_err(&client->dev,
+						dev_info(&client->dev,
 							"detect channel %d video plug in\n",
 							i);
 
 					if (techpoint->chip_id == CHIP_TP9930)
-						tp9930_set_decoder_mode(client,
-									i,
-									detect_status);
+						tp9930_set_decoder_mode(client, i, detect_status);
+					else if (techpoint->chip_id == CHIP_TP2855)
+						tp2855_set_decoder_mode(client, i, detect_status);
 
-					techpoint->detect_status[i] =
-					    detect_status;
+					techpoint->detect_status[i] = detect_status;
 					need_reset_wait = 5;
 				}
 			}
@@ -202,7 +228,7 @@ static int detect_thread_function(void *data)
 			} else if (need_reset_wait == 0) {
 				need_reset_wait = -1;
 				techpoint->do_reset = 1;
-				dev_err(&client->dev,
+				dev_info(&client->dev,
 					"trigger reset time up\n");
 			}
 		}
@@ -258,6 +284,16 @@ static __maybe_unused int auto_detect_channel_fmt(struct techpoint *techpoint)
 		}
 	}
 
+	if (techpoint->chip_id == CHIP_TP9950) {
+		reso = tp9950_get_channel_reso(client, 0);
+		tp9950_set_channel_reso(client, 0, reso);
+	}
+
+	if (techpoint->chip_id == CHIP_TP9951) {
+		reso = tp9951_get_channel_reso(client, 0);
+		tp9951_set_channel_reso(client, 0, reso);
+	}
+
 	up(&reg_sem);
 
 	return 0;
@@ -276,8 +312,10 @@ void __techpoint_get_vc_fmt_inf(struct techpoint *techpoint,
 	for (ch = 0; ch < PAD_MAX; ch++) {
 		if (techpoint->chip_id == CHIP_TP9930) {
 			reso = tp9930_get_channel_reso(client, ch);
+			techpoint->cur_video_mode->channel_reso[ch] = reso;
 		} else if (techpoint->chip_id == CHIP_TP2855) {
 			reso = tp2855_get_channel_reso(client, ch);
+			techpoint->cur_video_mode->channel_reso[ch] = reso;
 		}
 		val = reso;
 		switch (val) {
@@ -299,6 +337,11 @@ void __techpoint_get_vc_fmt_inf(struct techpoint *techpoint,
 		case TECHPOINT_S_RESO_720P_25:
 			inf->width[ch] = 1280;
 			inf->height[ch] = 720;
+			inf->fps[ch] = 25;
+			break;
+		case TECHPOINT_S_RESO_SD:
+			inf->width[ch] = 720;
+			inf->height[ch] = 560;
 			inf->fps[ch] = 25;
 			break;
 		default:
@@ -345,7 +388,6 @@ void techpoint_get_vc_hotplug_inf(struct techpoint *techpoint,
 {
 	int ch = 0;
 	int detect_status = 0;
-	struct i2c_client *client = techpoint->client;
 
 	memset(inf, 0, sizeof(*inf));
 
@@ -354,10 +396,10 @@ void techpoint_get_vc_hotplug_inf(struct techpoint *techpoint,
 	for (ch = 0; ch < 4; ch++) {
 		if (techpoint->chip_id == CHIP_TP9930)
 			detect_status =
-			    tp9930_get_channel_input_status(client, ch);
+			    tp9930_get_channel_input_status(techpoint, ch);
 		else if (techpoint->chip_id == CHIP_TP2855)
 			detect_status =
-			    tp2855_get_channel_input_status(client, ch);
+			    tp2855_get_channel_input_status(techpoint, ch);
 
 		inf->detect_status |= detect_status << ch;
 	}
@@ -368,7 +410,7 @@ void techpoint_get_vc_hotplug_inf(struct techpoint *techpoint,
 void techpoint_set_quick_stream(struct techpoint *techpoint, u32 stream)
 {
 	if (techpoint->chip_id == CHIP_TP2855) {
-		tp2855_set_quick_stream(techpoint->client, stream);
+		tp2855_set_quick_stream(techpoint, stream);
 	}
 }
 
@@ -383,12 +425,13 @@ int techpoint_start_video_stream(struct techpoint *techpoint)
 	}
 	up(&reg_sem);
 
+	auto_detect_channel_fmt(techpoint);
 	ret = techpoint_write_array(techpoint->client,
 				    techpoint->cur_video_mode->common_reg_list,
 				    techpoint->cur_video_mode->common_reg_size);
 	if (ret) {
 		dev_err(&client->dev,
-			"techpoint_start_video_stream common_reg_list failed");
+			"%s common_reg_list failed", __func__);
 		return ret;
 	}
 
@@ -399,7 +442,6 @@ int techpoint_start_video_stream(struct techpoint *techpoint)
 	up(&reg_sem);
 
 	usleep_range(500 * 1000, 1000 * 1000);
-	auto_detect_channel_fmt(techpoint);
 
 	detect_thread_start(techpoint);
 

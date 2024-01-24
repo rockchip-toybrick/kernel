@@ -11,8 +11,10 @@
  * 2. add hdr mode exposure limit issue.
  * 3. fix hdr mode highlighting pink issue.
  * 4. add some debug info.
+ * V0.0X01.0X03 fix hdr mode not support vts change
+ * V0.0X01.0X04 add 24M MCLK register setting.
  */
-
+//#define DEBUG
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
@@ -33,14 +35,21 @@
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-subdev.h>
 
-#define DRIVER_VERSION		KERNEL_VERSION(0, 0x01, 0x02)
+#define DRIVER_VERSION		KERNEL_VERSION(0, 0x01, 0x04)
 #define GC2093_NAME		"gc2093"
 #define GC2093_MEDIA_BUS_FMT	MEDIA_BUS_FMT_SRGGB10_1X10
 
-#define MIPI_FREQ_150M		150000000
-#define MIPI_FREQ_300M		300000000
+#define MIPI_FREQ_297M		297000000
+#define MIPI_FREQ_396M		396000000
 
+/* 27M or 24M */
+#define MCLK_27M
+
+#ifdef MCLK_27M
 #define GC2093_XVCLK_FREQ	27000000
+#else
+#define GC2093_XVCLK_FREQ	24000000
+#endif
 
 #define GC2093_REG_CHIP_ID_H	0x03F0
 #define GC2093_REG_CHIP_ID_L	0x03F1
@@ -53,6 +62,8 @@
 #define GC2093_REG_VB_H		0x0007
 #define GC2093_REG_VB_L		0x0008
 
+#define GC2093_REG_VTS_H	0x0041
+#define GC2093_REG_VTS_L	0x0042
 
 #define GC2093_MIRROR_FLIP_REG	0x0017
 #define MIRROR_MASK		BIT(0)
@@ -98,8 +109,8 @@ enum {
 };
 
 enum {
-	LINK_FREQ_150M_INDEX,
-	LINK_FREQ_300M_INDEX,
+	LINK_FREQ_297M_INDEX,
+	LINK_FREQ_396M_INDEX,
 };
 
 struct gain_reg_config {
@@ -167,8 +178,8 @@ static const struct regmap_config gc2093_regmap_config = {
 };
 
 static const s64 link_freq_menu_items[] = {
-	MIPI_FREQ_150M,
-	MIPI_FREQ_300M,
+	MIPI_FREQ_297M,
+	MIPI_FREQ_396M,
 };
 
 /*
@@ -178,6 +189,7 @@ static const s64 link_freq_menu_items[] = {
  * row_time=29.62us frame_rate=30fps
  */
 static const struct reg_sequence gc2093_1080p_liner_settings[] = {
+#ifdef MCLK_27M
 	/* System */
 	{0x03fe, 0x80},
 	{0x03fe, 0x80},
@@ -288,6 +300,157 @@ static const struct reg_sequence gc2093_1080p_liner_settings[] = {
 	{0x0212, 0x80},
 	{0x0213, 0x07},
 	{0x003e, 0x91},
+#else
+	/****system****/
+	{0x03fe, 0xf0},
+	{0x03fe, 0xf0},
+	{0x03fe, 0xf0},
+	{0x03fe, 0x00},
+	{0x03f2, 0x00},
+	{0x03f3, 0x00},
+	{0x03f4, 0x36},
+	{0x03f5, 0xc0},
+	{0x03f6, 0x0B},
+	{0x03f7, 0x11},
+	{0x03f8, 0x30},
+	{0x03f9, 0x42},
+	{0x03fc, 0x8e},
+	/****CISCTL & ANALOG****/
+	{0x0087, 0x18},
+	{0x00ee, 0x30},
+	{0x00d0, 0xbf},
+	{0x01a0, 0x00},
+	{0x01a4, 0x40},
+	{0x01a5, 0x40},
+	{0x01a6, 0x40},
+	{0x01af, 0x09},
+	{0x0003, 0x04},
+	{0x0004, 0x65},
+	{0x0005, 0x05},
+	{0x0006, 0x8e},
+	{0x0007, 0x00},
+	{0x0008, 0x11},
+	{0x0009, 0x00},
+	{0x000a, 0x02},
+	{0x000b, 0x00},
+	{0x000c, 0x04},
+	{0x000d, 0x04},
+	{0x000e, 0x40},
+	{0x000f, 0x07},
+	{0x0010, 0x8c},
+	{0x0013, 0x15},
+	{0x0019, 0x0c},
+	{0x0041, 0x04},
+	{0x0042, 0x65},
+	{0x0053, 0x60},
+	{0x008d, 0x92},
+	{0x0090, 0x00},
+	{0x00c7, 0xe1},
+	{0x001b, 0x73},
+	{0x0028, 0x0d},
+	{0x0029, 0x40},
+	{0x002b, 0x04},
+	{0x002e, 0x23},
+	{0x0037, 0x03},
+	{0x0043, 0x04},
+	{0x0044, 0x30},
+	{0x004a, 0x01},
+	{0x004b, 0x28},
+	{0x0055, 0x30},
+	{0x0066, 0x3f},
+	{0x0068, 0x3f},
+	{0x006b, 0x44},
+	{0x0077, 0x00},
+	{0x0078, 0x20},
+	{0x007c, 0xa1},
+	{0x00ce, 0x7c},
+	{0x00d3, 0xd4},
+	{0x00e6, 0x50},
+	/*gain*/
+	{0x00b6, 0xc0},
+	{0x00b0, 0x68},
+	{0x00b3, 0x00},
+	{0x00b8, 0x01},
+	{0x00b9, 0x00},
+	{0x00b1, 0x01},
+	{0x00b2, 0x00},
+	/*isp*/
+	{0x0101, 0x0c},
+	{0x0102, 0x89},
+	{0x0104, 0x01},
+	{0x0107, 0xa6},
+	{0x0108, 0xa9},
+	{0x0109, 0xa8},
+	{0x010a, 0xa7},
+	{0x010b, 0xff},
+	{0x010c, 0xff},
+	{0x010f, 0x00},
+	{0x0158, 0x00},
+	{0x0428, 0x86},
+	{0x0429, 0x86},
+	{0x042a, 0x86},
+	{0x042b, 0x68},
+	{0x042c, 0x68},
+	{0x042d, 0x68},
+	{0x042e, 0x68},
+	{0x042f, 0x68},
+	{0x0430, 0x4f},
+	{0x0431, 0x68},
+	{0x0432, 0x67},
+	{0x0433, 0x66},
+	{0x0434, 0x66},
+	{0x0435, 0x66},
+	{0x0436, 0x66},
+	{0x0437, 0x66},
+	{0x0438, 0x62},
+	{0x0439, 0x62},
+	{0x043a, 0x62},
+	{0x043b, 0x62},
+	{0x043c, 0x62},
+	{0x043d, 0x62},
+	{0x043e, 0x62},
+	{0x043f, 0x62},
+	/*dark sun*/
+	{0x0123, 0x08},
+	{0x0123, 0x00},
+	{0x0120, 0x01},
+	{0x0121, 0x04},
+	{0x0122, 0x65},
+	{0x0124, 0x03},
+	{0x0125, 0xff},
+	{0x001a, 0x8c},
+	{0x00c6, 0xe0},
+	/*blk*/
+	{0x0026, 0x30},
+	{0x0142, 0x00},
+	{0x0149, 0x1e},
+	{0x014a, 0x0f},
+	{0x014b, 0x00},
+	{0x0155, 0x07},
+	{0x0414, 0x78},
+	{0x0415, 0x78},
+	{0x0416, 0x78},
+	{0x0417, 0x78},
+	{0x04e0, 0x18},
+	/*window*/
+	{0x0192, 0x02},
+	{0x0194, 0x03},
+	{0x0195, 0x04},
+	{0x0196, 0x38},
+	{0x0197, 0x07},
+	{0x0198, 0x80},
+	/****DVP & MIPI****/
+	{0x019a, 0x06},
+	{0x007b, 0x2a},
+	{0x0023, 0x2d},
+	{0x0201, 0x27},
+	{0x0202, 0x56},
+	{0x0203, 0xb6},
+	{0x0212, 0x80},
+	{0x0213, 0x07},
+	{0x0215, 0x10},
+	{0x003e, 0x91},
+#endif
 };
 
 /*
@@ -297,6 +460,7 @@ static const struct reg_sequence gc2093_1080p_liner_settings[] = {
  * row_time=13.33us frame_rate=60fps
  */
 static const struct reg_sequence gc2093_1080p_hdr_settings[] = {
+#ifdef MCLK_27M
 	/* System */
 	{0x03fe, 0x80},
 	{0x03fe, 0x80},
@@ -338,8 +502,8 @@ static const struct reg_sequence gc2093_1080p_hdr_settings[] = {
 	{0x0010, 0x8c},
 	{0x0013, 0x15},
 	{0x0019, 0x0c},
-	{0x0041, 0x04},
-	{0x0042, 0xe2},
+	{0x0041, 0x05}, //30fps: 0x4e2;   25FPS: 0x5dc:  20FPS: 0x753
+	{0x0042, 0xdc},
 	{0x0053, 0x60},
 	{0x008d, 0x92},
 	{0x0090, 0x00},
@@ -369,6 +533,8 @@ static const struct reg_sequence gc2093_1080p_hdr_settings[] = {
 	{0x0104, 0x01},
 	{0x010e, 0x01},
 	{0x0158, 0x00},
+	{0x0183, 0x01},
+	{0x0187, 0x50},
 	/* Dark sun*/
 	{0x0123, 0x08},
 	{0x0123, 0x00},
@@ -418,6 +584,135 @@ static const struct reg_sequence gc2093_1080p_hdr_settings[] = {
 	{0x0027, 0x71},
 	{0x0215, 0x92},
 	{0x024d, 0x01},
+#else
+	/****system****/
+	{0x03fe, 0xf0},
+	{0x03fe, 0xf0},
+	{0x03fe, 0xf0},
+	{0x03fe, 0x00},
+	{0x03f2, 0x00},
+	{0x03f3, 0x00},
+	{0x03f4, 0x36},
+	{0x03f5, 0xc0},
+	{0x03f6, 0x0B},
+	{0x03f7, 0x01},
+	{0x03f8, 0x63},
+	{0x03f9, 0x40},
+	{0x03fc, 0x8e},
+	/****CISCTL & ANALOG****/
+	{0x0087, 0x18},
+	{0x00ee, 0x30},
+	{0x00d0, 0xbf},
+	{0x01a0, 0x00},
+	{0x01a4, 0x40},
+	{0x01a5, 0x40},
+	{0x01a6, 0x40},
+	{0x01af, 0x09},
+	{0x0001, 0x00},
+	{0x0002, 0x02},
+	{0x0003, 0x04},
+	{0x0004, 0x02},
+	{0x0005, 0x02},
+	{0x0006, 0x94},
+	{0x0007, 0x00},
+	{0x0008, 0x11},
+	{0x0009, 0x00},
+	{0x000a, 0x02},
+	{0x000b, 0x00},
+	{0x000c, 0x04},
+	{0x000d, 0x04},
+	{0x000e, 0x40},
+	{0x000f, 0x07},
+	{0x0010, 0x8c},
+	{0x0013, 0x15},
+	{0x0019, 0x0c},
+	{0x0041, 0x05}, //30fps: 0x4e2;   25FPS: 0x5dc:  20FPS: 0x753
+	{0x0042, 0xdc},
+	{0x0053, 0x60},
+	{0x008d, 0x92},
+	{0x0090, 0x00},
+	{0x00c7, 0xe1},
+	{0x001b, 0x73},
+	{0x0028, 0x0d},
+	{0x0029, 0x24},
+	{0x002b, 0x04},
+	{0x002e, 0x23},
+	{0x0037, 0x03},
+	{0x0043, 0x04},
+	{0x0044, 0x28},
+	{0x004a, 0x01},
+	{0x004b, 0x20},
+	{0x0055, 0x28},
+	{0x0066, 0x3f},
+	{0x0068, 0x3f},
+	{0x006b, 0x44},
+	{0x0077, 0x00},
+	{0x0078, 0x20},
+	{0x007c, 0xa1},
+	{0x00ce, 0x7c},
+	{0x00d3, 0xd4},
+	{0x00e6, 0x50},
+	/*gain*/
+	{0x00b6, 0xc0},
+	{0x00b0, 0x68},
+	/*isp*/
+	{0x0101, 0x0c},
+	{0x0102, 0x89},
+	{0x0104, 0x01},
+	{0x010e, 0x01},
+	{0x010f, 0x00},
+	{0x0158, 0x00},
+	{0x0183, 0x01},
+	{0x0187, 0x50},
+	/*dark sun*/
+	{0x0123, 0x08},
+	{0x0123, 0x00},
+	{0x0120, 0x01},
+	{0x0121, 0x04},
+	{0x0122, 0xd8},
+	{0x0124, 0x03},
+	{0x0125, 0xff},
+	{0x001a, 0x8c},
+	{0x00c6, 0xe0},
+	/*blk*/
+	{0x0026, 0x30},
+	{0x0142, 0x00},
+	{0x0149, 0x1e},
+	{0x014a, 0x0f},
+	{0x014b, 0x00},
+	{0x0155, 0x07},
+	{0x0414, 0x78},
+	{0x0415, 0x78},
+	{0x0416, 0x78},
+	{0x0417, 0x78},
+	{0x0454, 0x78},
+	{0x0455, 0x78},
+	{0x0456, 0x78},
+	{0x0457, 0x78},
+	{0x04e0, 0x18},
+	/*window*/
+	{0x0192, 0x02},
+	{0x0194, 0x03},
+	{0x0195, 0x04},
+	{0x0196, 0x38},
+	{0x0197, 0x07},
+	{0x0198, 0x80},
+	/****DVP & MIPI****/
+	{0x019a, 0x06},
+	{0x007b, 0x2a},
+	{0x0023, 0x2d},
+	{0x0201, 0x27},
+	{0x0202, 0x56},
+	{0x0203, 0xb6}, //try 0xce or 0x8e
+	{0x0212, 0x80},
+	{0x0213, 0x07},
+	{0x0215, 0x10},
+	{0x003e, 0x91},
+	/****HDR EN****/
+	{0x0027, 0x71},
+	{0x0215, 0x92},
+	{0x024d, 0x01},
+#endif
 };
 
 static const struct gc2093_mode supported_modes[] = {
@@ -431,7 +726,7 @@ static const struct gc2093_mode supported_modes[] = {
 		.exp_def = 0x460,
 		.hts_def = 0x898,
 		.vts_def = 0x465,
-		.link_freq_index = LINK_FREQ_150M_INDEX,
+		.link_freq_index = LINK_FREQ_297M_INDEX,
 		.reg_list = gc2093_1080p_liner_settings,
 		.reg_num = ARRAY_SIZE(gc2093_1080p_liner_settings),
 		.hdr_mode = NO_HDR,
@@ -442,12 +737,12 @@ static const struct gc2093_mode supported_modes[] = {
 		.height = 1080,
 		.max_fps = {
 			.numerator = 10000,
-			.denominator = 300000,
+			.denominator = 250000,
 		},
 		.exp_def = 0x460,
 		.hts_def = 0xa50,
-		.vts_def = 0x4e2,
-		.link_freq_index = LINK_FREQ_300M_INDEX,
+		.vts_def = 0x5dc,//30fps: 0x4e2;   25FPS: 0x5dc:  20FPS: 0x753
+		.link_freq_index = LINK_FREQ_396M_INDEX,
 		.reg_list = gc2093_1080p_hdr_settings,
 		.reg_num = ARRAY_SIZE(gc2093_1080p_hdr_settings),
 		.hdr_mode = HDR_X2,
@@ -558,6 +853,7 @@ static int gc2093_set_ctrl(struct v4l2_ctrl *ctrl)
 					     struct gc2093, ctrl_handler);
 	s64 max;
 	int ret = 0;
+	u32 vts = 0;
 
 	/* Propagate change of current control to all related controls */
 	switch (ctrl->id) {
@@ -575,6 +871,8 @@ static int gc2093_set_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_EXPOSURE:
+		if (gc2093->cur_mode->hdr_mode != NO_HDR)
+			goto ctrl_end;
 		dev_dbg(gc2093->dev, "set exposure value 0x%x\n", ctrl->val);
 		ret = gc2093_write_reg(gc2093, GC2093_REG_EXP_LONG_H,
 				       (ctrl->val >> 8) & 0x3f);
@@ -582,11 +880,20 @@ static int gc2093_set_ctrl(struct v4l2_ctrl *ctrl)
 					ctrl->val & 0xff);
 		break;
 	case V4L2_CID_ANALOGUE_GAIN:
+		if (gc2093->cur_mode->hdr_mode != NO_HDR)
+			goto ctrl_end;
 		dev_dbg(gc2093->dev, "set gain value 0x%x\n", ctrl->val);
 		gc2093_set_gain(gc2093, ctrl->val);
 		break;
 	case V4L2_CID_VBLANK:
-		/* The exposure goes up and reduces the frame rate, no need to write vb */
+		if (gc2093->cur_mode->hdr_mode != NO_HDR)
+			goto ctrl_end;
+		vts = gc2093->cur_mode->height + ctrl->val;
+		gc2093->cur_vts = vts;
+		ret = gc2093_write_reg(gc2093, GC2093_REG_VTS_H,
+				       (vts >> 8) & 0x3f);
+		ret |= gc2093_write_reg(gc2093, GC2093_REG_VTS_L,
+					vts & 0xff);
 		dev_dbg(gc2093->dev, " set blank value 0x%x\n", ctrl->val);
 		break;
 	case V4L2_CID_HFLIP:
@@ -603,6 +910,7 @@ static int gc2093_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	}
 
+ctrl_end:
 	pm_runtime_put(gc2093->dev);
 	return ret;
 }
@@ -643,8 +951,8 @@ static int gc2093_initialize_controls(struct gc2093 *gc2093)
 						   link_freq_menu_items);
 
 	gc2093->pixel_rate = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
-					       0, to_pixel_rate(LINK_FREQ_300M_INDEX),
-					       1, to_pixel_rate(LINK_FREQ_150M_INDEX));
+					       0, to_pixel_rate(LINK_FREQ_396M_INDEX),
+					       1, to_pixel_rate(LINK_FREQ_297M_INDEX));
 
 	h_blank = mode->hts_def - mode->width;
 	gc2093->hblank = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_HBLANK,
@@ -653,6 +961,7 @@ static int gc2093_initialize_controls(struct gc2093 *gc2093)
 		gc2093->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	vblank_def = mode->vts_def - mode->height;
+	gc2093->cur_vts = mode->vts_def;
 	gc2093->vblank = v4l2_ctrl_new_std(handler, &gc2093_ctrl_ops,
 					   V4L2_CID_VBLANK, vblank_def,
 					   GC2093_VTS_MAX - mode->height,
@@ -787,6 +1096,8 @@ static long gc2093_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	u32 stream = 0;
 	u8 vb_h = 0, vb_l = 0;
 	u16 vb = 0, cur_vts = 0, short_exp = 0, middle_exp = 0;
+	u64 delay_us = 0;
+	u32 fps = 0;
 
 	switch (cmd) {
 	case PREISP_CMD_SET_HDRAE_EXP:
@@ -796,18 +1107,17 @@ static long gc2093_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 			dev_info(gc2093->dev, "don't streaming, record hdrae\n");
 			break;
 		}
-
-		dev_dbg(gc2093->dev, "%s short_gain_reg: 0x%x\n",
-			__func__, hdrae_exp->short_gain_reg);
+		/* group hold start*/
+		gc2093_write_reg(gc2093, 0x031d, 0x2c);
 		ret = gc2093_set_gain(gc2093, hdrae_exp->short_gain_reg);
 		if (ret) {
 			dev_err(gc2093->dev, "Failed to set gain!)\n");
 			return ret;
 		}
 
-		dev_dbg(gc2093->dev, "%s exp_reg middle: 0x%x, short: 0x%x\n",
+		dev_dbg(gc2093->dev, "%s exp_reg middle: 0x%x, short: 0x%x, gain 0x%x\n",
 			__func__, hdrae_exp->middle_exp_reg,
-			hdrae_exp->short_exp_reg);
+			hdrae_exp->short_exp_reg, hdrae_exp->short_gain_reg);
 		// Optimize blooming effect
 		if (hdrae_exp->middle_exp_reg < 0x30 || hdrae_exp->short_exp_reg < 4)
 			gc2093_write_reg(gc2093, 0x0032, 0xfd);
@@ -834,18 +1144,23 @@ static long gc2093_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		vb = vb_h << 8 | vb_l;
 
 		/* max short exposure limit to 3 ms */
-		if (hdrae_exp->short_exp_reg <= (vb - 8))
+		if (hdrae_exp->short_exp_reg <= (vb - 8)) {
 			short_exp = hdrae_exp->short_exp_reg;
-		else
+		} else {
 			short_exp = vb - 8;
+			dev_err(gc2093->dev, "short exposure should be less than %d\n",
+				vb - 8);
+		}
 		cur_vts = gc2093->cur_vts;
-		dev_info(gc2093->dev, "%s cur_vts: 0x%x\n", __func__, cur_vts);
+		dev_dbg(gc2093->dev, "%s cur_vts: 0x%x\n", __func__, cur_vts);
 
-		if (short_exp + hdrae_exp->middle_exp_reg > cur_vts)
+		if (short_exp + hdrae_exp->middle_exp_reg > cur_vts) {
 			middle_exp = cur_vts - short_exp;
-		else
+			dev_err(gc2093->dev, "total exposure should be less than %d\n",
+				cur_vts);
+		} else {
 			middle_exp = hdrae_exp->middle_exp_reg;
-
+		}
 		dev_dbg(gc2093->dev, "%s cal exp_reg middle: 0x%x, short: 0x%x\n",
 			__func__, middle_exp, short_exp);
 		ret |= gc2093_write_reg(gc2093, GC2093_REG_EXP_LONG_H,
@@ -856,6 +1171,8 @@ static long gc2093_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 					(short_exp >> 8) & 0x3f);
 		ret |= gc2093_write_reg(gc2093, GC2093_REG_EXP_SHORT_L,
 					short_exp & 0xff);
+		/* group hold end*/
+		gc2093_write_reg(gc2093, 0x031d, 0x28);
 		break;
 	case RKMODULE_GET_HDR_CFG:
 		hdr_cfg = (struct rkmodule_hdr_cfg *)arg;
@@ -897,12 +1214,17 @@ static long gc2093_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 
 		stream = *((u32 *)arg);
 
-		if (stream)
+		if (stream) {
 			ret = gc2093_write_reg(gc2093, GC2093_REG_CTRL_MODE,
 				GC2093_MODE_STREAMING);
-		else
+		} else {
 			ret = gc2093_write_reg(gc2093, GC2093_REG_CTRL_MODE,
 				GC2093_MODE_SW_STANDBY);
+			fps = gc2093->cur_mode->max_fps.denominator /
+				  gc2093->cur_mode->max_fps.numerator;
+			delay_us = 1000000 / (gc2093->cur_mode->vts_def * fps / gc2093->cur_vts);
+			usleep_range(delay_us, delay_us + 2000);
+		}
 		break;
 	default:
 		ret = -ENOIOCTLCMD;

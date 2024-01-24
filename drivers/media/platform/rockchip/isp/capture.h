@@ -225,6 +225,8 @@ struct rkisp_stream {
 	unsigned int burst;
 	atomic_t sequence;
 	struct frame_debug_info dbg;
+	int conn_id;
+	u32 memory;
 	union {
 		struct rkisp_stream_sp sp;
 		struct rkisp_stream_mp mp;
@@ -233,10 +235,18 @@ struct rkisp_stream {
 	} u;
 };
 
+struct rkisp_vir_cpy {
+	struct work_struct work;
+	struct completion cmpl;
+	struct list_head queue;
+	struct rkisp_stream *stream;
+};
+
 struct rkisp_capture_device {
 	struct rkisp_device *ispdev;
 	struct rkisp_stream stream[RKISP_MAX_STREAM];
 	struct rkisp_buffer *rdbk_buf[RDBK_MAX];
+	struct rkisp_vir_cpy vir_cpy;
 	atomic_t refcnt;
 	u32 wait_line;
 	bool is_done_early;

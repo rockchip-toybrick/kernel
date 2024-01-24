@@ -1,11 +1,12 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2014-2015, 2017-2018, 2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2015, 2017-2018, 2020-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,11 +17,7 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
- * SPDX-License-Identifier: GPL-2.0
- *
  */
-
-
 
 /*
  * HW Access instrumentation common APIs
@@ -29,7 +26,7 @@
 #ifndef _KBASE_HWACCESS_INSTR_H_
 #define _KBASE_HWACCESS_INSTR_H_
 
-#include <mali_kbase_instr_defs.h>
+#include <backend/gpu/mali_kbase_instr_defs.h>
 
 /**
  * struct kbase_instr_hwcnt_enable - Enable hardware counter collection.
@@ -39,8 +36,7 @@
  * @shader_bm:         counters selection bitmask (Shader).
  * @tiler_bm:          counters selection bitmask (Tiler).
  * @mmu_l2_bm:         counters selection bitmask (MMU_L2).
- * @use_secondary:     use secondary performance counters set for applicable
- *                     counter blocks.
+ * @counter_set:       the performance counter set to use.
  */
 struct kbase_instr_hwcnt_enable {
 	u64 dump_buffer;
@@ -49,7 +45,7 @@ struct kbase_instr_hwcnt_enable {
 	u32 shader_bm;
 	u32 tiler_bm;
 	u32 mmu_l2_bm;
-	bool use_secondary;
+	u8 counter_set;
 };
 
 /**
@@ -139,7 +135,7 @@ int kbase_instr_backend_init(struct kbase_device *kbdev);
  */
 void kbase_instr_backend_term(struct kbase_device *kbdev);
 
-#ifdef CONFIG_MALI_PRFCNT_SET_SECONDARY_VIA_DEBUG_FS
+#ifdef CONFIG_MALI_PRFCNT_SET_SELECT_VIA_DEBUG_FS
 /**
  * kbase_instr_backend_debugfs_init() - Add a debugfs entry for the
  *                                      hardware counter set.

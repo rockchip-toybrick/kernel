@@ -135,6 +135,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_RK3228
 	select SND_SOC_RK3308
 	select SND_SOC_RK3328
+	select SND_SOC_RK3528
 	select SND_SOC_RK817 if I2C
 	select SND_SOC_RT274 if I2C
 	select SND_SOC_RT286 if I2C
@@ -610,6 +611,21 @@ config SND_SOC_ES7134
 config SND_SOC_ES7202
        tristate "Everest Semi ES7202 PDM 2CH ADC"
 
+config SND_SOC_ES7202_MIC_MAX_CHANNELS
+	int "the maximum channels of es7202's microphone"
+	depends on SND_SOC_ES7202
+	default 4
+	range 2 16
+	help
+	  Should be one of MIC_CHN_* of sound/soc/codecs/es7202.h.
+
+config SND_SOC_ES7202_I2C_BUS
+	int "i2c bus number"
+	depends on SND_SOC_ES7202
+	default 1
+	help
+	  Used to hard code an i2c bus number.
+
 config SND_SOC_ES7210
 	tristate "Everest Semi ES7210 CODEC"
 	depends on I2C
@@ -827,6 +843,14 @@ config SND_SOC_RK3308
 config SND_SOC_RK3328
 	select REGMAP_MMIO
 	tristate "Rockchip RK3328 CODEC"
+
+config SND_SOC_RK3528
+	select REGMAP_MMIO
+	tristate "Rockchip RK3528 CODEC"
+
+config SND_SOC_RK630
+	tristate "Rockchip RK630 CODEC"
+	depends on MFD_RK630
 
 config SND_SOC_RK817
 	tristate "Rockchip RK817 CODEC"

@@ -1243,6 +1243,12 @@ static int set_machine_constraints(struct regulator_dev *rdev)
 	 * and we have control then make sure it is enabled.
 	 */
 	if (rdev->constraints->always_on || rdev->constraints->boot_on) {
+		/* If we want to enable this regulator, make sure that we know
+		 * the supplying regulator.
+		 */
+		if (rdev->supply_name && !rdev->supply)
+			return -EPROBE_DEFER;
+
 		if (rdev->supply && !_regulator_is_enabled(rdev->supply->rdev)) {
 			ret = regulator_enable(rdev->supply);
 			if (ret < 0) {
@@ -1465,12 +1471,15 @@ static struct regulator *create_regulator(struct regulator_dev *rdev,
 		if (regulator->supply_name == NULL)
 			goto overflow_err;
 
-		err = sysfs_create_link_nowarn(&rdev->dev.kobj, &dev->kobj,
-					buf);
-		if (err) {
-			rdev_dbg(rdev, "could not add device link %s err %d\n",
-				  dev->kobj.name, err);
-			/* non-fatal */
+		if (device_is_registered(dev)) {
+			err = sysfs_create_link_nowarn(&rdev->dev.kobj,
+						       &dev->kobj, buf);
+			if (err) {
+				rdev_dbg(rdev,
+					 "could not add device link %s err %d\n",
+					 dev->kobj.name, err);
+				/* non-fatal */
+			}
 		}
 	} else {
 		regulator->supply_name = kstrdup_const(supply_name, GFP_KERNEL);
@@ -4858,6 +4867,18 @@ regulator_register(const struct regulator_desc *regulator_desc,
 	if (ret != 0) {
 		put_device(&rdev->dev);
 		goto unset_supplies;
+	}
+
+	/* Add a link to the device sysfs entry */
+	if (rdev->supply && rdev->supply->dev) {
+		ret = sysfs_create_link_nowarn(&rdev->supply->dev->kobj,
+					       &rdev->dev.kobj,
+					       rdev->supply->supply_name);
+		if (ret) {
+			rdev_dbg(rdev, "could not add device link %s err %d\n",
+				 rdev->dev.kobj.name, ret);
+			/* non-fatal */
+		}
 	}
 
 	rdev_init_debugfs(rdev);

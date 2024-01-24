@@ -844,6 +844,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rv1108-evb.dtb \
 	rv1109-38x38-v10-emmc.dtb \
 	rv1109-38x38-v10-emmc-imx307.dtb \
+	rv1109-38-rk630.dtb \
 	rv1109-38-v10-spi-nand.dtb \
 	rv1109-ai-cam-ddr3-v1.dtb \
 	rv1109-evb-ddr3-v12-facial-gate.dtb \
@@ -866,17 +867,21 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rv1126-evb-ddr3-v12-spi-nand.dtb \
 	rv1126-evb-ddr3-v12-spi-nor.dtb \
 	rv1126-evb-ddr3-v12-tb-emmc.dtb \
+	rv1126-evb-ddr3-v12-tb-nofastae-spi-nor.dtb \
 	rv1126-evb-ddr3-v12-tb-spi-nor.dtb \
 	rv1126-evb-ddr3-v13.dtb \
+	rv1126-evb-ddr3-v13-dual-cam-ahd-ext.dtb \
 	rv1126-evb-ddr3-v13-dualcam-tb-emmc.dtb \
 	rv1126-evb-ddr3-v13-robot.dtb \
 	rv1126-evb-ddr3-v13-tb-emmc.dtb \
+	rv1126-evb-ddr3-v13-tb-nofastae-emmc.dtb \
 	rv1126-evb-ddr3-v13-uvc.dtb \
 	rv1126-iotest-v10.dtb \
 	rv1126-ipc2-ddr3-v10.dtb \
 	rv1126-rmsl-ddr3-v1.dtb \
 	rv1126-snapshot.dtb \
 	rv1126-sphericalipc-ddr3-v10.dtb \
+	rv1126-trailcamera.dtb \
 	rk3036-evb.dtb \
 	rk3036-kylin.dtb \
 	rk3066a-bqcurie2.dtb \
@@ -928,7 +933,11 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3326-evb-lp3-v10.dtb \
 	rk3326-863-lp3-v10.dtb \
 	rk3326-evb-lp3-v10-avb.dtb \
-	rk3326-863-lp3-v10-avb.dtb
+	rk3326-863-lp3-v10-avb.dtb \
+	rk3528-evb1-ddr4-v10.dtb \
+	rk3528-evb2-ddr3-v10.dtb \
+	rk3528-evb3-lp4x-v10.dtb \
+	rk3528-evb4-ddr4-v10.dtb
 dtb-$(CONFIG_ARCH_S3C24XX) += \
 	s3c2416-smdk2416.dtb
 dtb-$(CONFIG_ARCH_S3C64XX) += \

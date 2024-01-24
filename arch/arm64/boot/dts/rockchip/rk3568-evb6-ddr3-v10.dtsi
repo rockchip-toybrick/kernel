@@ -50,6 +50,13 @@
 	};
 };
 
+&bt_sound {
+	status = "disabled";
+	simple-audio-card,cpu {
+		sound-dai = <&i2s2_2ch>;
+	};
+};
+
 &combphy0_us {
 	status = "okay";
 };
@@ -141,6 +148,8 @@
 		reset-gpios = <&gpio4 RK_PD2 GPIO_ACTIVE_LOW>;
 		plugin-det-gpios = <&gpio0 RK_PD6 GPIO_ACTIVE_LOW>;
 		hpd-output-inverted;
+		rockchip,dvp-mode = <3>; /* 3:BT1120, 4:BT656, 5:BT1120_8bit */
+		rockchip,dual-edge = <1>; /* 0:single edge, 1:dual edge */
 		rockchip,camera-module-index = <0>;
 		rockchip,camera-module-facing = "back";
 		rockchip,camera-module-name = "LT8619C";
@@ -231,6 +240,12 @@
 	status = "disabled";
 
 	/delete-node/ mxc6655xa@15;
+};
+
+&i2s2_2ch {
+	pinctrl-0 = <&i2s2m0_sclktx &i2s2m0_lrcktx &i2s2m0_sdi &i2s2m0_sdo>;
+	rockchip,bclk-fs = <32>;
+	status = "disabled";
 };
 
 &csi2_dphy_hw {

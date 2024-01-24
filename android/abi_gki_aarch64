@@ -221,3 +221,7 @@
   of_property_read_string_helper
   pm_runtime_enable
   __pm_runtime_set_status
+
+# preserved by --additions-only
+  cdev_device_add
+  cdev_device_del

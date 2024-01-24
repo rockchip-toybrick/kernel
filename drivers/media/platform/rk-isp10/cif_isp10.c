@@ -21,7 +21,6 @@
 #include "cif_isp10.h"
 #include <linux/pm_runtime.h>
 #include <linux/vmalloc.h>
-#include <dt-bindings/soc/rockchip-system-status.h>
 #include <soc/rockchip/rockchip-system-status.h>
 
 static int cif_isp10_mipi_isr(

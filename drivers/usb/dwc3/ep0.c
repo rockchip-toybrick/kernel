@@ -239,6 +239,8 @@ static void dwc3_ep0_stall_and_restart(struct dwc3 *dwc)
 		dwc3_gadget_giveback(dep, req, -ECONNRESET);
 	}
 
+	dwc->eps[0]->trb_enqueue = 0;
+	dwc->eps[1]->trb_enqueue = 0;
 	dwc->ep0state = EP0_SETUP_PHASE;
 	dwc3_ep0_out_start(dwc);
 }
@@ -283,33 +285,29 @@ void dwc3_ep0_out_start(struct dwc3 *dwc)
 
 static struct dwc3_ep *dwc3_wIndex_to_dep(struct dwc3 *dwc, __le16 wIndex_le)
 {
-	struct dwc3_ep		*dep = NULL;
+	struct dwc3_ep		*dep;
 	u32			windex = le16_to_cpu(wIndex_le);
-	u32			epnum, ep_index;
-	u8			num, direction;
+	u32			ep, epnum;
+	u8			num_in_eps, num_out_eps, min_eps;
 
-	epnum = windex & USB_ENDPOINT_NUMBER_MASK;
-	direction = windex & USB_ENDPOINT_DIR_MASK;
-	ep_index = 0;
+	num_in_eps = DWC3_NUM_IN_EPS(&dwc->hwparams);
+	num_out_eps = dwc->num_eps - num_in_eps;
+	min_eps = min_t(u8, num_in_eps, num_out_eps);
+	ep = windex & USB_ENDPOINT_NUMBER_MASK;
 
-	for (num = 0; num < dwc->num_eps; num++) {
-		dep = dwc->eps[num];
-		if (!dep) {
-			dev_warn(dwc->dev, "dep is NULL, num %d, windex 0x%08x\n",
-				 num, windex);
-			return NULL;
-		}
-
-		if ((direction == USB_DIR_IN && dep->direction) ||
-		    (direction == USB_DIR_OUT && !dep->direction))
-			ep_index++;
-
-		if (ep_index == epnum + 1)
-			break;
+	if (ep + 1 > min_eps && num_in_eps != num_out_eps) {
+		epnum = ep + min_eps;
+	} else {
+		epnum = ep << 1;
+		if ((windex & USB_ENDPOINT_DIR_MASK) == USB_DIR_IN)
+			epnum |= 1;
 	}
 
+	dep = dwc->eps[epnum];
+	if (dep == NULL)
+		return NULL;
 
-	if (dep && (dep->flags & DWC3_EP_ENABLED))
+	if (dep->flags & DWC3_EP_ENABLED)
 		return dep;
 
 	return NULL;
@@ -1110,6 +1108,11 @@ static void dwc3_ep0_xfernotready(struct dwc3 *dwc,
 	case DEPEVT_STATUS_CONTROL_STATUS:
 		if (dwc->ep0_next_event != DWC3_EP0_NRDY_STATUS)
 			return;
+
+		if (dwc->setup_packet_pending) {
+			dwc3_ep0_stall_and_restart(dwc);
+			return;
+		}
 
 		dwc->ep0state = EP0_STATUS_PHASE;
 

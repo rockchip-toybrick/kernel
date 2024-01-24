@@ -1,11 +1,12 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018, 2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018, 2020-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,8 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
- *
- * SPDX-License-Identifier: GPL-2.0
  *
  */
 
@@ -85,7 +84,6 @@
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/types.h>
-#include "mali_malisw.h"
 
 /* Number of bytes in each bitfield */
 #define KBASE_HWCNT_BITFIELD_BYTES (sizeof(u64))
@@ -100,6 +98,21 @@
  * instances supported in a Hardware Counter System)
  */
 #define KBASE_HWCNT_AVAIL_MASK_BITS (sizeof(u64) * BITS_PER_BYTE)
+
+/* Minimum alignment of each block of hardware counters */
+#define KBASE_HWCNT_BLOCK_BYTE_ALIGNMENT                                       \
+	(KBASE_HWCNT_BITFIELD_BITS * KBASE_HWCNT_VALUE_BYTES)
+
+/**
+ * KBASE_HWCNT_ALIGN_UPWARDS() - Calculate next aligned value.
+ * @value:     The value to align upwards.
+ * @alignment: The alignment boundary.
+ *
+ * Return: Input value if already aligned to the specified boundary, or next
+ * (incrementing upwards) aligned value.
+ */
+#define KBASE_HWCNT_ALIGN_UPWARDS(value, alignment)                            \
+	(value + ((alignment - (value % alignment)) % alignment))
 
 /**
  * struct kbase_hwcnt_block_description - Description of one or more identical,
@@ -359,8 +372,7 @@ void kbase_hwcnt_metadata_destroy(const struct kbase_hwcnt_metadata *metadata);
  * @grp:      Index of the group in the metadata.
  * @blk:      Index of the block in the group.
  *
- * Return: Number of u32 counter headers in each instance of block blk in
- *         group grp.
+ * Return: Number of counter headers in each instance of block blk in group grp.
  */
 #define kbase_hwcnt_metadata_block_headers_count(metadata, grp, blk) \
 	((metadata)->grp_metadata[(grp)].blk_metadata[(blk)].hdr_cnt)
@@ -371,11 +383,21 @@ void kbase_hwcnt_metadata_destroy(const struct kbase_hwcnt_metadata *metadata);
  * @grp:      Index of the group in the metadata.
  * @blk:      Index of the block in the group.
  *
- * Return: Number of u32 counters in each instance of block blk in group
- *         grp.
+ * Return: Number of counters in each instance of block blk in group grp.
  */
 #define kbase_hwcnt_metadata_block_counters_count(metadata, grp, blk) \
 	((metadata)->grp_metadata[(grp)].blk_metadata[(blk)].ctr_cnt)
+
+/**
+ * kbase_hwcnt_metadata_block_enable_map_stride() - Get the enable map stride.
+ * @metadata: Non-NULL pointer to metadata.
+ * @grp:      Index of the group in the metadata.
+ * @blk:      Index of the block in the group.
+ *
+ * Return: enable map stride in each instance of block blk in group grp.
+ */
+#define kbase_hwcnt_metadata_block_enable_map_stride(metadata, grp, blk)       \
+	((metadata)->grp_metadata[(grp)].blk_metadata[(blk)].enable_map_stride)
 
 /**
  * kbase_hwcnt_metadata_block_values_count() - Get the number of values.
@@ -383,7 +405,7 @@ void kbase_hwcnt_metadata_destroy(const struct kbase_hwcnt_metadata *metadata);
  * @grp:      Index of the group in the metadata.
  * @blk:      Index of the block in the group.
  *
- * Return: Number of u32 headers plus counters in each instance of block blk
+ * Return: Number of headers plus counters in each instance of block blk
  *         in group grp.
  */
 #define kbase_hwcnt_metadata_block_values_count(metadata, grp, blk) \
@@ -779,9 +801,7 @@ void kbase_hwcnt_dump_buffer_free(struct kbase_hwcnt_dump_buffer *dump_buf);
  * kbase_hwcnt_dump_buffer_array_alloc() - Allocate an array of dump buffers.
  * @metadata:  Non-NULL pointer to metadata describing the system.
  * @n:         Number of dump buffers to allocate
- * @dump_bufs: Non-NULL pointer to dump buffer array to be initialised. Each
- *             dump buffer in the array will be initialised to undefined values,
- *             so must be used as a copy dest, or cleared before use.
+ * @dump_bufs: Non-NULL pointer to dump buffer array to be initialised.
  *
  * A single zeroed contiguous page allocation will be used for all of the
  * buffers inside the array, where:
@@ -1115,10 +1135,10 @@ static inline void kbase_hwcnt_dump_buffer_block_accumulate_strict(
 }
 
 /**
- * @brief Iterate over each clock domain in the metadata.
+ * Iterate over each clock domain in the metadata.
  *
- * @param[in] md          Non-NULL pointer to metadata.
- * @param[in] clk         size_t variable used as clock iterator.
+ * @md:          Non-NULL pointer to metadata.
+ * @clk:         size_t variable used as clock iterator.
  */
 #define kbase_hwcnt_metadata_for_each_clock(md, clk)    \
 	for ((clk) = 0; (clk) < (md)->clk_cnt; (clk)++)

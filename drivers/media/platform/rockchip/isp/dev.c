@@ -45,13 +45,13 @@
 #include <linux/pm_runtime.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/regmap.h>
-#include <dt-bindings/soc/rockchip-system-status.h>
 #include <soc/rockchip/rockchip-system-status.h>
 #include "common.h"
 #include "isp_ispp.h"
 #include "regs.h"
 #include "rkisp.h"
 #include "version.h"
+#include "csi.h"
 
 #define RKISP_VERNO_LEN		10
 
@@ -170,6 +170,7 @@ static int __isp_pipeline_s_isp_clk(struct rkisp_pipeline *p)
 	u64 data_rate;
 	int i;
 
+	hw_dev->isp_size[dev->dev_id].is_on = true;
 	if (dev->isp_inp & (INP_RAWRD0 | INP_RAWRD1 | INP_RAWRD2 | INP_CIF)) {
 		for (i = 0; i < hw_dev->num_clk_rate_tbl; i++) {
 			if (w <= hw_dev->clk_rate_tbl[i].refer_data)
@@ -197,12 +198,14 @@ static int __isp_pipeline_s_isp_clk(struct rkisp_pipeline *p)
 
 	if (i == p->num_subdevs) {
 		v4l2_warn(&dev->v4l2_dev, "No active sensor\n");
+		hw_dev->isp_size[dev->dev_id].is_on = false;
 		return -EPIPE;
 	}
 
 	ctrl = v4l2_ctrl_find(sd->ctrl_handler, V4L2_CID_PIXEL_RATE);
 	if (!ctrl) {
 		v4l2_warn(&dev->v4l2_dev, "No pixel rate control in subdev\n");
+		hw_dev->isp_size[dev->dev_id].is_on = false;
 		return -EPIPE;
 	}
 
@@ -245,21 +248,32 @@ static int rkisp_pipeline_open(struct rkisp_pipeline *p,
 	if (prepare) {
 		ret = __isp_pipeline_prepare(p, me);
 		if (ret < 0)
-			return ret;
+			goto err;
 	}
 
 	ret = __isp_pipeline_s_isp_clk(p);
 	if (ret < 0)
-		return ret;
+		goto err;
+
+	if (!dev->hw_dev->monitor.is_en)
+		dev->hw_dev->monitor.is_en = rkisp_monitor;
 
 	if (dev->isp_inp & (INP_CSI | INP_RAWRD0 | INP_RAWRD1 | INP_RAWRD2 | INP_CIF))
 		rkisp_csi_config_patch(dev);
 	return 0;
+err:
+	atomic_dec(&p->power_cnt);
+	return ret;
 }
 
 static int rkisp_pipeline_close(struct rkisp_pipeline *p)
 {
-	atomic_dec(&p->power_cnt);
+	struct rkisp_device *dev = container_of(p, struct rkisp_device, pipe);
+
+	if (atomic_dec_return(&p->power_cnt))
+		return 0;
+
+	dev->hw_dev->isp_size[dev->dev_id].is_on = false;
 
 	return 0;
 }
@@ -271,7 +285,7 @@ static int rkisp_pipeline_close(struct rkisp_pipeline *p)
 static int rkisp_pipeline_set_stream(struct rkisp_pipeline *p, bool on)
 {
 	struct rkisp_device *dev = container_of(p, struct rkisp_device, pipe);
-	int i, ret;
+	int i, ret, open_num = 0;
 
 	if ((on && atomic_inc_return(&p->stream_cnt) > 1) ||
 	    (!on && atomic_dec_return(&p->stream_cnt) > 0))
@@ -289,6 +303,16 @@ static int rkisp_pipeline_set_stream(struct rkisp_pipeline *p, bool on)
 				goto err_stream_off;
 		}
 	} else {
+		for (i = 0; i < dev->hw_dev->dev_num; i++) {
+			if (dev->hw_dev->isp_size[i].is_on)
+				open_num++;
+		}
+		if (dev->hw_dev->monitor.is_en && open_num == 1) {
+			dev->hw_dev->monitor.is_en = 0;
+			dev->hw_dev->monitor.state = ISP_STOP;
+			if (!completion_done(&dev->hw_dev->monitor.cmpl))
+				complete(&dev->hw_dev->monitor.cmpl);
+		}
 		/* sensor -> phy */
 		for (i = p->num_subdevs - 1; i >= 0; --i)
 			v4l2_subdev_call(p->subdevs[i], video, s_stream, on);
@@ -411,7 +435,7 @@ static int _set_pipeline_default_fmt(struct rkisp_device *dev)
 		rkisp_set_stream_def_fmt(dev, RKISP_STREAM_SP,
 					 width, height, V4L2_PIX_FMT_NV12);
 	if ((dev->isp_ver == ISP_V20 || dev->isp_ver == ISP_V21) &&
-	    dev->active_sensor->mbus.type == V4L2_MBUS_CSI2) {
+	    dev->isp_inp == INP_CSI) {
 		width = dev->active_sensor->fmt[1].format.width;
 		height = dev->active_sensor->fmt[1].format.height;
 		code = dev->active_sensor->fmt[1].format.code;
@@ -431,7 +455,7 @@ static int _set_pipeline_default_fmt(struct rkisp_device *dev)
 			width, height, rkisp_mbus_pixelcode_to_v4l2(code));
 	}
 
-	if (dev->isp_ver == ISP_V20) {
+	if (dev->isp_ver == ISP_V20 && dev->isp_inp == INP_CSI) {
 		width = dev->active_sensor->fmt[2].format.width;
 		height = dev->active_sensor->fmt[2].format.height;
 		code = dev->active_sensor->fmt[2].format.code;
@@ -689,6 +713,9 @@ static int rkisp_get_reserved_mem(struct rkisp_device *isp_dev)
 					      DMA_BIDIRECTIONAL);
 	ret = dma_mapping_error(dev, isp_dev->resmem_addr);
 
+	isp_dev->is_thunderboot = true;
+	atomic_inc(&isp_dev->hw_dev->tb_ref);
+
 	dev_info(dev, "Allocated reserved memory, paddr: 0x%x\n",
 		(u32)isp_dev->resmem_pa);
 	return ret;
@@ -729,9 +756,11 @@ static int rkisp_plat_probe(struct platform_device *pdev)
 	sprintf(isp_dev->media_dev.model, "%s%d",
 		DRIVER_NAME, isp_dev->dev_id);
 
-	ret = rkisp_get_reserved_mem(isp_dev);
-	if (ret)
-		return ret;
+	if (isp_dev->hw_dev->is_thunderboot) {
+		ret = rkisp_get_reserved_mem(isp_dev);
+		if (ret)
+			return ret;
+	}
 
 	mutex_init(&isp_dev->apilock);
 	mutex_init(&isp_dev->iqlock);
@@ -790,6 +819,9 @@ static int rkisp_plat_probe(struct platform_device *pdev)
 	mutex_unlock(&rkisp_dev_mutex);
 
 	pm_runtime_enable(dev);
+	if (isp_dev->hw_dev->is_thunderboot && isp_dev->is_thunderboot)
+		pm_runtime_get_noresume(isp_dev->hw_dev->dev);
+	isp_dev->is_probe_end = true;
 	return 0;
 
 err_unreg_media_dev:
@@ -811,6 +843,7 @@ static int rkisp_plat_remove(struct platform_device *pdev)
 	rkisp_unregister_luma_vdev(&isp_dev->luma_vdev);
 	rkisp_unregister_params_vdev(&isp_dev->params_vdev);
 	rkisp_unregister_stats_vdev(&isp_dev->stats_vdev);
+	rkisp_unregister_dmarx_vdev(isp_dev);
 	rkisp_unregister_stream_vdevs(isp_dev);
 	rkisp_unregister_bridge_subdev(isp_dev);
 	rkisp_unregister_csi_subdev(isp_dev);
@@ -852,9 +885,93 @@ static int __init rkisp_clr_unready_dev(void)
 late_initcall_sync(rkisp_clr_unready_dev);
 #endif
 
+static int rkisp_pm_prepare(struct device *dev)
+{
+	struct rkisp_device *isp_dev = dev_get_drvdata(dev);
+	struct rkisp_hw_dev *hw = isp_dev->hw_dev;
+	struct rkisp_pipeline *p = &isp_dev->pipe;
+	unsigned long lock_flags = 0;
+	int i, time = 100;
+
+	if (isp_dev->isp_state & ISP_STOP) {
+		if (pm_runtime_active(dev) && rkisp_link_sensor(isp_dev->isp_inp)) {
+			struct v4l2_subdev *mipi_sensor = NULL;
+
+			rkisp_get_remote_mipi_sensor(isp_dev, &mipi_sensor, MEDIA_ENT_F_CAM_SENSOR);
+			if (mipi_sensor)
+				v4l2_subdev_call(mipi_sensor, core, s_power, 0);
+		}
+		return 0;
+	}
+
+	isp_dev->suspend_sync = false;
+	isp_dev->is_suspend = true;
+	if (rkisp_link_sensor(isp_dev->isp_inp)) {
+		for (i = p->num_subdevs - 1; i >= 0; i--)
+			v4l2_subdev_call(p->subdevs[i], video, s_stream, 0);
+	}
+	if (IS_HDR_RDBK(isp_dev->rd_mode)) {
+		spin_lock_irqsave(&hw->rdbk_lock, lock_flags);
+		if (!hw->is_idle && hw->cur_dev_id == isp_dev->dev_id)
+			isp_dev->suspend_sync = true;
+		spin_unlock_irqrestore(&hw->rdbk_lock, lock_flags);
+	} else {
+		/* wait one frame for online */
+		isp_dev->suspend_sync = true;
+		if (hw->isp_size[isp_dev->dev_id].fps)
+			time = 1000 / hw->isp_size[isp_dev->dev_id].fps;
+	}
+
+	if (isp_dev->suspend_sync) {
+		wait_for_completion_timeout(&isp_dev->pm_cmpl, msecs_to_jiffies(time));
+		isp_dev->suspend_sync = false;
+	}
+
+	if (rkisp_link_sensor(isp_dev->isp_inp)) {
+		for (i = p->num_subdevs - 1; i >= 0; i--)
+			v4l2_subdev_call(p->subdevs[i], core, s_power, 0);
+	}
+	return 0;
+}
+
+static void rkisp_pm_complete(struct device *dev)
+{
+	struct rkisp_device *isp_dev = dev_get_drvdata(dev);
+	struct rkisp_hw_dev *hw = isp_dev->hw_dev;
+	struct rkisp_pipeline *p = &isp_dev->pipe;
+	int i;
+
+	if (isp_dev->isp_state & ISP_STOP) {
+		if (pm_runtime_active(dev) && rkisp_link_sensor(isp_dev->isp_inp)) {
+			struct v4l2_subdev *mipi_sensor = NULL;
+
+			rkisp_get_remote_mipi_sensor(isp_dev, &mipi_sensor, MEDIA_ENT_F_CAM_SENSOR);
+			if (mipi_sensor)
+				v4l2_subdev_call(mipi_sensor, core, s_power, 1);
+		}
+		return;
+	}
+
+	isp_dev->is_suspend = false;
+	isp_dev->isp_state = ISP_START | ISP_FRAME_END;
+
+	if (hw->cur_dev_id == isp_dev->dev_id)
+		rkisp_rdbk_trigger_event(isp_dev, T_CMD_QUEUE, NULL);
+
+	if (rkisp_link_sensor(isp_dev->isp_inp)) {
+		for (i = 0; i < p->num_subdevs; i++)
+			v4l2_subdev_call(p->subdevs[i], core, s_power, 1);
+	}
+
+	if (rkisp_link_sensor(isp_dev->isp_inp)) {
+		for (i = 0; i < p->num_subdevs; i++)
+			v4l2_subdev_call(p->subdevs[i], video, s_stream, 1);
+	}
+}
+
 static const struct dev_pm_ops rkisp_plat_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
-				pm_runtime_force_resume)
+	.prepare = rkisp_pm_prepare,
+	.complete = rkisp_pm_complete,
 	SET_RUNTIME_PM_OPS(rkisp_runtime_suspend, rkisp_runtime_resume, NULL)
 };
 

@@ -18,6 +18,7 @@
 #define RKPM_SLP_ARMOFF			BIT(1)
 #define RKPM_SLP_ARMOFF_DDRPD		BIT(2)
 #define RKPM_SLP_ARMOFF_LOGOFF		BIT(3)
+#define RKPM_SLP_WAKEUP_TO_RESET	BIT(5)
 
 /* all plls except ddr's pll*/
 #define RKPM_SLP_PMU_HW_PLLS_PD		BIT(8)

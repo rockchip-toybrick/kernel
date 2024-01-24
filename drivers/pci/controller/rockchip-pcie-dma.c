@@ -112,16 +112,7 @@
 #define NODE_SIZE		(sizeof(unsigned int))
 #define PCIE_DMA_ACK_BLOCK_SIZE		(NODE_SIZE * 8)
 
-#define PCIE_DMA_BUF_SIZE	SZ_1M
-#define PCIE_DMA_BUF_CNT	8
-#define PCIE_DMA_RD_BUF_SIZE	(PCIE_DMA_BUF_SIZE * PCIE_DMA_BUF_CNT)
-#define PCIE_DMA_WR_BUF_SIZE	(PCIE_DMA_BUF_SIZE * PCIE_DMA_BUF_CNT)
-#define PCIE_DMA_ACK_BASE	(PCIE_DMA_RD_BUF_SIZE + PCIE_DMA_WR_BUF_SIZE)
-
-#define PCIE_DMA_SET_DATA_CHECK_POS	(SZ_1M - 0x4)
-#define PCIE_DMA_SET_LOCAL_IDX_POS	(SZ_1M - 0x8)
-#define PCIE_DMA_SET_BUF_SIZE_POS	(SZ_1M - 0xc)
-#define PCIE_DMA_SET_CHK_SUM_POS	(SZ_1M - 0x10)
+#define PCIE_DMA_BUF_CNT		8
 
 #define PCIE_DMA_DATA_CHECK		0x12345678
 #define PCIE_DMA_DATA_ACK_CHECK		0xdeadbeef
@@ -130,12 +121,20 @@
 #define PCIE_DMA_PARAM_SIZE		64
 #define PCIE_DMA_CHN0			0x0
 
-static int enable_check_sum;
+enum transfer_type {
+	PCIE_DMA_DATA_SND,
+	PCIE_DMA_DATA_RCV_ACK,
+	PCIE_DMA_DATA_FREE_ACK,
+	PCIE_DMA_READ_REMOTE,
+};
 
+static int enable_check_sum;
 struct pcie_misc_dev {
 	struct miscdevice dev;
 	struct dma_trx_obj *obj;
 };
+static void *rk_pcie_map_kernel(phys_addr_t start, size_t len);
+static void rk_pcie_unmap_kernel(void *vaddr);
 
 static inline bool is_rc(struct dma_trx_obj *obj)
 {
@@ -154,10 +153,34 @@ static unsigned int rk_pcie_check_sum(unsigned int *src, int size)
 	return result;
 }
 
+static int rk_pcie_handle_dma_interrupt(struct dma_trx_obj *obj, u32 chn, enum dma_dir dir)
+{
+	struct dma_table *cur;
+
+	cur = obj->cur;
+	if (!cur) {
+		pr_err("no pcie dma table\n");
+		return 0;
+	}
+
+	obj->dma_free = true;
+	obj->irq_num++;
+
+	if (cur->dir == DMA_TO_BUS) {
+		if (list_empty(&obj->tbl_list)) {
+			if (obj->dma_free &&
+			    obj->loop_count >= obj->loop_count_threshold)
+				complete(&obj->done);
+		}
+	}
+
+	return 0;
+}
+
 static void rk_pcie_prepare_dma(struct dma_trx_obj *obj,
 			unsigned int idx, unsigned int bus_idx,
 			unsigned int local_idx, size_t buf_size,
-			enum transfer_type type)
+			enum transfer_type type, int chn)
 {
 	struct device *dev = obj->dev;
 	phys_addr_t local, bus;
@@ -170,57 +193,88 @@ static void rk_pcie_prepare_dma(struct dma_trx_obj *obj,
 	case PCIE_DMA_DATA_SND:
 		table = obj->table[PCIE_DMA_DATA_SND_TABLE_OFFSET + local_idx];
 		table->type = PCIE_DMA_DATA_SND;
-		local = obj->mem_start + local_idx * PCIE_DMA_BUF_SIZE;
-		virt = obj->mem_base + local_idx * PCIE_DMA_BUF_SIZE;
-		bus = obj->mem_start + bus_idx * PCIE_DMA_BUF_SIZE;
+		table->dir = DMA_TO_BUS;
+		local = obj->local_mem_start + local_idx * obj->buffer_size;
+		bus = obj->remote_mem_start + bus_idx * obj->buffer_size;
+		virt = obj->local_mem_base + local_idx * obj->buffer_size;
 
-		if (!is_rc(obj)) {
-			local += PCIE_DMA_RD_BUF_SIZE;
-			virt += PCIE_DMA_RD_BUF_SIZE;
-			bus += PCIE_DMA_WR_BUF_SIZE;
+		if (obj->addr_reverse) {
+			if (is_rc(obj)) {
+				local += obj->rd_buf_size;
+				virt += obj->rd_buf_size;
+				bus += obj->wr_buf_size;
+			}
+		} else {
+			if (!is_rc(obj)) {
+				local += obj->rd_buf_size;
+				virt += obj->rd_buf_size;
+				bus += obj->wr_buf_size;
+			}
 		}
 
+		obj->begin = ktime_get();
 		dma_sync_single_for_device(dev, local, buf_size, DMA_TO_DEVICE);
+		obj->end = ktime_get();
 
-		writel(PCIE_DMA_DATA_CHECK, virt + PCIE_DMA_SET_DATA_CHECK_POS);
-		writel(local_idx, virt + PCIE_DMA_SET_LOCAL_IDX_POS);
-		writel(buf_size, virt + PCIE_DMA_SET_BUF_SIZE_POS);
+		obj->cache_time_total += ktime_to_ns(ktime_sub(obj->end, obj->begin));
+
+		writel(PCIE_DMA_DATA_CHECK, virt + obj->set_data_check_pos);
+		writel(local_idx, virt + obj->set_local_idx_pos);
+		writel(buf_size, virt + obj->set_buf_size_pos);
 
 		if (enable_check_sum) {
 			checksum = rk_pcie_check_sum(virt, SZ_1M - 0x10);
-			writel(checksum, virt + PCIE_DMA_SET_CHK_SUM_POS);
+			writel(checksum, virt + obj->set_chk_sum_pos);
 		}
 
-		buf_size = SZ_1M;
+		buf_size = obj->buffer_size;
 		break;
 	case PCIE_DMA_DATA_RCV_ACK:
 		table = obj->table[PCIE_DMA_DATA_RCV_ACK_TABLE_OFFSET + idx];
 		table->type = PCIE_DMA_DATA_RCV_ACK;
-		local = obj->mem_start + PCIE_DMA_ACK_BASE + idx * NODE_SIZE;
-		virt = obj->mem_base + PCIE_DMA_ACK_BASE + idx * NODE_SIZE;
+		table->dir = DMA_TO_BUS;
+		local = obj->local_mem_start + obj->ack_base + idx * NODE_SIZE;
+		virt = obj->local_mem_base + obj->ack_base + idx * NODE_SIZE;
+		bus = obj->remote_mem_start + obj->ack_base + idx * NODE_SIZE;
 
 		if (is_rc(obj)) {
 			local += PCIE_DMA_ACK_BLOCK_SIZE;
+			bus += PCIE_DMA_ACK_BLOCK_SIZE;
 			virt += PCIE_DMA_ACK_BLOCK_SIZE;
 		}
-		bus = local;
 		writel(PCIE_DMA_DATA_ACK_CHECK, virt);
 		break;
 	case PCIE_DMA_DATA_FREE_ACK:
 		table = obj->table[PCIE_DMA_DATA_FREE_ACK_TABLE_OFFSET + idx];
 		table->type = PCIE_DMA_DATA_FREE_ACK;
-		local = obj->mem_start + PCIE_DMA_ACK_BASE + idx * NODE_SIZE;
-		virt = obj->mem_base + PCIE_DMA_ACK_BASE + idx * NODE_SIZE;
+		table->dir = DMA_TO_BUS;
+		local = obj->local_mem_start + obj->ack_base + idx * NODE_SIZE;
+		bus = obj->remote_mem_start + obj->ack_base + idx * NODE_SIZE;
+		virt = obj->local_mem_base + obj->ack_base + idx * NODE_SIZE;
+		buf_size = 4;
 
 		if (is_rc(obj)) {
 			local += 3 * PCIE_DMA_ACK_BLOCK_SIZE;
+			bus += 3 * PCIE_DMA_ACK_BLOCK_SIZE;
 			virt += 3 * PCIE_DMA_ACK_BLOCK_SIZE;
 		} else {
 			local += 2 * PCIE_DMA_ACK_BLOCK_SIZE;
+			bus += 2 * PCIE_DMA_ACK_BLOCK_SIZE;
 			virt += 2 * PCIE_DMA_ACK_BLOCK_SIZE;
 		}
-		bus = local;
 		writel(PCIE_DMA_DATA_FREE_ACK_CHECK, virt);
+		break;
+	case PCIE_DMA_READ_REMOTE:
+		table = obj->table[PCIE_DMA_DATA_READ_REMOTE_TABLE_OFFSET + local_idx];
+		table->type = PCIE_DMA_READ_REMOTE;
+		table->dir = DMA_FROM_BUS;
+		local = obj->local_mem_start + local_idx * obj->buffer_size;
+		bus = obj->remote_mem_start + bus_idx * obj->buffer_size;
+		if (!is_rc(obj)) {
+			local += obj->rd_buf_size;
+			bus += obj->wr_buf_size;
+		}
+		buf_size = obj->buffer_size;
 		break;
 	default:
 		dev_err(dev, "type = %d not support\n", type);
@@ -230,6 +284,7 @@ static void rk_pcie_prepare_dma(struct dma_trx_obj *obj,
 	table->buf_size = buf_size;
 	table->bus = bus;
 	table->local = local;
+	table->chn = chn;
 
 	if (!obj->config_dma_func) {
 		WARN_ON(1);
@@ -262,18 +317,10 @@ static void rk_pcie_dma_trx_work(struct work_struct *work)
 				WARN_ON(1);
 				return;
 			}
-			obj->start_dma_func(obj);
+			reinit_completion(&obj->done);
+			obj->start_dma_func(obj, table);
 		}
 	}
-}
-
-static int rk_pcie_scan_thread(void *data)
-{
-	struct dma_trx_obj *obj = (struct dma_trx_obj *)data;
-
-	hrtimer_start(&obj->scan_timer,
-		      ktime_set(0, 500 * 1000 * 1000), HRTIMER_MODE_REL);
-	return 0;
 }
 
 static void rk_pcie_clear_ack(void *addr)
@@ -297,22 +344,36 @@ static enum hrtimer_restart rk_pcie_scan_timer(struct hrtimer *timer)
 					struct dma_trx_obj, scan_timer);
 	unsigned int check_sum, check_sum_tmp;
 
-	for (i = 0; i < PCIE_DMA_BUF_CNT; i++) {
-		sda_base = obj->mem_base + PCIE_DMA_BUF_SIZE * i;
-
+	if (!obj->remote_mem_start) {
 		if (is_rc(obj))
-			scan_data_addr =  sda_base + PCIE_DMA_WR_BUF_SIZE;
+			obj->remote_mem_start = readl(obj->region_base + 0x4);
 		else
-			scan_data_addr = sda_base;
+			obj->remote_mem_start = readl(obj->region_base);
+		goto continue_scan;
+	}
 
-		sdv = readl(scan_data_addr + PCIE_DMA_SET_DATA_CHECK_POS);
-		idx = readl(scan_data_addr + PCIE_DMA_SET_LOCAL_IDX_POS);
+	for (i = 0; i < PCIE_DMA_BUF_CNT; i++) {
+		sda_base = obj->local_mem_base + obj->buffer_size * i;
+
+		if (obj->addr_reverse) {
+			if (is_rc(obj))
+				scan_data_addr = sda_base;
+			else
+				scan_data_addr =  sda_base + obj->rd_buf_size;
+		} else {
+			if (is_rc(obj))
+				scan_data_addr =  sda_base + obj->rd_buf_size;
+			else
+				scan_data_addr = sda_base;
+		}
+		sdv = readl(scan_data_addr + obj->set_data_check_pos);
+		idx = readl(scan_data_addr + obj->set_local_idx_pos);
 
 		if (sdv == PCIE_DMA_DATA_CHECK) {
 			if (!need_ack)
 				need_ack = true;
 			if (enable_check_sum) {
-				check_sum = readl(scan_data_addr + PCIE_DMA_SET_CHK_SUM_POS);
+				check_sum = readl(scan_data_addr + obj->set_chk_sum_pos);
 				check_sum_tmp = rk_pcie_check_sum(scan_data_addr, SZ_1M - 0x10);
 				if (check_sum != check_sum_tmp) {
 					pr_err("checksum[%d] failed, 0x%x, should be 0x%x\n",
@@ -320,21 +381,21 @@ static enum hrtimer_restart rk_pcie_scan_timer(struct hrtimer *timer)
 					print_hex_dump(KERN_WARNING, "", DUMP_PREFIX_OFFSET,
 						       32, 4, scan_data_addr, SZ_1M, false);
 				}
-				writel(0x0, scan_data_addr + PCIE_DMA_SET_CHK_SUM_POS);
+				writel(0x0, scan_data_addr + obj->set_chk_sum_pos);
 			}
-			writel(0x0, scan_data_addr + PCIE_DMA_SET_DATA_CHECK_POS);
+			writel(0x0, scan_data_addr + obj->set_data_check_pos);
 
 			set_bit(i, &obj->local_read_available);
 			rk_pcie_prepare_dma(obj, idx, 0, 0, 0x4,
-					PCIE_DMA_DATA_RCV_ACK);
+				PCIE_DMA_DATA_RCV_ACK, PCIE_DMA_DEFAULT_CHN);
 		}
 	}
 
 	if (need_ack || !list_empty(&obj->tbl_list))
 		queue_work(obj->dma_trx_wq, &obj->dma_trx_work);
 
-	scan_ack_addr = obj->mem_base + PCIE_DMA_ACK_BASE;
-	scan_user_addr = obj->mem_base + PCIE_DMA_ACK_BASE;
+	scan_ack_addr = obj->local_mem_base + obj->ack_base;
+	scan_user_addr = obj->local_mem_base + obj->ack_base;
 
 	if (is_rc(obj)) {
 		scan_user_addr += PCIE_DMA_ACK_BLOCK_SIZE * 2;
@@ -365,7 +426,8 @@ static enum hrtimer_restart rk_pcie_scan_timer(struct hrtimer *timer)
 		wake_up(&obj->event_queue);
 	}
 
-	hrtimer_add_expires(&obj->scan_timer, ktime_set(0, 1 * 1000 * 1000));
+continue_scan:
+	hrtimer_add_expires(&obj->scan_timer, ktime_set(0, 100 * 1000));
 
 	return HRTIMER_RESTART;
 }
@@ -400,8 +462,10 @@ static int rk_pcie_misc_release(struct inode *inode, struct file *filp)
 	struct dma_trx_obj *obj = filp->private_data;
 
 	mutex_lock(&obj->count_mutex);
+
 	if (--obj->ref_count)
 		goto still_opened;
+	hrtimer_cancel(&obj->scan_timer);
 
 	pr_info("Close pcie misc device\n");
 
@@ -418,12 +482,31 @@ static int rk_pcie_misc_mmap(struct file *filp,
 	int err;
 
 	err = remap_pfn_range(vma, vma->vm_start,
-			    __phys_to_pfn(obj->mem_start),
+			    __phys_to_pfn(obj->local_mem_start),
 			    size, vma->vm_page_prot);
 	if (err)
 		return -EAGAIN;
 
 	return 0;
+}
+static void rk_pcie_send_addr_to_remote(struct dma_trx_obj *obj)
+{
+	struct dma_table *table;
+
+	/* Temporary use to send local buffer address to remote */
+	table = obj->table[PCIE_DMA_DATA_SND_TABLE_OFFSET];
+	table->type = PCIE_DMA_DATA_SND;
+	table->dir = DMA_TO_BUS;
+	table->buf_size = 0x4;
+	if (is_rc(obj))
+		table->local = obj->region_start;
+	else
+		table->local = obj->region_start + 0x4;
+	table->bus = table->local;
+	table->chn = PCIE_DMA_DEFAULT_CHN;
+	obj->config_dma_func(table);
+	obj->cur = table;
+	obj->start_dma_func(obj, table);
 }
 
 static long rk_pcie_misc_ioctl(struct file *filp, unsigned int cmd,
@@ -436,6 +519,9 @@ static long rk_pcie_misc_ioctl(struct file *filp, unsigned int cmd,
 	phys_addr_t addr;
 	void __user *uarg = (void __user *)arg;
 	int ret;
+	int i;
+	phys_addr_t addr_send_to_remote;
+	enum transfer_type type;
 
 	if (copy_from_user(&msg, uarg, sizeof(msg)) != 0) {
 		dev_err(dev, "failed to copy argument into kernel space\n");
@@ -446,24 +532,29 @@ static long rk_pcie_misc_ioctl(struct file *filp, unsigned int cmd,
 	case PCIE_DMA_START:
 		test_and_clear_bit(msg.in.l_widx, &obj->local_write_available);
 		test_and_clear_bit(msg.in.r_widx, &obj->remote_write_available);
+		type = PCIE_DMA_DATA_SND;
 		obj->loop_count++;
 		break;
 	case PCIE_DMA_GET_LOCAL_READ_BUFFER_INDEX:
 		msg_to_user.lra = obj->local_read_available;
-		addr = obj->mem_start;
+		addr = obj->local_mem_start;
 		if (is_rc(obj))
-			addr += PCIE_DMA_WR_BUF_SIZE;
+			addr += obj->rd_buf_size;
 		/* by kernel auto or by user to invalidate cache */
-		dma_sync_single_for_cpu(dev, addr, PCIE_DMA_RD_BUF_SIZE,
-					DMA_FROM_DEVICE);
+		for (i = 0; i < PCIE_DMA_BUF_CNT; i++) {
+			if (test_bit(i, &obj->local_read_available))
+				dma_sync_single_for_cpu(dev, addr + i * obj->buffer_size, obj->buffer_size, DMA_FROM_DEVICE);
+		}
+
 		ret = copy_to_user(uarg, &msg_to_user, sizeof(msg));
 		if (ret) {
 			dev_err(dev, "failed to get read buffer index\n");
 			return -EFAULT;
 		}
 		break;
-	case PCIE_DMA_SET_LOCAL_READ_BUFFER_INDEX:
+	case PCIE_DMA_FREE_LOCAL_READ_BUFFER_INDEX:
 		test_and_clear_bit(msg.in.idx, &obj->local_read_available);
+		type = PCIE_DMA_DATA_FREE_ACK;
 		break;
 	case PCIE_DMA_GET_LOCAL_REMOTE_WRITE_BUFFER_INDEX:
 		msg_to_user.out.lwa = obj->local_write_available;
@@ -475,19 +566,27 @@ static long rk_pcie_misc_ioctl(struct file *filp, unsigned int cmd,
 		}
 		break;
 	case PCIE_DMA_SYNC_BUFFER_FOR_CPU:
-		addr = obj->mem_start + msg.in.idx * PCIE_DMA_BUF_SIZE;
+		addr = obj->local_mem_start + msg.in.idx * obj->buffer_size;
 		if (is_rc(obj))
-			addr += PCIE_DMA_WR_BUF_SIZE;
-		dma_sync_single_for_cpu(dev, addr, PCIE_DMA_BUF_SIZE,
+			addr += obj->rd_buf_size;
+		dma_sync_single_for_cpu(dev, addr, obj->buffer_size,
 					DMA_FROM_DEVICE);
 		break;
 	case PCIE_DMA_WAIT_TRANSFER_COMPLETE:
-		reinit_completion(&obj->done);
 		ret = wait_for_completion_interruptible(&obj->done);
 		if (WARN_ON(ret)) {
 			pr_info("failed to wait complete\n");
 			return ret;
 		}
+
+		obj->cache_time_avarage = obj->cache_time_total / obj->loop_count;
+
+		pr_debug("cache_time: total = %lld, average = %lld, count = %d, size = 0x%x\n",
+			 obj->cache_time_total, obj->cache_time_avarage,
+			 obj->loop_count, obj->buffer_size);
+
+		obj->cache_time_avarage = 0;
+		obj->cache_time_total = 0;
 
 		obj->loop_count = 0;
 		break;
@@ -495,16 +594,80 @@ static long rk_pcie_misc_ioctl(struct file *filp, unsigned int cmd,
 		obj->loop_count_threshold = msg.count;
 		pr_info("threshold = %d\n", obj->loop_count_threshold);
 		break;
+	case PCIE_DMA_GET_TOTAL_BUFFER_SIZE:
+		msg_to_user.total_buffer_size = obj->local_mem_size;
+		ret = copy_to_user(uarg, &msg_to_user, sizeof(msg));
+		if (ret) {
+			dev_err(dev, "failed to get write buffer index\n");
+			return -EFAULT;
+		}
+		break;
+	case PCIE_DMA_SET_BUFFER_SIZE:
+		obj->buffer_size = msg.buffer_size;
+		pr_debug("buffer_size = %d\n", obj->buffer_size);
+		obj->rd_buf_size = obj->buffer_size * PCIE_DMA_BUF_CNT;
+		obj->wr_buf_size = obj->buffer_size * PCIE_DMA_BUF_CNT;
+		obj->ack_base = obj->rd_buf_size + obj->wr_buf_size;
+		obj->set_data_check_pos = obj->buffer_size - 0x4;
+		obj->set_local_idx_pos = obj->buffer_size - 0x8;
+		obj->set_buf_size_pos = obj->buffer_size - 0xc;
+		obj->set_chk_sum_pos = obj->buffer_size - 0x10;
+		break;
+	case PCIE_DMA_READ_FROM_REMOTE:
+		pr_debug("read buffer from : %d to local : %d\n",
+			 msg.in.r_widx, msg.in.l_widx);
+
+		type = PCIE_DMA_READ_REMOTE;
+		break;
+	case PCIE_DMA_USER_SET_BUF_ADDR:
+		/* If msg.local_addr valid, use msg.local_addr for local buffer,
+		 * and should be contiguous physical address.
+		 * If msg.local is zero, local buffer get from DT reserved.
+		 * Anyway local buffer address should send to remote, then
+		 * remote know where to send data to.
+		 * Should finish this case first before send data.
+		 */
+		if (msg.local_addr) {
+			pr_debug("local_addr = %pa\n", &msg.local_addr);
+			addr_send_to_remote = (phys_addr_t)msg.local_addr;
+			obj->local_mem_start = (phys_addr_t)msg.local_addr;
+			/* Unmap previous */
+			rk_pcie_unmap_kernel(obj->local_mem_base);
+			/* Remap userspace's buffer to kernel */
+			obj->local_mem_base = rk_pcie_map_kernel(obj->local_mem_start,
+						obj->buffer_size * PCIE_DMA_BUF_CNT * 2 + SZ_4K);
+			if (!obj->local_mem_base)
+				return -EFAULT;
+		} else {
+			addr_send_to_remote = obj->local_mem_start;
+		}
+		if (is_rc(obj))
+			writel(addr_send_to_remote, obj->region_base);
+		else
+			writel(addr_send_to_remote, obj->region_base + 0x4);
+		rk_pcie_send_addr_to_remote(obj);
+		hrtimer_start(&obj->scan_timer,
+		      ktime_set(0, 1 * 1000 * 1000 * 1000), HRTIMER_MODE_REL);
+		break;
+	case PCIE_DMA_GET_BUFFER_SIZE:
+		msg_to_user.buffer_size = obj->buffer_size;
+		ret = copy_to_user(uarg, &msg_to_user, sizeof(msg));
+		if (ret) {
+			dev_err(dev, "failed to get buffer\n");
+			return -EFAULT;
+		}
+		break;
 	default:
 		pr_info("%s, %d, cmd : %x not support\n", __func__, __LINE__,
 			cmd);
 		return -EFAULT;
 	}
 
-	if (cmd == PCIE_DMA_START ||
-		cmd == PCIE_DMA_SET_LOCAL_READ_BUFFER_INDEX) {
+	if (cmd == PCIE_DMA_START || cmd == PCIE_DMA_READ_FROM_REMOTE ||
+		cmd == PCIE_DMA_FREE_LOCAL_READ_BUFFER_INDEX) {
 		rk_pcie_prepare_dma(obj, msg.in.idx, msg.in.r_widx,
-				    msg.in.l_widx, msg.in.size, msg.in.type);
+				    msg.in.l_widx, msg.in.size, type,
+				    msg.in.chn);
 		queue_work(obj->dma_trx_wq, &obj->dma_trx_work);
 	}
 
@@ -637,10 +800,7 @@ static int rk_pcie_dma_table_alloc(struct dma_trx_obj *obj)
 			goto free_table;
 		}
 
-		if (is_rc(obj))
-			table->dir = DMA_TO_BUS;
-
-		table->chn = PCIE_DMA_CHN0;
+		table->chn = PCIE_DMA_DEFAULT_CHN;
 		INIT_LIST_HEAD(&table->tbl_node);
 		obj->table[i] = table;
 	}
@@ -660,6 +820,9 @@ static int rk_pcie_debugfs_trx_show(struct seq_file *s, void *v)
 	struct dma_trx_obj *dma_obj = s->private;
 	bool list = list_empty(&dma_obj->tbl_list);
 
+	seq_printf(s, "version = %x,", dma_obj->version);
+	seq_printf(s, "last:%s,",
+			dma_obj->cur ? (dma_obj->cur->dir == DMA_FROM_BUS ? "read" : "write") : "no trx");
 	seq_printf(s, "irq_num = %ld, loop_count = %d,",
 			dma_obj->irq_num, dma_obj->loop_count);
 	seq_printf(s, "loop_threshold = %d,",
@@ -710,6 +873,7 @@ struct dma_trx_obj *rk_pcie_dma_obj_probe(struct device *dev)
 	struct device_node *mem;
 	struct resource reg;
 	struct dma_trx_obj *obj;
+	int reverse;
 
 	obj = devm_kzalloc(dev, sizeof(struct dma_trx_obj), GFP_KERNEL);
 	if (!obj)
@@ -725,6 +889,12 @@ struct dma_trx_obj *rk_pcie_dma_obj_probe(struct device *dev)
 
 	obj->busno = busno;
 
+	ret = of_property_read_u32(np, "reverse", &reverse);
+	if (ret < 0)
+		obj->addr_reverse = 0;
+	else
+		obj->addr_reverse = reverse;
+
 	mem = of_parse_phandle(np, "memory-region", 0);
 	if (!mem) {
 		dev_err(dev, "missing \"memory-region\" property\n");
@@ -737,17 +907,48 @@ struct dma_trx_obj *rk_pcie_dma_obj_probe(struct device *dev)
 		return ERR_PTR(-ENODEV);
 	}
 
-	obj->mem_start = reg.start;
-	obj->mem_size = resource_size(&reg);
-	obj->mem_base = rk_pcie_map_kernel(obj->mem_start, obj->mem_size);
-
-	if (!obj->mem_base)
+	obj->local_mem_start = reg.start;
+	obj->local_mem_size = resource_size(&reg);
+	obj->local_mem_base = rk_pcie_map_kernel(obj->local_mem_start,
+						 obj->local_mem_size);
+	if (!obj->local_mem_base)
 		return ERR_PTR(-ENOMEM);
+
+	mem = of_parse_phandle(np, "memory-region1", 0);
+	if (!mem) {
+		dev_err(dev, "missing \"memory-region1\" property\n");
+		obj = ERR_PTR(-ENODEV);
+		goto unmap_local_mem_region;
+	}
+
+	ret = of_address_to_resource(mem, 0, &reg);
+	if (ret < 0) {
+		dev_err(dev, "missing \"reg\" property\n");
+		obj = ERR_PTR(-ENODEV);
+		goto unmap_local_mem_region;
+	}
+
+	obj->region_start = reg.start;
+	obj->region_size = resource_size(&reg);
+	obj->region_base = rk_pcie_map_kernel(obj->region_start,
+					      obj->region_size);
+	if (!obj->region_base) {
+		dev_err(dev, "mapping region_base error\n");
+		obj = ERR_PTR(-ENOMEM);
+		goto unmap_local_mem_region;
+	}
+	if (!is_rc(obj))
+		writel(0x0, obj->region_base);
+	else
+		writel(0x0, obj->region_base + 0x4);
 
 	ret = rk_pcie_dma_table_alloc(obj);
-	if (ret)
-		return ERR_PTR(-ENOMEM);
+	if (ret) {
+		dev_err(dev, "rk_pcie_dma_table_alloc error\n");
+		obj = ERR_PTR(-ENOMEM);
+		goto unmap_region;
 
+	}
 	obj->dma_trx_wq = create_singlethread_workqueue("dma_trx_wq");
 	INIT_WORK(&obj->dma_trx_work, rk_pcie_dma_trx_work);
 
@@ -759,18 +960,12 @@ struct dma_trx_obj *rk_pcie_dma_obj_probe(struct device *dev)
 	hrtimer_init_on_stack(&obj->scan_timer, CLOCK_MONOTONIC,
 				HRTIMER_MODE_REL);
 	obj->scan_timer.function = rk_pcie_scan_timer;
-	obj->scan_thread = kthread_run(rk_pcie_scan_thread, (void *)obj,
-				"scan_thread");
-	if (!obj->scan_thread) {
-		dev_err(dev, "kthread_run failed\n");
-		obj = ERR_PTR(-EINVAL);
-		goto free_dma_table;
-	}
-
 	obj->irq_num = 0;
 	obj->loop_count_threshold = 0;
 	obj->ref_count = 0;
+	obj->version = 0x4;
 	init_completion(&obj->done);
+	obj->cb = rk_pcie_handle_dma_interrupt;
 
 	mutex_init(&obj->count_mutex);
 	rk_pcie_add_misc(obj);
@@ -789,6 +984,11 @@ struct dma_trx_obj *rk_pcie_dma_obj_probe(struct device *dev)
 	return obj;
 free_dma_table:
 	rk_pcie_dma_table_free(obj, PCIE_DMA_TABLE_NUM);
+unmap_region:
+	rk_pcie_unmap_kernel(obj->region_base);
+unmap_local_mem_region:
+	rk_pcie_unmap_kernel(obj->local_mem_base);
+
 	return obj;
 }
 EXPORT_SYMBOL_GPL(rk_pcie_dma_obj_probe);
@@ -798,7 +998,7 @@ void rk_pcie_dma_obj_remove(struct dma_trx_obj *obj)
 	hrtimer_cancel(&obj->scan_timer);
 	destroy_hrtimer_on_stack(&obj->scan_timer);
 	rk_pcie_delete_misc(obj);
-	rk_pcie_unmap_kernel(obj->mem_base);
+	rk_pcie_unmap_kernel(obj->local_mem_base);
 	rk_pcie_dma_table_free(obj, PCIE_DMA_TABLE_NUM);
 	destroy_workqueue(obj->dma_trx_wq);
 

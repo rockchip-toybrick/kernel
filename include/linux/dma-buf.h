@@ -469,6 +469,9 @@ struct dma_buf {
 	dma_buf_destructor dtor;
 	void *dtor_data;
 	atomic_t dent_count;
+#ifdef CONFIG_DMABUF_CACHE
+	struct mutex cache_lock;
+#endif
 };
 
 /**

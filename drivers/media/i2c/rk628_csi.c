@@ -19,6 +19,7 @@
 #include <linux/platform_device.h>
 #include <linux/reset.h>
 #include <linux/rk-camera-module.h>
+#include <linux/rk_hdmirx_class.h>
 #include <linux/soc/rockchip/rk_vendor_storage.h>
 #include <linux/slab.h>
 #include <linux/timer.h>
@@ -146,6 +147,7 @@ struct rk628_csi {
 	struct work_struct work_i2c_poll;
 	struct phy *rxphy;
 	struct phy *txphy;
+	struct device *classdev;
 	struct mutex confctl_mutex;
 	const struct rk628_csi_mode *cur_mode;
 	const char *module_facing;
@@ -1296,17 +1298,6 @@ static void rk628_hdmirx_audio_clk_set_rate(struct v4l2_subdev *sd, u32 rate)
 	csi->audio_state.hdmirx_aud_clkrate = rate;
 }
 
-static void rk628_hdmirx_audio_clk_inc_rate(struct v4l2_subdev *sd, int dis)
-{
-	struct rk628_csi *csi = to_csi(sd);
-	u32 hdmirx_aud_clkrate = csi->audio_state.hdmirx_aud_clkrate + dis;
-
-	v4l2_dbg(2, debug, sd, "%s: %u to %u\n",
-		 __func__, csi->audio_state.hdmirx_aud_clkrate, hdmirx_aud_clkrate);
-	clk_set_rate(csi->clk_hdmirx_aud, hdmirx_aud_clkrate);
-	csi->audio_state.hdmirx_aud_clkrate = hdmirx_aud_clkrate;
-}
-
 static void rk628_hdmirx_audio_set_fs(struct v4l2_subdev *sd, u32 fs_audio)
 {
 	struct rk628_csi *csi = to_csi(sd);
@@ -1318,6 +1309,26 @@ static void rk628_hdmirx_audio_set_fs(struct v4l2_subdev *sd, u32 fs_audio)
 	clk_set_rate(csi->clk_hdmirx_aud, hdmirx_aud_clkrate_t);
 	csi->audio_state.hdmirx_aud_clkrate = hdmirx_aud_clkrate_t;
 	csi->audio_state.fs_audio = fs_audio;
+}
+
+static void rk628_hdmirx_audio_clk_ppm_inc(struct v4l2_subdev *sd, int ppm)
+{
+	struct rk628_csi *csi = to_csi(sd);
+	int delta, rate, inc;
+
+	rate = csi->audio_state.hdmirx_aud_clkrate;
+	if (ppm < 0) {
+		ppm = -ppm;
+		inc = -1;
+	} else
+		inc = 1;
+	delta = (int)div64_u64((uint64_t)rate * ppm + 500000, 1000000);
+	delta *= inc;
+	rate = csi->audio_state.hdmirx_aud_clkrate + delta;
+	v4l2_dbg(2, debug, sd, "%s: %u to %u(delta:%d)\n",
+		 __func__, csi->audio_state.hdmirx_aud_clkrate, rate, delta);
+	clk_set_rate(csi->clk_hdmirx_aud, rate);
+	csi->audio_state.hdmirx_aud_clkrate = rate;
 }
 
 static void rk628_hdmirx_audio_setup(struct v4l2_subdev *sd)
@@ -1412,9 +1423,9 @@ static void rk628_csi_delayed_work_audio(struct work_struct *work)
 		csi->audio_present = false;
 
 	if ((cur_state - init_state) > 16 && (cur_state - pre_state) > 0)
-		rk628_hdmirx_audio_clk_inc_rate(sd, 10);
+		rk628_hdmirx_audio_clk_ppm_inc(sd, 10);
 	else if ((cur_state != 0) && (cur_state - init_state) < -16 && (cur_state - pre_state) < 0)
-		rk628_hdmirx_audio_clk_inc_rate(sd, -10);
+		rk628_hdmirx_audio_clk_ppm_inc(sd, -10);
 	audio_state->pre_state = cur_state;
 exit:
 	schedule_delayed_work(&csi->delayed_work_audio, msecs_to_jiffies(1000));
@@ -2955,6 +2966,32 @@ static const struct regmap_config rk628_key_regmap_cfg = {
 	.rd_table = &rk628_key_readable_table,
 };
 
+static ssize_t audio_rate_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct rk628_csi *csi = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d", csi->audio_state.fs_audio);
+}
+static ssize_t audio_present_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct rk628_csi *csi = dev_get_drvdata(dev);
+	struct v4l2_subdev *sd = &csi->sd;
+
+	return snprintf(buf, PAGE_SIZE, "%d",
+			tx_5v_power_present(sd) ? csi->audio_present : 0);
+}
+
+static DEVICE_ATTR_RO(audio_rate);
+static DEVICE_ATTR_RO(audio_present);
+static struct attribute *rk628_attrs[] = {
+	&dev_attr_audio_rate.attr,
+	&dev_attr_audio_present.attr,
+	NULL
+};
+ATTRIBUTE_GROUPS(rk628);
+
 static int rk628_csi_probe(struct platform_device *pdev)
 {
 	struct rk628_csi *csi;
@@ -3099,6 +3136,14 @@ static int rk628_csi_probe(struct platform_device *pdev)
 		v4l2_err(sd, "v4l2 register subdev failed! err:%d\n", err);
 		goto err_hdl;
 	}
+
+	csi->classdev = device_create_with_groups(rk_hdmirx_class(),
+						  dev, MKDEV(0, 0),
+						  csi,
+						  rk628_groups,
+						  "rk628");
+	if (IS_ERR(csi->classdev))
+		goto err_hdl;
 
 	INIT_DELAYED_WORK(&csi->delayed_work_enable_hotplug,
 			rk628_csi_delayed_work_enable_hotplug);

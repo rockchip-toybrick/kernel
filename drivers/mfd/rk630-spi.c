@@ -196,6 +196,14 @@ rk630_spi_probe(struct spi_device *spi)
 		return ret;
 	}
 
+	rk630->pinctrl = devm_regmap_init(&spi->dev, &rk630_regmap,
+					  &spi->dev, &rk630_pinctrl_regmap_config);
+	if (IS_ERR(rk630->pinctrl)) {
+		ret = PTR_ERR(rk630->pinctrl);
+		dev_err(dev, "failed to allocate pinctrl register map: %d\n", ret);
+		return ret;
+	}
+
 	rk630->cru = devm_regmap_init(&spi->dev, &rk630_regmap,
 				      &spi->dev, &rk630_cru_regmap_config);
 	if (IS_ERR(rk630->cru)) {
@@ -212,6 +220,37 @@ rk630_spi_probe(struct spi_device *spi)
 			ret);
 		return ret;
 	}
+
+	rk630->rtc = devm_regmap_init(&spi->dev, &rk630_regmap,
+				      &spi->dev, &rk630_rtc_regmap_config);
+	if (IS_ERR(rk630->rtc)) {
+		ret = PTR_ERR(rk630->rtc);
+		dev_err(rk630->dev, "Failed to initialize rtc regmap: %d\n",
+			ret);
+		return ret;
+	}
+
+	rk630->efuse = devm_regmap_init(&spi->dev, &rk630_regmap,
+					&spi->dev, &rk630_efuse_regmap_config);
+	if (IS_ERR(rk630->efuse)) {
+		ret = PTR_ERR(rk630->efuse);
+		dev_err(rk630->dev, "Failed to initialize efuse regmap: %d\n",
+			ret);
+		return ret;
+	}
+
+	if (IS_REACHABLE(CONFIG_SND_SOC_RK630)) {
+		rk630->codec = devm_regmap_init(&spi->dev, &rk630_regmap,
+						&spi->dev, &rk630_codec_regmap_config);
+		if (IS_ERR(rk630->codec)) {
+			ret = PTR_ERR(rk630->codec);
+			dev_err(rk630->dev, "Failed to initialize codec regmap: %d\n",
+				ret);
+			return ret;
+		}
+	}
+
+	rk630->irq = spi->irq;
 
 	ret = rk630_core_probe(rk630);
 	if (ret)

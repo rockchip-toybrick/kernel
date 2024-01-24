@@ -1,11 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,8 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
- *
- * SPDX-License-Identifier: GPL-2.0
  *
  */
 
@@ -36,22 +35,22 @@
 #include <linux/math64.h>
 #include <asm/arch_timer.h>
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 #include "tl/mali_kbase_timeline_priv.h"
 #include <linux/debugfs.h>
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0))
+#if (KERNEL_VERSION(4, 7, 0) > LINUX_VERSION_CODE)
 #define DEFINE_DEBUGFS_ATTRIBUTE DEFINE_SIMPLE_ATTRIBUTE
 #endif
 #endif
 
-/** Name of the CSFFW timeline tracebuffer. */
+/* Name of the CSFFW timeline tracebuffer. */
 #define KBASE_CSFFW_TRACEBUFFER_NAME "timeline"
-/** Name of the timeline header metatadata */
+/* Name of the timeline header metatadata */
 #define KBASE_CSFFW_TIMELINE_HEADER_NAME "timeline_header"
 
 /**
- * CSFFW timeline message.
+ * struct kbase_csffw_tl_message - CSFFW timeline message.
  *
  * @msg_id: Message ID.
  * @timestamp: Timestamp of the event.
@@ -65,7 +64,7 @@ struct kbase_csffw_tl_message {
 	u64 cycle_counter;
 } __packed __aligned(4);
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 static int kbase_csf_tl_debugfs_poll_interval_read(void *data, u64 *val)
 {
 	struct kbase_device *kbdev = (struct kbase_device *)data;
@@ -94,11 +93,13 @@ DEFINE_DEBUGFS_ATTRIBUTE(kbase_csf_tl_poll_interval_fops,
 		kbase_csf_tl_debugfs_poll_interval_read,
 		kbase_csf_tl_debugfs_poll_interval_write, "%llu\n");
 
+
 void kbase_csf_tl_reader_debugfs_init(struct kbase_device *kbdev)
 {
 	debugfs_create_file("csf_tl_poll_interval_in_ms", S_IRUGO | S_IWUSR,
 		kbdev->debugfs_instr_directory, kbdev,
 		&kbase_csf_tl_poll_interval_fops);
+
 }
 #endif
 
@@ -126,10 +127,12 @@ static void get_cpu_gpu_time(
 		*cpu_ts = ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
 }
 
+
 /**
  * kbase_ts_converter_init() - Initialize system timestamp converter.
  *
  * @self:	System Timestamp Converter instance.
+ * @kbdev:	Kbase device pointer
  *
  * Return: Zero on success, -1 otherwise.
  */
@@ -168,7 +171,7 @@ static int kbase_ts_converter_init(
  *
  * Return: The CPU timestamp.
  */
-void kbase_ts_converter_convert(
+static void kbase_ts_converter_convert(
 	const struct kbase_ts_converter *self,
 	u64 *gpu_ts)
 {
@@ -253,8 +256,9 @@ static void tl_reader_reset(struct kbase_csf_tl_reader *self)
 	self->tl_header.btc = 0;
 }
 
-void kbase_csf_tl_reader_flush_buffer(struct kbase_csf_tl_reader *self)
+int kbase_csf_tl_reader_flush_buffer(struct kbase_csf_tl_reader *self)
 {
+	int ret = 0;
 	struct kbase_device *kbdev = self->kbdev;
 	struct kbase_tlstream *stream = self->stream;
 
@@ -273,7 +277,7 @@ void kbase_csf_tl_reader_flush_buffer(struct kbase_csf_tl_reader *self)
 	/* If not running, early exit. */
 	if (!self->is_active) {
 		spin_unlock_irqrestore(&self->read_lock, flags);
-		return;
+		return -EBUSY;
 	}
 
 	/* Copying the whole buffer in a single shot. We assume
@@ -297,6 +301,7 @@ void kbase_csf_tl_reader_flush_buffer(struct kbase_csf_tl_reader *self)
 			dev_warn(
 				kbdev->dev,
 				"Unable to parse CSFFW tracebuffer event header.");
+				ret = -EBUSY;
 			break;
 		}
 
@@ -317,6 +322,7 @@ void kbase_csf_tl_reader_flush_buffer(struct kbase_csf_tl_reader *self)
 			dev_warn(kbdev->dev,
 				"event_id: %u, can't read with event_size: %u.",
 				event_id, event_size);
+				ret = -EBUSY;
 			break;
 		}
 
@@ -338,6 +344,7 @@ void kbase_csf_tl_reader_flush_buffer(struct kbase_csf_tl_reader *self)
 	}
 
 	spin_unlock_irqrestore(&self->read_lock, flags);
+	return ret;
 }
 
 static void kbasep_csf_tl_reader_read_callback(struct timer_list *timer)
@@ -420,39 +427,18 @@ static int tl_reader_init_late(
  * Update the first bit of a CSFFW tracebufer and then reset the GPU.
  * This is to make these changes visible to the MCU.
  *
- * Return: 0 on success, -EAGAIN if a GPU reset was in progress.
+ * Return: 0 on success, or negative error code for failure.
  */
 static int tl_reader_update_enable_bit(
 	struct kbase_csf_tl_reader *self,
 	bool value)
 {
-	struct kbase_device *kbdev = self->kbdev;
-	unsigned long flags;
+	int err = 0;
 
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-
-	/* If there is already a GPU reset pending then inform
-	 * the User to retry the update.
-	 */
-	if (kbase_reset_gpu_silent(kbdev)) {
-		spin_unlock_irqrestore(
-			&kbdev->hwaccess_lock, flags);
-		dev_warn(
-			kbdev->dev,
-			"GPU reset already in progress when enabling firmware timeline.");
-		return -EAGAIN;
-	}
-
-	/* GPU reset request has been placed, now update the
-	 * firmware image. GPU reset will take place only after
-	 * hwaccess_lock is released.
-	 */
-	kbase_csf_firmware_trace_buffer_update_trace_enable_bit(
+	err = kbase_csf_firmware_trace_buffer_update_trace_enable_bit(
 		self->trace_buffer, 0, value);
 
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-
-	return 0;
+	return err;
 }
 
 void kbase_csf_tl_reader_init(struct kbase_csf_tl_reader *self,
@@ -491,14 +477,7 @@ int kbase_csf_tl_reader_start(struct kbase_csf_tl_reader *self,
 		return 0;
 
 	if (tl_reader_init_late(self, kbdev)) {
-#if defined(CONFIG_MALI_BIFROST_NO_MALI)
-		dev_warn(
-			kbdev->dev,
-			"CSFFW timeline is not available for MALI_BIFROST_NO_MALI builds!");
-		return 0;
-#else
 		return -EINVAL;
-#endif
 	}
 
 	tl_reader_reset(self);

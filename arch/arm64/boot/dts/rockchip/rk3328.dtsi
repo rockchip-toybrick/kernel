@@ -663,7 +663,7 @@
 
 	gpu: gpu@ff300000 {
 		compatible = "arm,mali-450";
-		reg = <0x0 0xff300000 0x0 0x40000>;
+		reg = <0x0 0xff300000 0x0 0x30000>;
 
 		interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>,
@@ -1006,6 +1006,7 @@
 		reg-io-width = <4>;
 		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 71 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "hdmi", "hdmi_wakeup";
 		clocks = <&cru PCLK_HDMI>,
 			 <&cru SCLK_HDMI_SFC>,
 			 <&cru SCLK_RTC32K>,
@@ -1359,7 +1360,7 @@
 		clock-freq-min-max = <400000 150000000>;
 		clocks = <&cru HCLK_SDMMC_EXT>, <&cru SCLK_SDMMC_EXT>,
 			 <&cru SCLK_SDMMC_EXT_DRV>, <&cru SCLK_SDMMC_EXT_SAMPLE>;
-		clock-names = "biu", "ciu", "ciu-drv", "ciu-sample";
+		clock-names = "biu", "ciu", "ciu-drive", "ciu-sample";
 		fifo-depth = <0x100>;
 		interrupts = <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>;
 		status = "disabled";
@@ -1433,9 +1434,9 @@
 			SYS_STATUS_SUSPEND      786000
 			SYS_STATUS_VIDEO_1080P  786000
 			SYS_STATUS_VIDEO_4K     786000
-			SYS_STATUS_VIDEO_4K_10B 933000
-			SYS_STATUS_PERFORMANCE  933000
-			SYS_STATUS_BOOST        933000
+			SYS_STATUS_VIDEO_4K_10B 924000
+			SYS_STATUS_PERFORMANCE  924000
+			SYS_STATUS_BOOST        924000
 		>;
 		auto-min-freq = <786000>;
 		auto-freq-en = <0>;
@@ -1481,27 +1482,27 @@
 			opp-microvolt-L0 = <1075000>;
 			opp-microvolt-L1 = <1050000>;
 		};
-		opp-800000000 {
-			opp-hz = /bits/ 64 <800000000>;
+		opp-798000000 {
+			opp-hz = /bits/ 64 <798000000>;
 			opp-microvolt = <1075000>;
 			opp-microvolt-L0 = <1075000>;
 			opp-microvolt-L1 = <1050000>;
 		};
-		opp-850000000 {
-			opp-hz = /bits/ 64 <850000000>;
+		opp-840000000 {
+			opp-hz = /bits/ 64 <840000000>;
 			opp-microvolt = <1075000>;
 			opp-microvolt-L0 = <1075000>;
 			opp-microvolt-L1 = <1050000>;
 		};
-		opp-933000000 {
-			opp-hz = /bits/ 64 <933000000>;
+		opp-924000000 {
+			opp-hz = /bits/ 64 <924000000>;
 			opp-microvolt = <1125000>;
 			opp-microvolt-L0 = <1125000>;
 			opp-microvolt-L1 = <1100000>;
 		};
-		/* 1066M is only for ddr4 */
-		opp-1066000000 {
-			opp-hz = /bits/ 64 <1066000000>;
+		/* 1056M is only for ddr4 */
+		opp-1056000000 {
+			opp-hz = /bits/ 64 <1056000000>;
 			opp-microvolt = <1175000>;
 			opp-microvolt-L0 = <1175000>;
 			opp-microvolt-L1 = <1150000>;

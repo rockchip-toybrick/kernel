@@ -59,7 +59,7 @@ static int rkisp_params_querycap(struct file *file,
 		 params_vdev->dev->isp_ver >> 4);
 	strlcpy(cap->card, vdev->name, sizeof(cap->card));
 	strlcpy(cap->bus_info, "platform: " DRIVER_NAME, sizeof(cap->bus_info));
-
+	cap->version = RKISP_DRIVER_VERSION;
 	return 0;
 }
 
@@ -149,6 +149,7 @@ static void rkisp_params_vb2_buf_queue(struct vb2_buffer *vb)
 		vb2_buffer_done(&params_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 		params_vdev->first_params = false;
 		wake_up(&params_vdev->dev->sync_onoff);
+		dev_info(params_vdev->dev->dev, "first params buf queue\n");
 		return;
 	}
 
@@ -209,6 +210,7 @@ rkisp_params_vb2_start_streaming(struct vb2_queue *queue, unsigned int count)
 	struct rkisp_isp_params_vdev *params_vdev = queue->drv_priv;
 	unsigned long flags;
 
+	params_vdev->is_first_cfg = true;
 	params_vdev->hdrtmo_en = false;
 	params_vdev->cur_buf = NULL;
 	spin_lock_irqsave(&params_vdev->config_lock, flags);
@@ -232,6 +234,9 @@ static int rkisp_params_fh_open(struct file *filp)
 {
 	struct rkisp_isp_params_vdev *params = video_drvdata(filp);
 	int ret;
+
+	if (!params->dev->is_probe_end)
+		return -EINVAL;
 
 	ret = v4l2_fh_open(filp);
 	if (!ret) {
@@ -318,8 +323,13 @@ void rkisp_params_cfg(struct rkisp_isp_params_vdev *params_vdev, u32 frame_id)
 		params_vdev->ops->param_cfg(params_vdev, frame_id, RKISP_PARAMS_IMD);
 }
 
-void rkisp_params_cfgsram(struct rkisp_isp_params_vdev *params_vdev)
+void rkisp_params_cfgsram(struct rkisp_isp_params_vdev *params_vdev, bool is_check)
 {
+	if (is_check) {
+		/* multi device to switch sram config */
+		if (params_vdev->dev->hw_dev->is_single)
+			return;
+	}
 	if (params_vdev->ops->param_cfgsram)
 		params_vdev->ops->param_cfgsram(params_vdev);
 }
@@ -335,6 +345,9 @@ void rkisp_params_first_cfg(struct rkisp_isp_params_vdev *params_vdev,
 			    struct ispsd_in_fmt *in_fmt,
 			    enum v4l2_quantization quantization)
 {
+	if (!params_vdev->is_first_cfg)
+		return;
+	params_vdev->is_first_cfg = false;
 	params_vdev->quantization = quantization;
 	params_vdev->raw_type = in_fmt->bayer_pat;
 	params_vdev->in_mbus_code = in_fmt->mbus_code;
@@ -344,19 +357,22 @@ void rkisp_params_first_cfg(struct rkisp_isp_params_vdev *params_vdev,
 /* Not called when the camera active, thus not isr protection. */
 void rkisp_params_disable_isp(struct rkisp_isp_params_vdev *params_vdev)
 {
-	params_vdev->ops->disable_isp(params_vdev);
+	if (params_vdev->ops->disable_isp)
+		params_vdev->ops->disable_isp(params_vdev);
 }
 
-void rkisp_params_get_ldchbuf_inf(struct rkisp_isp_params_vdev *params_vdev,
-				  struct rkisp_ldchbuf_info *ldchbuf)
+void rkisp_params_get_meshbuf_inf(struct rkisp_isp_params_vdev *params_vdev,
+				  void *meshbuf)
 {
-	params_vdev->ops->get_ldchbuf_inf(params_vdev, ldchbuf);
+	if (params_vdev->ops->get_meshbuf_inf)
+		params_vdev->ops->get_meshbuf_inf(params_vdev, meshbuf);
 }
 
-void rkisp_params_set_ldchbuf_size(struct rkisp_isp_params_vdev *params_vdev,
-				   struct rkisp_ldchbuf_size *ldchsize)
+void rkisp_params_set_meshbuf_size(struct rkisp_isp_params_vdev *params_vdev,
+				   void *meshsize)
 {
-	params_vdev->ops->set_ldchbuf_size(params_vdev, ldchsize);
+	if (params_vdev->ops->set_meshbuf_size)
+		params_vdev->ops->set_meshbuf_size(params_vdev, meshsize);
 }
 
 void rkisp_params_stream_stop(struct rkisp_isp_params_vdev *params_vdev)

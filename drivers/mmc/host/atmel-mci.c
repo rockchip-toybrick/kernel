@@ -2701,6 +2701,7 @@ static struct platform_driver atmci_driver = {
 	.remove		= atmci_remove,
 	.driver		= {
 		.name		= "atmel_mci",
+		.probe_type	= PROBE_PREFER_ASYNCHRONOUS,
 		.of_match_table	= of_match_ptr(atmci_dt_ids),
 		.pm		= &atmci_dev_pm_ops,
 	},

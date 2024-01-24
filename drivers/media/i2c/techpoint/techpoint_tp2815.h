@@ -2,7 +2,7 @@
 /*
  * techpoint tp9930 regs
  *
- * Copyright (C) 2021 Rockchip Electronics Co., Ltd.
+ * Copyright (C) 2023 Rockchip Electronics Co., Ltd.
  */
 
 #ifndef _TECHPOINT_TP2815_H

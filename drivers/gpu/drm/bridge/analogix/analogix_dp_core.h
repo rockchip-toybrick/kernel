@@ -171,7 +171,6 @@ struct analogix_dp_device {
 	struct drm_connector	connector;
 	struct drm_bridge	*bridge;
 	struct drm_dp_aux       aux;
-	struct clk		*clock;
 	unsigned int		irq;
 	void __iomem		*reg_base;
 
@@ -181,6 +180,7 @@ struct analogix_dp_device {
 	bool			phy_enabled;
 	int			dpms_mode;
 	struct gpio_desc	*hpd_gpiod;
+	int			hpd_irq;
 	bool                    force_hpd;
 	bool			psr_enable;
 	bool			fast_train_enable;

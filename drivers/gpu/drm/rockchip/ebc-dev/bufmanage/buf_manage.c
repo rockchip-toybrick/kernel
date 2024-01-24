@@ -28,7 +28,8 @@ struct buf_info_s {
 	struct buf_list_s *dsp_buf_list; /* dispplay buffer list. */
 	int dsp_buf_list_status;
 	struct ebc_buf_s *osd_buf;
-
+	struct buf_list_s *osd_buf_list; /* dispplay buffer list. */
+	struct mutex osd_buf_lock;
 	struct mutex dsp_buf_lock;
 	struct mutex ebc_buf_lock;
 };
@@ -55,68 +56,54 @@ int ebc_buf_release(struct ebc_buf_s  *release_buf)
 	return BUF_SUCCESS;
 }
 
-int ebc_remove_from_dsp_buf_list(struct ebc_buf_s *remove_buf)
+static void do_dsp_buf_list(struct ebc_buf_s *dsp_buf)
 {
+	struct ebc_buf_s *temp_buf;
+	int temp_pos;
+
+	if (ebc_buf_info.dsp_buf_list->nb_elt > 0) {
+		temp_pos = ebc_buf_info.dsp_buf_list->nb_elt;
+		while (temp_pos) {
+			temp_pos--;
+			temp_buf = (struct ebc_buf_s *)buf_list_get(ebc_buf_info.dsp_buf_list, temp_pos);
+			if (temp_buf->needpic) {
+				continue;
+			} else {
+				buf_list_remove(ebc_buf_info.dsp_buf_list, temp_pos);
+				ebc_buf_release(temp_buf);
+			}
+		}
+	}
+}
+
+int ebc_drop_one_dsp_buf(void)
+{
+	struct ebc_buf_s *temp_buf;
+	int temp_pos;
+
 	mutex_lock(&ebc_buf_info.dsp_buf_lock);
 	if (ebc_buf_info.dsp_buf_list) {
-		int pos;
-
-		pos = buf_list_get_pos(ebc_buf_info.dsp_buf_list, (int *)remove_buf);
-		buf_list_remove(ebc_buf_info.dsp_buf_list, pos);
+		if (ebc_buf_info.dsp_buf_list->nb_elt > 0) {
+			temp_pos = ebc_buf_info.dsp_buf_list->nb_elt - 1;
+			temp_buf = (struct ebc_buf_s *)buf_list_get(ebc_buf_info.dsp_buf_list, temp_pos);
+			if (temp_buf->needpic == 2) {
+				buf_list_remove(ebc_buf_info.dsp_buf_list, temp_pos);
+				ebc_buf_release(temp_buf);
+				mutex_unlock(&ebc_buf_info.dsp_buf_lock);
+				return BUF_SUCCESS;
+			}
+		}
 	}
 	mutex_unlock(&ebc_buf_info.dsp_buf_lock);
 
-	return BUF_SUCCESS;
+	return BUF_ERROR;
 }
 
 int ebc_add_to_dsp_buf_list(struct ebc_buf_s *dsp_buf)
 {
-	struct ebc_buf_s *temp_buf;
-	int temp_pos;
-	int is_full_mode = 0;
-
 	mutex_lock(&ebc_buf_info.dsp_buf_lock);
 	if (ebc_buf_info.dsp_buf_list) {
-		switch (dsp_buf->buf_mode) {
-		case EPD_OVERLAY:
-			break;
-		case EPD_A2_ENTER:
-		case EPD_SUSPEND:
-		case EPD_RESUME:
-		case EPD_POWER_OFF:
-		case EPD_RESET:
-		case EPD_FORCE_FULL:
-			/*
-			 * add system display buf to dsp buf list directly when dsp buf list is not full,
-			 * otherwise, we need to remove some bufs from dsp buf list.
-			 */
-			if (ebc_buf_info.dsp_buf_list->nb_elt < ebc_buf_info.dsp_buf_list->maxelements)
-				break;
-			/* fallthrough */
-		default:
-			if (ebc_buf_info.dsp_buf_list->nb_elt > 1) {
-				temp_pos = ebc_buf_info.dsp_buf_list->nb_elt;
-				while (--temp_pos) {
-					temp_buf = (struct ebc_buf_s *)buf_list_get(ebc_buf_info.dsp_buf_list, temp_pos);
-					if (temp_buf->buf_mode == EPD_OVERLAY) {
-						continue;
-					} else if (((temp_buf->buf_mode >= EPD_FULL_GC16) && (temp_buf->buf_mode <= EPD_DU4))
-						|| (temp_buf->buf_mode == EPD_AUTO)) {
-						buf_list_remove(ebc_buf_info.dsp_buf_list, temp_pos);
-						ebc_buf_release(temp_buf);
-					} else if ((1 == is_full_mode)
-							&& (temp_buf->buf_mode != EPD_SUSPEND)
-							&& (temp_buf->buf_mode != EPD_RESUME)
-							&& (temp_buf->buf_mode != EPD_POWER_OFF)) {
-						buf_list_remove(ebc_buf_info.dsp_buf_list, temp_pos);
-						ebc_buf_release(temp_buf);
-					} else {
-						is_full_mode = 1;
-					}
-				}
-			}
-			break;
-		}
+		do_dsp_buf_list(dsp_buf);
 
 		if (-1 == buf_list_add(ebc_buf_info.dsp_buf_list, (int *)dsp_buf, -1)) {
 			ebc_buf_release(dsp_buf);
@@ -126,16 +113,49 @@ int ebc_add_to_dsp_buf_list(struct ebc_buf_s *dsp_buf)
 
 		if (dsp_buf->status != buf_osd)
 			dsp_buf->status = buf_dsp;
-
 	}
 	mutex_unlock(&ebc_buf_info.dsp_buf_lock);
 
 	return BUF_SUCCESS;
 }
 
+int ebc_add_to_osd_buf_list(struct ebc_buf_s *dsp_buf)
+{
+	int ret = BUF_SUCCESS;
+
+	mutex_lock(&ebc_buf_info.osd_buf_lock);
+	if (ebc_buf_info.osd_buf_list) {
+		if (-1 == buf_list_add(ebc_buf_info.osd_buf_list, (int *)dsp_buf, -1)) {
+			ebc_buf_release(dsp_buf);
+			ret = BUF_ERROR;
+		}
+	}
+	mutex_unlock(&ebc_buf_info.osd_buf_lock);
+	return ret;
+}
+
+struct ebc_buf_s *ebc_osd_buf_get(void)
+{
+	struct ebc_buf_s *buf = NULL;
+
+	mutex_lock(&ebc_buf_info.osd_buf_lock);
+	if (ebc_buf_info.osd_buf_list && (ebc_buf_info.osd_buf_list->nb_elt > 0)) {
+		buf = (struct ebc_buf_s *)buf_list_get(ebc_buf_info.osd_buf_list, 0);
+		buf_list_remove(ebc_buf_info.osd_buf_list, 0);
+	}
+	mutex_unlock(&ebc_buf_info.osd_buf_lock);
+
+	return buf;
+}
+
 int ebc_get_dsp_list_enum_num(void)
 {
 	return ebc_buf_info.dsp_buf_list->nb_elt;
+}
+
+int ebc_get_osd_list_enum_num(void)
+{
+	return ebc_buf_info.osd_buf_list->nb_elt;
 }
 
 struct ebc_buf_s *ebc_find_buf_by_phy_addr(unsigned long phy_addr)
@@ -160,14 +180,16 @@ struct ebc_buf_s *ebc_dsp_buf_get(void)
 	struct ebc_buf_s *buf = NULL;
 
 	mutex_lock(&ebc_buf_info.dsp_buf_lock);
-	if (ebc_buf_info.dsp_buf_list && (ebc_buf_info.dsp_buf_list->nb_elt > 0))
+	if (ebc_buf_info.dsp_buf_list && (ebc_buf_info.dsp_buf_list->nb_elt > 0)) {
 		buf = (struct ebc_buf_s *)buf_list_get(ebc_buf_info.dsp_buf_list, 0);
+		buf_list_remove(ebc_buf_info.dsp_buf_list, 0);
+	}
 	mutex_unlock(&ebc_buf_info.dsp_buf_lock);
 
 	return buf;
 }
 
-struct ebc_buf_s *ebc_osd_buf_get(void)
+struct ebc_buf_s *ebc_empty_osd_buf_get(void)
 {
 	if (ebc_buf_info.osd_buf)
 		return ebc_buf_info.osd_buf;
@@ -189,7 +211,7 @@ struct ebc_buf_s *ebc_osd_buf_clone(void)
 	return temp_buf;
 }
 
-struct ebc_buf_s *ebc_empty_buf_get(void)
+struct ebc_buf_s *ebc_empty_buf_get(const char *tid_name)
 {
 	struct ebc_buf_s *temp_buf = NULL;
 	int temp_pos;
@@ -203,11 +225,12 @@ struct ebc_buf_s *ebc_empty_buf_get(void)
 			if (temp_buf) {
 				if (temp_buf->status == buf_idle) {
 					temp_buf->status = buf_user;
-					memcpy(temp_buf->tid_name, current->comm, TASK_COMM_LEN); //store user thread name
+					memcpy(temp_buf->tid_name, tid_name, TASK_COMM_LEN - 1); //store user thread name
 					goto OUT;
 				}
 				// one tid only can get one buf at one time
-				else if ((temp_buf->status == buf_user) && (!strncmp(temp_buf->tid_name, current->comm, TASK_COMM_LEN - 7))) {
+				else if ((temp_buf->status == buf_user) && (!strncmp(temp_buf->tid_name, tid_name, TASK_COMM_LEN - 1))) {
+					printk("[%s]: one tid only can get one buf at one time\n", tid_name);
 					goto OUT;
 				}
 			}
@@ -241,7 +264,7 @@ int ebc_buf_state_show(char *buf)
 	if (ebc_buf_info.buf_list) {
 		for (i = 0; i < ebc_buf_info.buf_list->nb_elt; i++) {
 			temp_buf = (struct ebc_buf_s *)buf_list_get(ebc_buf_info.buf_list, i);
-			ret += sprintf(buf + ret, "ebc_buf[%d]: s = %d, m = %d\n", i, temp_buf->status, temp_buf->buf_mode);
+			ret += sprintf(buf + ret, "ebc_buf[%d]: s = %d, m = %d, tid = %s\n", i, temp_buf->status, temp_buf->buf_mode, temp_buf->tid_name);
 		}
 	}
 
@@ -283,13 +306,19 @@ int ebc_buf_init(unsigned long phy_start, char *mem_start, int men_len, int dest
 
 	mutex_init(&ebc_buf_info.dsp_buf_lock);
 	mutex_init(&ebc_buf_info.ebc_buf_lock);
+	mutex_init(&ebc_buf_info.osd_buf_lock);
 
 	if (buf_list_init(&ebc_buf_info.buf_list, BUF_LIST_MAX_NUMBER))
 		return BUF_ERROR;
 
 	if (buf_list_init(&ebc_buf_info.dsp_buf_list, BUF_LIST_MAX_NUMBER)) {
 		res = BUF_ERROR;
-		goto buf_list_err;
+		goto dsp_list_err;
+	}
+
+	if (buf_list_init(&ebc_buf_info.osd_buf_list, BUF_LIST_MAX_NUMBER)) {
+		res = BUF_ERROR;
+		goto osd_list_err;
 	}
 
 	ebc_buf_info.buf_total_num = 0;
@@ -339,10 +368,13 @@ int ebc_buf_init(unsigned long phy_start, char *mem_start, int men_len, int dest
 	}
 
 	return BUF_SUCCESS;
+
 exit:
 	ebc_buf_uninit();
+	buf_list_uninit(ebc_buf_info.osd_buf_list);
+osd_list_err:
 	buf_list_uninit(ebc_buf_info.dsp_buf_list);
-buf_list_err:
+dsp_list_err:
 	buf_list_uninit(ebc_buf_info.buf_list);
 
 	return res;

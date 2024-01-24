@@ -43,6 +43,7 @@
 #define trace_xrun(substream)
 #define trace_hw_ptr_error(substream, reason)
 #define trace_applptr(substream, prev, curr)
+#define trace_applptr_start(substream, frame)
 #endif
 
 #define STRING_LENGTH_OF_INT 12
@@ -1754,7 +1755,7 @@ static int snd_pcm_lib_ioctl_fifo_size(struct snd_pcm_substream *substream,
 		channels = params_channels(params);
 		frame_size = snd_pcm_format_size(format, channels);
 		if (frame_size > 0)
-			params->fifo_size /= (unsigned)frame_size;
+			params->fifo_size /= frame_size;
 	}
 	return 0;
 }
@@ -2138,6 +2139,8 @@ snd_pcm_sframes_t __snd_pcm_lib_xfer(struct snd_pcm_substream *substream,
 	err = pcm_sanity_check(substream);
 	if (err < 0)
 		return err;
+
+	trace_applptr_start(substream, size);
 
 	is_playback = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
 	if (interleaved) {

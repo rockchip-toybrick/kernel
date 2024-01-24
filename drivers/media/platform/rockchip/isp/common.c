@@ -98,6 +98,7 @@ int rkisp_alloc_buffer(struct rkisp_device *dev,
 	if (dev->hw_dev->is_dma_sg_ops) {
 		sg_tbl = (struct sg_table *)g_ops->cookie(mem_priv);
 		buf->dma_addr = sg_dma_address(sg_tbl->sgl);
+		g_ops->prepare(mem_priv);
 	} else {
 		buf->dma_addr = *((dma_addr_t *)g_ops->cookie(mem_priv));
 	}
@@ -271,7 +272,6 @@ int rkisp_alloc_common_dummy_buf(struct rkisp_device *dev)
 	u32 i, j, size = 0;
 	int ret = 0;
 
-	mutex_lock(&hw->dev_lock);
 	if (dummy_buf->mem_priv)
 		goto end;
 
@@ -305,7 +305,6 @@ int rkisp_alloc_common_dummy_buf(struct rkisp_device *dev)
 end:
 	if (ret < 0)
 		v4l2_err(&dev->v4l2_dev, "%s failed:%d\n", __func__, ret);
-	mutex_unlock(&hw->dev_lock);
 	return ret;
 }
 
@@ -313,15 +312,12 @@ void rkisp_free_common_dummy_buf(struct rkisp_device *dev)
 {
 	struct rkisp_hw_dev *hw = dev->hw_dev;
 
-	mutex_lock(&hw->dev_lock);
 	if (atomic_read(&hw->refcnt) ||
 	    atomic_read(&dev->cap_dev.refcnt) > 1)
-		goto end;
+		return;
 
 	if (hw->is_mmu)
 		rkisp_free_page_dummy_buf(dev);
 	else
 		rkisp_free_buffer(dev, &hw->dummy_buf);
-end:
-	mutex_unlock(&hw->dev_lock);
 }

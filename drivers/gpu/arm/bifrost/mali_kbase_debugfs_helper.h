@@ -1,11 +1,12 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2019 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,8 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
- *
- * SPDX-License-Identifier: GPL-2.0
  *
  */
 
@@ -31,8 +30,8 @@
  * @index: An element index. The valid range depends on the use-case.
  * @value: Attribute value to be set.
  */
-typedef void (*kbase_debugfs_helper_set_attr_fn)(
-	void *array, size_t index, size_t value);
+typedef void kbase_debugfs_helper_set_attr_fn(void *array, size_t index,
+					      size_t value);
 
 /**
  * kbase_debugfs_helper_set_attr_from_string - Parse a string to reconfigure an
@@ -56,7 +55,30 @@ typedef void (*kbase_debugfs_helper_set_attr_fn)(
  */
 int kbase_debugfs_helper_set_attr_from_string(
 	const char *buf, void *array, size_t nelems,
-	kbase_debugfs_helper_set_attr_fn set_attr_fn);
+	kbase_debugfs_helper_set_attr_fn *set_attr_fn);
+
+/**
+ * kbase_debugfs_string_validator - Validate a string to be written to a
+ *                                  debugfs file for any incorrect formats
+ *                                  or wrong values.
+ *
+ * This function is to be used before any writes to debugfs values are done
+ * such that any strings with erroneous values (such as octal 09 or
+ * hexadecimal 0xGH are fully ignored) - without this validation, any correct
+ * values before the first incorrect one will still be entered into the
+ * debugfs file. This essentially iterates the values through kstrtoul to see
+ * if it is valid.
+ *
+ * It is largely similar to set_attr_from_string to iterate through the values
+ * of the input string. This function also requires the input string to be
+ * writable.
+ *
+ * @buf: Null-terminated string to validate.
+ *
+ * Return: 0 with no error, else -22 (the invalid return value of kstrtoul) if
+ *         any value in the string was wrong or with an incorrect format.
+ */
+int kbase_debugfs_string_validator(char *const buf);
 
 /**
  * typedef kbase_debugfs_helper_get_attr_fn - Type of function to get an
@@ -67,8 +89,7 @@ int kbase_debugfs_helper_set_attr_from_string(
  *
  * Return: Value of attribute.
  */
-typedef size_t (*kbase_debugfs_helper_get_attr_fn)(
-	void *array, size_t index);
+typedef size_t kbase_debugfs_helper_get_attr_fn(void *array, size_t index);
 
 /**
  * kbase_debugfs_helper_get_attr_to_string - Construct a formatted string
@@ -89,7 +110,7 @@ typedef size_t (*kbase_debugfs_helper_get_attr_fn)(
  */
 ssize_t kbase_debugfs_helper_get_attr_to_string(
 	char *buf, size_t size, void *array, size_t nelems,
-	kbase_debugfs_helper_get_attr_fn get_attr_fn);
+	kbase_debugfs_helper_get_attr_fn *get_attr_fn);
 
 /**
  * kbase_debugfs_helper_seq_read - Implements reads from a virtual file for an
@@ -110,8 +131,8 @@ ssize_t kbase_debugfs_helper_get_attr_to_string(
  * Return: 0 if success, negative error code otherwise.
  */
 int kbase_debugfs_helper_seq_read(
-	struct seq_file *const sfile, size_t const nelems,
-	kbase_debugfs_helper_get_attr_fn const get_attr_fn);
+	struct seq_file *sfile, size_t nelems,
+	kbase_debugfs_helper_get_attr_fn *get_attr_fn);
 
 /**
  * kbase_debugfs_helper_seq_write - Implements writes to a virtual file for an
@@ -132,10 +153,10 @@ int kbase_debugfs_helper_seq_read(
  *
  * Return: 0 if success, negative error code otherwise.
  */
-int kbase_debugfs_helper_seq_write(struct file *const file,
-	const char __user *const ubuf, size_t const count,
-	size_t const nelems,
-	kbase_debugfs_helper_set_attr_fn const set_attr_fn);
+int kbase_debugfs_helper_seq_write(struct file *file,
+	const char __user *ubuf, size_t count,
+	size_t nelems,
+	kbase_debugfs_helper_set_attr_fn *set_attr_fn);
 
 #endif  /*_KBASE_DEBUGFS_HELPER_H_ */
 

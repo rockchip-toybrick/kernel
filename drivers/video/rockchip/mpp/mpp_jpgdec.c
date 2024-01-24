@@ -239,10 +239,18 @@ fail:
 
 static int jpgdec_soft_reset(struct mpp_dev *mpp)
 {
-	mpp_write(mpp, JPGDEC_REG_SYS_BASE, JPGDEC_FORCE_SOFTRESET_VALID);
-	mpp_write(mpp, JPGDEC_REG_INT_EN_BASE, JPGDEC_SOFT_REST_EN);
+	int ret;
+	u32 int_status = mpp_read(mpp, JPGDEC_REG_INT_EN_BASE);
+	u32 dec_en = int_status & JPGDEC_START_EN;
 
-	return 0;
+	/* if hw is idle, need to set force_softreset_valid bit to reset */
+	if (!dec_en)
+		mpp_write(mpp, JPGDEC_REG_SYS_BASE, JPGDEC_FORCE_SOFTRESET_VALID);
+	mpp_write(mpp, JPGDEC_REG_INT_EN_BASE, int_status | JPGDEC_SOFT_REST_EN);
+	ret = readl_relaxed_poll_timeout(mpp->reg_base + JPGDEC_REG_INT_EN_BASE,
+					 int_status, int_status & JPGDEC_REDAY_STA,
+					 0, 10);
+	return ret;
 }
 
 static int jpgdec_run(struct mpp_dev *mpp,
@@ -251,6 +259,7 @@ static int jpgdec_run(struct mpp_dev *mpp,
 	u32 i;
 	u32 reg_en;
 	struct jpgdec_task *task = to_jpgdec_task(mpp_task);
+	u32 timing_en = mpp->srv->timing_en;
 
 	mpp_debug_enter();
 
@@ -263,12 +272,21 @@ static int jpgdec_run(struct mpp_dev *mpp,
 
 		mpp_write_req(mpp, task->reg, s, e, reg_en);
 	}
+
+	/* flush tlb before starting hardware */
+	mpp_iommu_flush_tlb(mpp->iommu_info);
+
 	/* init current task */
 	mpp->cur_task = mpp_task;
+
+	mpp_task_run_begin(mpp_task, timing_en, MPP_WORK_TIMEOUT_DELAY);
+
 	/* Flush the register before the start the device */
 	wmb();
 	mpp_write(mpp, JPGDEC_REG_INT_EN_BASE,
 		  task->reg[reg_en] | JPGDEC_START_EN);
+
+	mpp_task_run_end(mpp_task, timing_en);
 
 	mpp_debug_leave();
 
@@ -374,6 +392,10 @@ static int jpgdec_procfs_init(struct mpp_dev *mpp)
 		dec->procfs = NULL;
 		return -EIO;
 	}
+
+	/* for common mpp_dev options */
+	mpp_procfs_create_common(dec->procfs, mpp);
+
 	mpp_procfs_create_u32("aclk", 0644,
 			      dec->procfs, &dec->aclk_info.debug_rate_hz);
 	mpp_procfs_create_u32("session_buffers", 0644,
@@ -505,18 +527,21 @@ static int jpgdec_isr(struct mpp_dev *mpp)
 static int jpgdec_reset(struct mpp_dev *mpp)
 {
 	struct jpgdec_dev *dec = to_jpgdec_dev(mpp);
+	int ret = 0;
 
-	if (dec->rst_a && dec->rst_h) {
+	ret = jpgdec_soft_reset(mpp);
+
+	if (ret && dec->rst_a && dec->rst_h) {
 		mpp_debug(DEBUG_RESET, "reset in\n");
 
 		/* Don't skip this or iommu won't work after reset */
-		rockchip_pmu_idle_request(mpp->dev, true);
+		mpp_pmu_idle_request(mpp, true);
 		mpp_safe_reset(dec->rst_a);
 		mpp_safe_reset(dec->rst_h);
 		udelay(5);
 		mpp_safe_unreset(dec->rst_a);
 		mpp_safe_unreset(dec->rst_h);
-		rockchip_pmu_idle_request(mpp->dev, false);
+		mpp_pmu_idle_request(mpp, false);
 
 		mpp_debug(DEBUG_RESET, "reset out\n");
 	}
@@ -599,6 +624,8 @@ static int jpgdec_probe(struct platform_device *pdev)
 
 	mpp->session_max_buffers = JPGDEC_SESSION_MAX_BUFFERS;
 	jpgdec_procfs_init(mpp);
+	/* register current device to mpp service */
+	mpp_dev_register_srv(mpp, mpp->srv);
 	dev_info(dev, "probing finish\n");
 
 	return 0;

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
+ * Copyright (C) Rockchip Electronics Co.Ltd
  * Author: Felix Zeng <felix.zeng@rock-chips.com>
  */
 
@@ -10,13 +10,16 @@
 #include <linux/mm_types.h>
 #include <linux/version.h>
 
-#include <drm/drmP.h>
+#include <drm/drm_device.h>
 #include <drm/drm_vma_manager.h>
 #include <drm/drm_gem.h>
+#include <drm/drm_mode.h>
+
 #if KERNEL_VERSION(4, 14, 0) > LINUX_VERSION_CODE
 #include <drm/drm_mem_util.h>
 #endif
-#include <drm/drm_mode.h>
+
+#include "rknpu_mm.h"
 
 #define to_rknpu_obj(x) container_of(x, struct rknpu_gem_object, base)
 
@@ -44,6 +47,10 @@ struct rknpu_gem_object {
 	struct drm_gem_object base;
 	unsigned int flags;
 	unsigned long size;
+	unsigned long sram_size;
+	struct rknpu_mm_obj *sram_obj;
+	dma_addr_t iova_start;
+	unsigned long iova_size;
 	void *cookie;
 	void __iomem *kv_addr;
 	dma_addr_t dma_addr;
@@ -57,7 +64,8 @@ struct rknpu_gem_object {
 /* create a new buffer with gem object */
 struct rknpu_gem_object *rknpu_gem_object_create(struct drm_device *dev,
 						 unsigned int flags,
-						 unsigned long size);
+						 unsigned long size,
+						 unsigned long sram_size);
 
 /* destroy a buffer with gem object */
 void rknpu_gem_object_destroy(struct rknpu_gem_object *rknpu_obj);
@@ -92,7 +100,9 @@ static inline void rknpu_gem_object_get(struct drm_gem_object *obj)
  */
 static inline void rknpu_gem_object_put(struct drm_gem_object *obj)
 {
-#if KERNEL_VERSION(4, 13, 0) < LINUX_VERSION_CODE
+#if KERNEL_VERSION(5, 9, 0) <= LINUX_VERSION_CODE
+	drm_gem_object_put(obj);
+#elif KERNEL_VERSION(4, 13, 0) < LINUX_VERSION_CODE
 	drm_gem_object_put_unlocked(obj);
 #else
 	drm_gem_object_unreference_unlocked(obj);

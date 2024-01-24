@@ -982,7 +982,7 @@ static struct rockchip_clk_branch rk3568_clk_branches[] __initdata = {
 			RK3568_CLKSEL_CON(31), 4, 2, MFLAGS),
 	MUX(SCLK_GMAC0_RMII_SPEED, "clk_gmac0_rmii_speed", mux_gmac0_rmii_speed_p, 0,
 			RK3568_CLKSEL_CON(31), 3, 1, MFLAGS),
-	MUX(SCLK_GMAC0_RX_TX, "clk_gmac0_rx_tx", mux_gmac0_rx_tx_p,  CLK_SET_RATE_PARENT,
+	MUX(SCLK_GMAC0_RX_TX, "clk_gmac0_rx_tx", mux_gmac0_rx_tx_p,  CLK_SET_RATE_PARENT | CLK_SET_RATE_NO_REPARENT,
 			RK3568_CLKSEL_CON(31), 0, 2, MFLAGS),
 
 	/* PD_USB */
@@ -1036,7 +1036,7 @@ static struct rockchip_clk_branch rk3568_clk_branches[] __initdata = {
 			RK3568_CLKSEL_CON(33), 4, 2, MFLAGS),
 	MUX(SCLK_GMAC1_RMII_SPEED, "clk_gmac1_rmii_speed", mux_gmac1_rmii_speed_p, 0,
 			RK3568_CLKSEL_CON(33), 3, 1, MFLAGS),
-	MUX(SCLK_GMAC1_RX_TX, "clk_gmac1_rx_tx", mux_gmac1_rx_tx_p,  CLK_SET_RATE_PARENT,
+	MUX(SCLK_GMAC1_RX_TX, "clk_gmac1_rx_tx", mux_gmac1_rx_tx_p,  CLK_SET_RATE_PARENT | CLK_SET_RATE_NO_REPARENT,
 			RK3568_CLKSEL_CON(33), 0, 2, MFLAGS),
 
 	/* PD_PERI */
@@ -1421,21 +1421,21 @@ static struct rockchip_clk_branch rk3568_clk_branches[] __initdata = {
 			RK3568_CLKSEL_CON(72), 6, 1, MFLAGS, RK3568_CLKGATE_CON(31), 1, GFLAGS),
 	GATE(PCLK_PWM1, "pclk_pwm1", "pclk_bus", 0, RK3568_CLKGATE_CON(31), 10, GFLAGS),
 	COMPOSITE_NODIV(CLK_PWM1, "clk_pwm1", gpll100_xin24m_cpll100_p, 0,
-			RK3568_CLKSEL_CON(72), 8, 1, MFLAGS,
+			RK3568_CLKSEL_CON(72), 8, 2, MFLAGS,
 			RK3568_CLKGATE_CON(31), 11, GFLAGS),
 	GATE(CLK_PWM1_CAPTURE, "clk_pwm1_capture", "xin24m", 0,
 			RK3568_CLKGATE_CON(31), 12, GFLAGS),
 	GATE(PCLK_PWM2, "pclk_pwm2", "pclk_bus", 0,
 			RK3568_CLKGATE_CON(31), 13, GFLAGS),
 	COMPOSITE_NODIV(CLK_PWM2, "clk_pwm2", gpll100_xin24m_cpll100_p, 0,
-			RK3568_CLKSEL_CON(72), 10, 1, MFLAGS,
+			RK3568_CLKSEL_CON(72), 10, 2, MFLAGS,
 			RK3568_CLKGATE_CON(31), 14, GFLAGS),
 	GATE(CLK_PWM2_CAPTURE, "clk_pwm2_capture", "xin24m", 0,
 			RK3568_CLKGATE_CON(31), 15, GFLAGS),
 	GATE(PCLK_PWM3, "pclk_pwm3", "pclk_bus", 0,
 			RK3568_CLKGATE_CON(32), 0, GFLAGS),
 	COMPOSITE_NODIV(CLK_PWM3, "clk_pwm3", gpll100_xin24m_cpll100_p, 0,
-			RK3568_CLKSEL_CON(72), 12, 1, MFLAGS,
+			RK3568_CLKSEL_CON(72), 12, 2, MFLAGS,
 			RK3568_CLKGATE_CON(32), 1, GFLAGS),
 	GATE(CLK_PWM3_CAPTURE, "clk_pwm3_capture", "xin24m", 0,
 			RK3568_CLKGATE_CON(32), 2, GFLAGS),
@@ -1652,6 +1652,7 @@ static const char *const rk3568_cru_critical_clocks[] __initconst = {
 	"hclk_php",
 	"pclk_php",
 	"hclk_usb",
+	"pclk_usb",
 };
 
 static const char *const rk3568_pmucru_critical_clocks[] __initconst = {

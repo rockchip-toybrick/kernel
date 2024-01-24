@@ -58,7 +58,7 @@ static int rkisp_stats_querycap(struct file *file,
 		 stats_vdev->dev->isp_ver >> 4);
 	strlcpy(cap->card, vdev->name, sizeof(cap->card));
 	strlcpy(cap->bus_info, "platform: " DRIVER_NAME, sizeof(cap->bus_info));
-
+	cap->version = RKISP_DRIVER_VERSION;
 	return 0;
 }
 
@@ -84,6 +84,9 @@ static int rkisp_stats_fh_open(struct file *filp)
 {
 	struct rkisp_isp_stats_vdev *stats = video_drvdata(filp);
 	int ret;
+
+	if (!stats->dev->is_probe_end)
+		return -EINVAL;
 
 	ret = v4l2_fh_open(filp);
 	if (!ret) {

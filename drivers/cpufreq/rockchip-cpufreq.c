@@ -336,6 +336,7 @@ static int rockchip_cpufreq_cluster_init(int cpu, struct cluster_info *cluster)
 	rockchip_get_scale_volt_sel(dev, "cpu_leakage", reg_name,
 				    bin, cluster->process,
 				    &cluster->scale, &cluster->volt_sel);
+	rockchip_set_opp_supported_hw(dev, np, bin, cluster->volt_sel);
 np_err:
 	of_node_put(np);
 	return ret;

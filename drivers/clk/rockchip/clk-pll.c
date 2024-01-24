@@ -404,6 +404,7 @@ static int rockchip_pll_wait_lock(struct rockchip_clk_pll *pll)
 #define RK3036_PLLCON1_DSMPD_MASK		0x1
 #define RK3036_PLLCON1_DSMPD_SHIFT		12
 #define RK3036_PLLCON1_PWRDOWN			BIT(13)
+#define RK3036_PLLCON1_PLLPDSEL			BIT(15)
 #define RK3036_PLLCON2_FRAC_MASK		0xffffff
 #define RK3036_PLLCON2_FRAC_SHIFT		0
 
@@ -521,10 +522,12 @@ static int rockchip_rk3036_pll_set_params(struct rockchip_clk_pll *pll,
 	rockchip_rk3036_pll_get_params(pll, &cur);
 	cur.rate = 0;
 
-	cur_parent = pll_mux_ops->get_parent(&pll_mux->hw);
-	if (cur_parent == PLL_MODE_NORM) {
-		pll_mux_ops->set_parent(&pll_mux->hw, PLL_MODE_SLOW);
-		rate_change_remuxed = 1;
+	if (!(pll->flags & ROCKCHIP_PLL_FIXED_MODE)) {
+		cur_parent = pll_mux_ops->get_parent(&pll_mux->hw);
+		if (cur_parent == PLL_MODE_NORM) {
+			pll_mux_ops->set_parent(&pll_mux->hw, PLL_MODE_SLOW);
+			rate_change_remuxed = 1;
+		}
 	}
 
 	/* update pll values */
@@ -1219,6 +1222,10 @@ int rockchip_pll_clk_compensation(struct clk *clk, int ppm)
 		fbdiv_mask = RK3036_PLLCON0_FBDIV_MASK;
 		frac_mask = RK3036_PLLCON2_FRAC_MASK;
 		frac_shift = RK3036_PLLCON2_FRAC_SHIFT;
+		if (!frac)
+			writel(HIWORD_UPDATE(RK3036_PLLCON1_PLLPDSEL,
+					     RK3036_PLLCON1_PLLPDSEL, 0),
+			       pll->reg_base + RK3036_PLLCON(1));
 		break;
 	case pll_rk3066:
 		return -EINVAL;

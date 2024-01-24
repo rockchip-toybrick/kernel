@@ -44,8 +44,8 @@ int drm_prime_fd_to_handle_ioctl(struct drm_device *dev, void *data,
 
 void drm_prime_init_file_private(struct drm_prime_file_private *prime_fpriv);
 void drm_prime_destroy_file_private(struct drm_prime_file_private *prime_fpriv);
-void drm_prime_remove_buf_handle_locked(struct drm_prime_file_private *prime_fpriv,
-					struct dma_buf *dma_buf);
+void drm_prime_remove_buf_handle(struct drm_prime_file_private *prime_fpriv,
+				 uint32_t handle);
 
 /* drm_drv.c */
 struct drm_minor *drm_minor_acquire(unsigned int minor_id);
@@ -130,6 +130,7 @@ void drm_debugfs_crtc_remove(struct drm_crtc *crtc);
 int drm_debugfs_crtc_crc_add(struct drm_crtc *crtc);
 #if defined(CONFIG_ROCKCHIP_DRM_DEBUG)
 int drm_debugfs_vop_add(struct drm_crtc *crtc, struct dentry *root);
+int drm_debugfs_vop_color_bar_add(struct drm_crtc *crtc, struct dentry *root);
 int vop_plane_dump(struct vop_dump_info *dump_info, int frame_count);
 #endif
 #else
@@ -167,6 +168,11 @@ static inline int drm_debugfs_crtc_crc_add(struct drm_crtc *crtc)
 
 #if defined(CONFIG_ROCKCHIP_DRM_DEBUG)
 static inline int drm_debugfs_vop_add(struct drm_crtc *crtc, struct dentry *root)
+{
+	return 0;
+}
+
+static inline int drm_debugfs_vop_color_bar_add(struct drm_crtc *crtc, struct dentry *root)
 {
 	return 0;
 }

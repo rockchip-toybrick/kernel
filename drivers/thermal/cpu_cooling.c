@@ -195,7 +195,7 @@ static u32 cpu_power_to_freq(struct cpufreq_cooling_device *cpufreq_cdev,
 {
 	int i;
 
-	for (i = cpufreq_cdev->max_level; i >= 0; i--) {
+	for (i = cpufreq_cdev->max_level; i > 0; i--) {
 		if (power >= cpufreq_cdev->em->table[i].power)
 			break;
 	}
@@ -686,12 +686,12 @@ __cpufreq_cooling_register(struct device_node *np,
 		 cpufreq_cdev->id);
 	cpufreq_cdev->plat_ops = plat_ops;
 
+	cpufreq_cdev->clipped_freq = get_state_freq(cpufreq_cdev, 0);
 	cdev = thermal_of_cooling_device_register(np, dev_name, cpufreq_cdev,
 						  cooling_ops);
 	if (IS_ERR(cdev))
 		goto free_idle_time;
 
-	cpufreq_cdev->clipped_freq = get_state_freq(cpufreq_cdev, 0);
 	cpufreq_cdev->cdev = cdev;
 
 	cpufreq_cdev->model_data = rockchip_ipa_power_model_init(dev,

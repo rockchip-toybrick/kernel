@@ -125,16 +125,16 @@ static struct env_config pal_tve_config[] = {
 	{ TVE_LUMA_FILTER7, 0x0ffa0e43 },
 	{ TVE_LUMA_FILTER8, 0x08200527 },
 	{ TVE_IMAGE_POSITION, 0x001500f6 },
-	{ TVE_ROUTING, 0x1000088a },
+	{ TVE_ROUTING, 0x10008882 },
 	{ TVE_SYNC_ADJUST, 0x00000000 },
 	{ TVE_STATUS, 0x000000b0 },
 	{ TVE_CTRL, 0x00000000 },
 	{ TVE_INTR_STATUS, 0x00000000 },
 	{ TVE_INTR_EN, 0x00000000 },
 	{ TVE_INTR_CLR, 0x00000000 },
-	{ TVE_COLOR_BUSRT_SAT, 0x002e553c },
+	{ TVE_COLOR_BUSRT_SAT, 0x00366044 },
 	{ TVE_CHROMA_BANDWIDTH, 0x00000022 },
-	{ TVE_BRIGHTNESS_CONTRAST, 0x00008900 },
+	{ TVE_BRIGHTNESS_CONTRAST, 0x0000a300 },
 	{ TVE_ID, 0x0a010000 },
 	{ TVE_REVISION, 0x00010108 },
 	{ TVE_CLAMP, 0x00000000 },
@@ -194,6 +194,7 @@ static int rk630_tve_cfg_set(struct rk630_tve *tve)
 {
 	int ret;
 	struct env_config *bt656_cfg, *tve_cfg;
+	int upsample_en = tve->is_4x ? 1 : 0;
 
 	switch (tve->mode) {
 	case CVBS_PAL:
@@ -224,7 +225,7 @@ static int rk630_tve_cfg_set(struct rk630_tve *tve)
 				   SW_DCLK_UPSAMPLE_EN_MASK |
 				   SW_TVE_MODE_MASK | SW_TVE_EN_MASK,
 				   SW_TVE_DCLK_POL(0) | SW_TVE_DCLK_EN(1) |
-				   SW_DCLK_UPSAMPLE_EN(tve->is_4x) |
+				   SW_DCLK_UPSAMPLE_EN(upsample_en) |
 				   SW_TVE_MODE(1) | SW_TVE_EN(1));
 	else
 		regmap_update_bits(tve->grf, PLUMAGE_GRF_SOC_CON0,
@@ -233,8 +234,12 @@ static int rk630_tve_cfg_set(struct rk630_tve *tve)
 				   SW_DCLK_UPSAMPLE_EN_MASK |
 				   SW_TVE_MODE_MASK | SW_TVE_EN_MASK,
 				   SW_TVE_DCLK_POL(0) | SW_TVE_DCLK_EN(1) |
-				   SW_DCLK_UPSAMPLE_EN(tve->is_4x) |
+				   SW_DCLK_UPSAMPLE_EN(upsample_en) |
 				   SW_TVE_MODE(0) | SW_TVE_EN(1));
+
+	regmap_update_bits(tve->grf, PLUMAGE_GRF_SOC_CON3,
+			   DCLK_UPSAMPLE_2X4X_MASK,
+			   DCLK_UPSAMPLE_2X4X(tve->is_4x - 1));
 
 	ret = rk630_tve_write_block(tve, tve_cfg, 27);
 	if (ret < 0) {
@@ -255,16 +260,15 @@ static int rk630_tve_disable(struct rk630_tve *tve)
 
 static int rk630_tve_enable(struct rk630_tve *tve)
 {
-	int ret, i;
-	u32 val = 0;
+	int ret;
 
 	dev_dbg(tve->dev, "%s\n", __func__);
 
 	/* config bt656 input gpio*/
 	regmap_write(tve->grf, PLUMAGE_GRF_GPIO0A_IOMUX, 0x55555555);
 
-	regmap_update_bits(tve->grf, PLUMAGE_GRF_GPIO0B_IOMUX, GPIO0B0_SEL_MASK,
-			   GPIO0B0_SEL(1));
+	regmap_update_bits(tve->grf, PLUMAGE_GRF_GPIO0B_IOMUX, PIN0_SEL_MASK,
+			   PIN0_SEL(1));
 
 	regmap_update_bits(tve->grf, PLUMAGE_GRF_SOC_CON3, VDAC_ENDAC0_MASK,
 			   VDAC_ENDAC0(0));
@@ -275,31 +279,21 @@ static int rk630_tve_enable(struct rk630_tve *tve)
 
 	/*config clk*/
 	if (!tve->is_4x) {
-		regmap_update_bits(tve->cru, CRU_MODE_CON, CLK_SPLL_MODE_MASK,
-				   CLK_SPLL_MODE(2));
+		regmap_update_bits(tve->cru, CRU_GATE_CON0,
+				   DCLK_CVBS_4X_PLL_CLK_GATE_MASK,
+				   DCLK_CVBS_4X_PLL_CLK_GATE(1));
 	} else {
-		regmap_update_bits(tve->cru, CRU_SPLL_CON1, PLLPD0_MASK,
-				   PLLPD0(1));
+		regmap_update_bits(tve->cru, CRU_CLKSEL_CON1,
+				   DCLK_CVBS_4X_DIV_CON_MASK,
+				   DCLK_CVBS_4X_DIV_CON(0));
 
-		regmap_update_bits(tve->cru, CRU_MODE_CON, CLK_SPLL_MODE_MASK,
-				   CLK_SPLL_MODE(1));
-
-		regmap_update_bits(tve->cru, CRU_SPLL_CON1, PLLPD0_MASK,
-				   PLLPD0(0));
-
-		for (i = 0; i < 10; i++) {
-			usleep_range(1000, 2000);
-			regmap_read(tve->cru, CRU_SPLL_CON1, &val);
-			if (val & PLL_LOCK) {
-				dev_dbg(tve->dev, "rk630 pll locked\n");
-				break;
-			}
-		}
-		if (!(val & PLL_LOCK)) {
-			dev_err(tve->dev, "rk630 pll unlock\n");
-			return -EINVAL;
-		}
+		regmap_update_bits(tve->cru, CRU_GATE_CON0,
+				   DCLK_CVBS_4X_PLL_CLK_GATE_MASK,
+				   DCLK_CVBS_4X_PLL_CLK_GATE(0));
 	}
+
+	/* set vdac gain */
+	regmap_write(tve->grf, PLUMAGE_GRF_SOC_CON3, 0x003f003f);
 
 	/* enable vdac */
 	regmap_update_bits(tve->grf, PLUMAGE_GRF_SOC_CON3,
@@ -461,6 +455,7 @@ static int rk630_tve_probe(struct platform_device *pdev)
 	struct rk630 *rk630 = dev_get_drvdata(pdev->dev.parent);
 	struct rk630_tve *tve;
 	struct device *dev = &pdev->dev;
+	int ret;
 
 	if (!of_device_is_available(dev->of_node))
 		return -ENODEV;
@@ -478,6 +473,11 @@ static int rk630_tve_probe(struct platform_device *pdev)
 	tve->tvemap = rk630->tve;
 	if (!tve->grf | !tve->cru | !tve->tvemap)
 		return -ENODEV;
+
+	ret = device_property_read_u32(dev, "rockchip,tve-upsample",
+				       &tve->is_4x);
+	if (ret < 0)
+		tve->is_4x = 0;
 
 	tve->mode = CVBS_PAL;
 

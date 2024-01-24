@@ -30,6 +30,9 @@ void rockchip_get_scale_volt_sel(struct device *dev, char *lkg_name,
 				 int *scale, int *volt_sel);
 struct opp_table *rockchip_set_opp_prop_name(struct device *dev, int process,
 					     int volt_sel);
+struct opp_table *rockchip_set_opp_supported_hw(struct device *dev,
+						struct device_node *np,
+						int bin, int volt_sel);
 int rockchip_adjust_power_scale(struct device *dev, int scale);
 int rockchip_init_opp_table(struct device *dev,
 			    const struct of_device_id *matches,
@@ -97,6 +100,13 @@ static inline struct opp_table *rockchip_set_opp_prop_name(struct device *dev,
 							   int volt_sel)
 {
 	return ERR_PTR(-ENOTSUPP);
+}
+
+static inline struct opp_table *rockchip_set_opp_supported_hw(struct device *dev,
+							      struct device_node *np,
+							      int bin, int volt_sel)
+{
+	return ERR_PTR(-EOPNOTSUPP);
 }
 
 static inline int rockchip_adjust_power_scale(struct device *dev, int scale)

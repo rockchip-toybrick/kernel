@@ -1,11 +1,12 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2021 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
+ * of such GNU license.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,17 +17,13 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
- * SPDX-License-Identifier: GPL-2.0
- *
  */
 
 #ifndef _KBASE_TRACE_GPU_MEM_H_
 #define _KBASE_TRACE_GPU_MEM_H_
 
-#ifdef CONFIG_TRACE_GPU_MEM
+#if IS_ENABLED(CONFIG_TRACE_GPU_MEM)
 #include <trace/events/gpu_mem.h>
-#elif !MALI_CUSTOMER_RELEASE
-#include "mali_gpu_mem_trace.h"
 #endif
 
 #define DEVICE_TGID ((u32) 0U)
@@ -34,9 +31,9 @@
 static void kbase_trace_gpu_mem_usage(struct kbase_device *kbdev,
 				      struct kbase_context *kctx)
 {
+#if IS_ENABLED(CONFIG_TRACE_GPU_MEM)
 	lockdep_assert_held(&kbdev->gpu_mem_usage_lock);
 
-#if defined(CONFIG_TRACE_GPU_MEM) || !MALI_CUSTOMER_RELEASE
 	trace_gpu_mem_total(kbdev->id, DEVICE_TGID,
 			    kbdev->total_gpu_pages << PAGE_SHIFT);
 

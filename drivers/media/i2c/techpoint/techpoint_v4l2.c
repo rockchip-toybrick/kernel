@@ -2,7 +2,7 @@
 /*
  * techpoint v4l2 driver
  *
- * Copyright (C) 2021 Rockchip Electronics Co., Ltd.
+ * Copyright (C) 2023 Rockchip Electronics Co., Ltd.
  *
  */
 
@@ -76,6 +76,9 @@ static int techpoint_analyze_dts(struct techpoint *techpoint)
 	struct i2c_client *client = techpoint->client;
 	struct device *dev = &client->dev;
 	struct device_node *node = dev->of_node;
+	struct device_node *endpoint;
+	struct fwnode_handle *fwnode;
+	int rval;
 
 	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
 				   &techpoint->module_index);
@@ -95,10 +98,18 @@ static int techpoint_analyze_dts(struct techpoint *techpoint)
 	if (ret)
 		techpoint->xvclk_freq_value = 27000000;
 
-	ret = of_property_read_u32(node, TECHPOINT_CHANNEL_NUMS,
-				   &techpoint->channel_nums);
-	if (ret)
-		techpoint->channel_nums = 4;
+	endpoint = of_graph_get_next_endpoint(dev->of_node, NULL);
+	if (!endpoint) {
+		dev_err(dev, "Failed to get endpoint\n");
+		return -EINVAL;
+	}
+	fwnode = of_fwnode_handle(endpoint);
+	rval = fwnode_property_read_u32_array(fwnode, "data-lanes", NULL, 0);
+	if (rval <= 0) {
+		dev_err(dev, " Get mipi lane num failed!\n");
+		return -EINVAL;
+	}
+	techpoint->data_lanes = rval;
 
 	techpoint->xvclk = devm_clk_get(dev, "xvclk");
 	if (IS_ERR(techpoint->xvclk)) {
@@ -116,7 +127,7 @@ static int techpoint_analyze_dts(struct techpoint *techpoint)
 	ret =
 	    regulator_bulk_enable(TECHPOINT_NUM_SUPPLIES, techpoint->supplies);
 	if (ret < 0)
-		dev_err(dev, "Failed to enable regulators\n");
+		dev_warn(dev, "Failed to enable regulators\n");
 
 	techpoint->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(techpoint->reset_gpio))
@@ -130,15 +141,15 @@ static int techpoint_analyze_dts(struct techpoint *techpoint)
 		    pinctrl_lookup_state(techpoint->pinctrl,
 					 OF_CAMERA_PINCTRL_STATE_DEFAULT);
 		if (IS_ERR(techpoint->pins_default))
-			dev_info(dev, "could not get default pinstate\n");
+			dev_warn(dev, "could not get default pinstate\n");
 
 		techpoint->pins_sleep =
 		    pinctrl_lookup_state(techpoint->pinctrl,
 					 OF_CAMERA_PINCTRL_STATE_SLEEP);
 		if (IS_ERR(techpoint->pins_sleep))
-			dev_info(dev, "could not get sleep pinstate\n");
+			dev_warn(dev, "could not get sleep pinstate\n");
 	} else {
-		dev_info(dev, "no pinctrl\n");
+		dev_warn(dev, "no pinctrl\n");
 	}
 
 	return 0;
@@ -266,13 +277,10 @@ err_clk:
 static void __techpoint_power_off(struct techpoint *techpoint)
 {
 	int ret;
-	struct device *dev = &techpoint->client->dev;
 
 #if TECHPOINT_SHARING_POWER
 	return;
 #endif
-
-	dev_dbg(dev, "%s\n", __func__);
 
 	if (!IS_ERR(techpoint->reset_gpio))
 		gpiod_set_value_cansleep(techpoint->reset_gpio, 1);
@@ -284,7 +292,7 @@ static void __techpoint_power_off(struct techpoint *techpoint)
 		ret = pinctrl_select_state(techpoint->pinctrl,
 					   techpoint->pins_sleep);
 		if (ret < 0)
-			dev_dbg(dev, "could not set pins\n");
+			dev_err(&techpoint->client->dev, "could not set pins\n");
 	}
 
 	if (!IS_ERR(techpoint->power_gpio))
@@ -343,14 +351,14 @@ exit:
 	return ret;
 }
 
-static int techpoint_get_reso_dist(const struct techpoint_video_modes *mode,
+static int techpoint_get_reso_dist(struct techpoint_video_modes *mode,
 				   struct v4l2_mbus_framefmt *framefmt)
 {
 	return abs(mode->width - framefmt->width) +
 	       abs(mode->height - framefmt->height);
 }
 
-static const struct techpoint_video_modes *
+static struct techpoint_video_modes *
 techpoint_find_best_fit(struct techpoint *techpoint,
 			struct v4l2_subdev_format *fmt)
 {
@@ -379,7 +387,7 @@ static int techpoint_set_fmt(struct v4l2_subdev *sd,
 			     struct v4l2_subdev_format *fmt)
 {
 	struct techpoint *techpoint = to_techpoint(sd);
-	const struct techpoint_video_modes *mode;
+	struct techpoint_video_modes *mode;
 
 	mutex_lock(&techpoint->mutex);
 
@@ -430,10 +438,11 @@ static int techpoint_get_fmt(struct v4l2_subdev *sd,
 		fmt->format.height = mode->height;
 		fmt->format.code = mode->bus_fmt;
 		fmt->format.field = V4L2_FIELD_NONE;
-		if (fmt->pad < PAD_MAX && fmt->pad >= PAD0)
+		if (fmt->pad < PAD_MAX) {
+			if (mode->channel_reso[fmt->pad] == TECHPOINT_S_RESO_SD)
+				fmt->format.field = V4L2_FIELD_INTERLACED;
 			fmt->reserved[0] = mode->vc[fmt->pad];
-		else
-			fmt->reserved[0] = mode->vc[PAD0];
+		}
 	}
 	mutex_unlock(&techpoint->mutex);
 
@@ -504,7 +513,13 @@ static int techpoint_g_mbus_config(struct v4l2_subdev *sd,
 			     V4L2_MBUS_PCLK_SAMPLE_FALLING;
 	} else if (techpoint->input_type == TECHPOINT_MIPI) {
 		cfg->type = V4L2_MBUS_CSI2;
-		cfg->flags = V4L2_MBUS_CSI2_4_LANE | V4L2_MBUS_CSI2_CHANNELS;
+		if (techpoint->data_lanes == 4) {
+			cfg->flags = V4L2_MBUS_CSI2_4_LANE | V4L2_MBUS_CSI2_CHANNELS;
+		} else if (techpoint->data_lanes == 2) {
+			cfg->flags = V4L2_MBUS_CSI2_2_LANE |
+				     V4L2_MBUS_CSI2_CHANNEL_0 |
+				     V4L2_MBUS_CSI2_CHANNEL_1;
+		}
 	}
 
 	return 0;
@@ -524,10 +539,10 @@ static __maybe_unused void techpoint_get_module_inf(struct techpoint *techpoint,
 						    struct rkmodule_inf *inf)
 {
 	memset(inf, 0, sizeof(*inf));
-	strlcpy(inf->base.sensor, TECHPOINT_NAME, sizeof(inf->base.sensor));
-	strlcpy(inf->base.module, techpoint->module_name,
+	strscpy(inf->base.sensor, TECHPOINT_NAME, sizeof(inf->base.sensor));
+	strscpy(inf->base.module, techpoint->module_name,
 		sizeof(inf->base.module));
-	strlcpy(inf->base.lens, techpoint->len_name, sizeof(inf->base.lens));
+	strscpy(inf->base.lens, techpoint->len_name, sizeof(inf->base.lens));
 }
 
 static __maybe_unused void
@@ -632,8 +647,11 @@ static long techpoint_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = techpoint_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
 	case RKMODULE_AWB_CFG:
@@ -643,9 +661,11 @@ static long techpoint_compat_ioctl32(struct v4l2_subdev *sd,
 			return ret;
 		}
 
-		ret = copy_from_user(cfg, up, sizeof(*cfg));
-		if (!ret)
-			ret = techpoint_ioctl(sd, cmd, cfg);
+		if (copy_from_user(cfg, up, sizeof(*cfg))) {
+			kfree(cfg);
+			return -EFAULT;
+		}
+		ret = techpoint_ioctl(sd, cmd, cfg);
 		kfree(cfg);
 		break;
 	case RKMODULE_GET_VC_FMT_INFO:
@@ -656,8 +676,11 @@ static long techpoint_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = techpoint_ioctl(sd, cmd, vc_fmt_inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, vc_fmt_inf, sizeof(*vc_fmt_inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(vc_fmt_inf);
 		break;
 	case RKMODULE_GET_VC_HOTPLUG_INFO:
@@ -668,8 +691,11 @@ static long techpoint_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = techpoint_ioctl(sd, cmd, vc_hp_inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, vc_hp_inf, sizeof(*vc_hp_inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(vc_hp_inf);
 		break;
 	case RKMODULE_GET_BT656_MBUS_INFO:
@@ -680,8 +706,11 @@ static long techpoint_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = techpoint_ioctl(sd, cmd, bt565_inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, bt565_inf, sizeof(*bt565_inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(bt565_inf);
 		break;
 	case RKMODULE_GET_VICAP_RST_INFO:
@@ -692,10 +721,12 @@ static long techpoint_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = techpoint_ioctl(sd, cmd, vicap_rst_inf);
-		if (!ret)
-			ret =
-			    copy_to_user(up, vicap_rst_inf,
-					 sizeof(*vicap_rst_inf));
+		if (!ret) {
+			ret = copy_to_user(up, vicap_rst_inf,
+					   sizeof(*vicap_rst_inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(vicap_rst_inf);
 		break;
 	case RKMODULE_SET_VICAP_RST_INFO:
@@ -705,8 +736,10 @@ static long techpoint_compat_ioctl32(struct v4l2_subdev *sd,
 			return ret;
 		}
 
-		ret = copy_from_user(vicap_rst_inf, up, sizeof(*vicap_rst_inf));
-		if (!ret)
+		if (copy_from_user(vicap_rst_inf, up, sizeof(*vicap_rst_inf))) {
+			kfree(vicap_rst_inf);
+			return -EFAULT;
+		}
 			ret = techpoint_ioctl(sd, cmd, vicap_rst_inf);
 		kfree(vicap_rst_inf);
 		break;
@@ -718,14 +751,19 @@ static long techpoint_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = techpoint_ioctl(sd, cmd, stream_seq);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, stream_seq, sizeof(*stream_seq));
+			if (ret)
+				return -EFAULT;
+		}
 		kfree(stream_seq);
 		break;
 	case RKMODULE_SET_QUICK_STREAM:
-		ret = copy_from_user(&stream, up, sizeof(u32));
-		if (!ret)
-			ret = techpoint_ioctl(sd, cmd, &stream);
+		if (copy_from_user(&stream, up, sizeof(u32)))
+			return -EFAULT;
+		ret = techpoint_ioctl(sd, cmd, &stream);
+		if (ret)
+			ret = -EFAULT;
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -825,6 +863,8 @@ static const struct of_device_id techpoint_of_match[] = {
 	{ .compatible = "techpoint,tp2855" },
 	{ .compatible = "techpoint,tp2815" },
 	{ .compatible = "techpoint,tp9930" },
+	{ .compatible = "techpoint,tp9950" },
+	{ .compatible = "techpoint,tp9951" },
 	{ },
 };
 
@@ -1260,7 +1300,6 @@ static int techpoint_audio_probe(struct techpoint *techpoint)
 	}
 
 	if (techpoint->chip_id == CHIP_TP9930) {
-
 		techpoint_write_reg(techpoint->client, 0x40, 0x00);
 		for (i = 0; i < 0xff; i++)
 			techpoint_write_reg(techpoint->client, i, 0xbb);
@@ -1333,7 +1372,7 @@ static int techpoint_probe(struct i2c_client *client,
 	struct techpoint *techpoint;
 	struct v4l2_subdev *sd;
 	__maybe_unused char facing[2];
-	int ret, index;
+	int ret = 0, index;
 
 	dev_info(dev, "driver version: %02x.%02x.%02x",
 		 DRIVER_VERSION >> 16,

@@ -51,6 +51,8 @@ static int dw_hdmi_i2s_hw_params(struct device *dev, void *data,
 	u8 inputclkfs = 0;
 	u8 val;
 
+	dw_hdmi_audio_disable(hdmi);
+
 	/* it cares I2S only */
 	if ((fmt->fmt != HDMI_I2S) ||
 	    (fmt->bit_clk_master | fmt->frame_clk_master)) {
@@ -109,8 +111,7 @@ static int dw_hdmi_i2s_hw_params(struct device *dev, void *data,
 			 HDMI_AUD_INT_FIFO_FULL_MSK, HDMI_AUD_INT);
 	hdmi_update_bits(audio, HDMI_AUD_CONF0_SW_RESET,
 			 HDMI_AUD_CONF0_SW_RESET, HDMI_AUD_CONF0);
-	hdmi_update_bits(audio, HDMI_MC_SWRSTZ_I2S_RESET_MSK,
-			 HDMI_MC_SWRSTZ_I2S_RESET_MSK, HDMI_MC_SWRSTZ);
+	hdmi_write(audio, (u8)~HDMI_MC_SWRSTZ_I2S_RESET_MSK, HDMI_MC_SWRSTZ);
 
 	switch (hparms->mode) {
 	case NLPCM:
@@ -196,25 +197,27 @@ static int dw_hdmi_i2s_hw_params(struct device *dev, void *data,
 
 	hdmi_update_bits(audio, HDMI_AUD_CONF0_SW_RESET,
 			 HDMI_AUD_CONF0_SW_RESET, HDMI_AUD_CONF0);
-	hdmi_update_bits(audio, HDMI_MC_SWRSTZ_I2S_RESET_MSK,
-			 HDMI_MC_SWRSTZ_I2S_RESET_MSK, HDMI_MC_SWRSTZ);
+	hdmi_write(audio, (u8)~HDMI_MC_SWRSTZ_I2S_RESET_MSK, HDMI_MC_SWRSTZ);
 
 	return 0;
 }
 
-static void dw_hdmi_i2s_audio_shutdown(struct device *dev, void *data)
+static int dw_hdmi_i2s_prepare(struct device *dev, void *data,
+			       struct hdmi_codec_daifmt *fmt,
+			       struct hdmi_codec_params *hparms)
 {
 	struct dw_hdmi_i2s_audio_data *audio = data;
 	struct dw_hdmi *hdmi = audio->hdmi;
 
 	dw_hdmi_audio_disable(hdmi);
 
-	hdmi_update_bits(audio,
-			 HDMI_AUD_CONF0_SW_RESET,
-			 HDMI_AUD_CONF0_SW_RESET |
-				(HDMI_AUD_CONF0_I2S_ALL_ENABLE ^
-				 HDMI_AUD_CONF0_I2S_SELECT_MASK),
-			 HDMI_AUD_CONF0);
+	hdmi_update_bits(audio, HDMI_AUD_CONF0_SW_RESET,
+			 HDMI_AUD_CONF0_SW_RESET, HDMI_AUD_CONF0);
+	hdmi_write(audio, (u8)~HDMI_MC_SWRSTZ_I2S_RESET_MSK, HDMI_MC_SWRSTZ);
+
+	dw_hdmi_audio_enable(hdmi);
+
+	return 0;
 }
 
 static int dw_hdmi_i2s_get_dai_id(struct snd_soc_component *component,
@@ -249,7 +252,7 @@ static int dw_hdmi_i2s_hook_plugged_cb(struct device *dev, void *data,
 
 static struct hdmi_codec_ops dw_hdmi_i2s_ops = {
 	.hw_params	= dw_hdmi_i2s_hw_params,
-	.audio_shutdown	= dw_hdmi_i2s_audio_shutdown,
+	.prepare	= dw_hdmi_i2s_prepare,
 	.get_dai_id	= dw_hdmi_i2s_get_dai_id,
 	.hook_plugged_cb = dw_hdmi_i2s_hook_plugged_cb,
 };

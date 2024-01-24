@@ -1008,11 +1008,13 @@ void dwc2_hc_halt(struct dwc2_hsotg *hsotg, struct dwc2_host_chan *chan,
 	 * uframe/frame (in the worst case), the core generates a channel
 	 * halted and disables the channel automatically.
 	 */
-	if ((hsotg->params.g_dma && !hsotg->params.g_dma_desc) ||
+	if ((hsotg->params.host_dma && !hsotg->params.dma_desc_enable) ||
 	    hsotg->hw_params.arch == GHWCFG2_EXT_DMA_ARCH) {
 		if (!chan->do_split &&
 		    (chan->ep_type == USB_ENDPOINT_XFER_ISOC ||
-		     chan->ep_type == USB_ENDPOINT_XFER_INT)) {
+		     chan->ep_type == USB_ENDPOINT_XFER_INT) &&
+		    (halt_status == DWC2_HC_XFER_URB_DEQUEUE)) {
+			chan->halt_status = halt_status;
 			dev_err(hsotg->dev, "%s() Channel can't be halted\n",
 				__func__);
 			return;
@@ -1050,12 +1052,8 @@ void dwc2_hc_halt(struct dwc2_hsotg *hsotg, struct dwc2_host_chan *chan,
 		chan->halt_status = halt_status;
 
 		hcchar = dwc2_readl(hsotg, HCCHAR(chan->hc_num));
-		if (!(hcchar & HCCHAR_CHENA) ||
-		    (!chan->do_split &&
-		     (chan->ep_type == USB_ENDPOINT_XFER_ISOC ||
-		      chan->ep_type == USB_ENDPOINT_XFER_INT))){
+		if (!(hcchar & HCCHAR_CHENA)) {
 			/*
-			 * HCCHARn.ChEna 0 means that:
 			 * The channel is either already halted or it hasn't
 			 * started yet. In DMA mode, the transfer may halt if
 			 * it finishes normally or a condition occurs that
@@ -1065,16 +1063,7 @@ void dwc2_hc_halt(struct dwc2_hsotg *hsotg, struct dwc2_host_chan *chan,
 			 * to a channel, but not started yet when an URB is
 			 * dequeued. Don't want to halt a channel that hasn't
 			 * started yet.
-			 * If channel is used for non-split periodic transfer
-			 * according to DWC Programming Guide:
-			 * '3.5 Halting a Channel': Channel disable must not
-			 * be programmed for non-split periodic channels. At
-			 * the end of the next uframe/frame (in the worst
-			 * case), the core generates a channel halted and
-			 * disables the channel automatically.
 			 */
-			dev_info(hsotg->dev, "hcchar 0x%08x, ep_type %d\n",
-				 hcchar, chan->ep_type);
 			return;
 		}
 	}
@@ -3072,7 +3061,7 @@ static int dwc2_queue_transaction(struct dwc2_hsotg *hsotg,
 			if (!chan->xfer_started) {
 				dwc2_hc_start_transfer(hsotg, chan);
 				retval = 1;
-			} else {
+			} else if (!hsotg->params.host_dma) {
 				retval = dwc2_hc_continue_transfer(hsotg, chan);
 			}
 		} else {
@@ -3082,7 +3071,7 @@ static int dwc2_queue_transaction(struct dwc2_hsotg *hsotg,
 		if (!chan->xfer_started) {
 			dwc2_hc_start_transfer(hsotg, chan);
 			retval = 1;
-		} else {
+		} else if (!hsotg->params.host_dma) {
 			retval = dwc2_hc_continue_transfer(hsotg, chan);
 		}
 	}
@@ -5288,6 +5277,10 @@ int dwc2_hcd_init(struct dwc2_hsotg *hsotg)
 	hcd->has_tt = 1;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		retval = -EINVAL;
+		goto error1;
+	}
 	hcd->rsrc_start = res->start;
 	hcd->rsrc_len = resource_size(res);
 

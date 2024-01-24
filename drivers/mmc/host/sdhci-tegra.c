@@ -578,6 +578,7 @@ static int sdhci_tegra_remove(struct platform_device *pdev)
 static struct platform_driver sdhci_tegra_driver = {
 	.driver		= {
 		.name	= "sdhci-tegra",
+		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 		.of_match_table = sdhci_tegra_dt_match,
 		.pm	= &sdhci_pltfm_pmops,
 	},

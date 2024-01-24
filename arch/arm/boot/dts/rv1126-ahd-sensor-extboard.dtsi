@@ -1,0 +1,191 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2023 Rockchip Electronics Co., Ltd.
+ *
+ * Version  Sensor      I2C_ADDR    Lanes
+ * v1.0.0   adh(tp9951) 0x45        lane0~1(dphy1)
+ *          sc500ai     0x30        lane2~3(dphy2)
+ */
+
+&i2c1 {
+	/delete-node/ ar0230@10;
+	/delete-node/ ov4689@36;
+	/delete-node/ os04a10@36;
+	// #/delete-node/ imx335@1a;
+	// #/delete-node/ imx415@1a;
+	/delete-node/ imx464@1a;
+	tp9951_00: tp9951@45 {
+		compatible = "techpoint,tp9951";
+		status = "okay";
+		reg = <0x45>;
+		clocks = <&cru CLK_MIPICSI_OUT>;
+		clock-names = "xvclk";
+		power-domains = <&power RV1126_PD_VI>;
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&mipicsi_clk0>;
+		avdd-supply = <&vcc_avdd>;
+		dovdd-supply = <&vcc_dovdd>;
+		dvdd-supply = <&vcc_dvdd>;
+		reset-gpios = <&gpio1 RK_PD5 GPIO_ACTIVE_LOW>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "front";
+		rockchip,camera-module-name = "tp9951";
+		rockchip,camera-module-lens-name = "tp9951";
+		port {
+			ahd_out: endpoint {
+				remote-endpoint = <&csi_dphy_input0>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+	sc530ai: sc530ai@30 {
+		compatible = "smartsense,sc530ai";
+		status = "okay";
+		reg = <0x30>;
+		clocks = <&cru CLK_MIPICSI_OUT>;
+		clock-names = "xvclk";
+		power-domains = <&power RV1126_PD_VI>;
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&mipicsi_clk1>;
+		avdd-supply = <&vcc_avdd>;
+		dovdd-supply = <&vcc_dovdd>;
+		dvdd-supply = <&vcc_dvdd>;
+		reset-gpios = <&gpio2 RK_PA0 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio3 RK_PA4 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <1>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-OT1607-PV1";
+		rockchip,camera-module-lens-name = "50IRC-F16";
+		port {
+			sc530ai_out: endpoint {
+				remote-endpoint = <&mipi_in_ucam>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+};
+
+&csi_dphy0 {
+	status = "okay";
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			csi_dphy_input0: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&ahd_out>;
+				data-lanes = <1 2>;
+			};
+		};
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			csi_dphy_output0: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&mipi_csi2_input>;
+			};
+		};
+	};
+};
+
+&csi_dphy1 {
+	status = "okay";
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			mipi_in_ucam: endpoint@1 {
+				reg = <2>;
+				remote-endpoint = <&sc530ai_out>;
+				data-lanes = <1 2>;
+			};
+		};
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			csi_dphy1_output: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&isp_in1>;
+			};
+		};
+	};
+};
+
+&mipi_csi2 {
+	status = "okay";
+	ports {
+		port@0 {
+			mipi_csi2_input: endpoint@1 {
+				remote-endpoint = <&csi_dphy_output0>;
+				data-lanes = <1 2>;
+			};
+		};
+		port@1 {
+			mipi_csi2_output: endpoint@0 {
+				remote-endpoint = <&cif_mipi_in1>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+};
+
+&rkcif_mipi_lvds {
+	status = "okay";
+	port {
+		cif_mipi_in1: endpoint {
+			remote-endpoint = <&mipi_csi2_output>;
+			data-lanes = <1 2>;
+		};
+	};
+};
+
+&rkcif_mipi_lvds_sditf {
+	status = "disabled";
+};
+
+&rkisp_vir0 {
+	status = "disabled";
+};
+
+&rkispp_vir0 {
+	status = "disabled";
+};
+
+/* isp cma buffer don't fiddle with it, dual camera(1920 * 1080) need 92M buffer */
+&isp_reserved {
+	size = <0x6400000>;
+};
+
+&rkisp_vir1 {
+	memory-region = <&isp_reserved>;
+	status = "okay";
+	ports {
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			isp_in1: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&csi_dphy1_output>;
+			};
+		};
+	};
+};
+
+&rkispp_vir1 {
+	status = "okay";
+};
+
+&rkispp {
+	status = "okay";
+	/* the max input w h and fps of mulit sensor */
+	// max-input = <2560 1520 30>;
+};
