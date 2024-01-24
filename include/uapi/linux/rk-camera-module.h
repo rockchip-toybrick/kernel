@@ -599,13 +599,30 @@ struct rkmodule_vc_fmt_info {
 	__u32 fps[RKMODULE_MAX_VC_CH];
 } __attribute__ ((packed));
 
+enum rkmodule_hotplug_reset_mode {
+	RKCIF_HOTPLUG_NO_RESET,
+	RKCIF_HOTPLUG_OUT_RESET,
+	RKCIF_HOTPLUG_IN_RESET,
+	RKCIF_HOTPLUG_ALL_RESET,
+};
+
+enum rkmodule_hotplug_state {
+	RKCIF_HOTPLUG_NORMAL,
+	RKCIF_HOTPLUG_OUT,
+	RKCIF_HOTPLUG_IN,
+};
+
 /**
  * struct rkmodule_vc_hotplug_info - virtual channels hotplug status info
  * detect_status: hotplug status
  *     bit 0~3 means channels id, value : 0 -> plug out, 1 -> plug in.
+ *     detect_status: hotplug status,refer to rkmodule_hotplug_state.
+ *     hotplug_mode: refer to rkmodule_hotplug_reset_mode
  */
 struct rkmodule_vc_hotplug_info {
 	__u8 detect_status;
+	__u8 hotplug_state[RKMODULE_MAX_VC_CH];
+	__u8 hotplug_mode;
 } __attribute__ ((packed));
 
 

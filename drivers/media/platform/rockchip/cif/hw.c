@@ -20,6 +20,7 @@
 #include <media/videobuf2-dma-contig.h>
 #include <media/v4l2-fwnode.h>
 #include <linux/iommu.h>
+#include <dt-bindings/soc/rockchip-system-status.h>
 #include <soc/rockchip/rockchip-system-status.h>
 #include <linux/io.h>
 #include <linux/mfd/syscon.h>
@@ -1039,6 +1040,8 @@ static int rkcif_plat_hw_probe(struct platform_device *pdev)
 
 	mutex_init(&cif_hw->dev_lock);
 	spin_lock_init(&cif_hw->spin_lock);
+	cif_hw->is_need_reset = false;
+	cif_hw->is_ready_reset = false;
 
 	pm_runtime_enable(&pdev->dev);
 	rkcif_init_reset_timer(cif_hw);
@@ -1093,31 +1096,9 @@ static int __maybe_unused rkcif_runtime_resume(struct device *dev)
 	return 0;
 }
 
-static int __maybe_unused rkcif_sleep_suspend(struct device *dev)
-{
-	struct rkcif_hw *cif_hw = dev_get_drvdata(dev);
-
-	rkcif_disable_sys_clk(cif_hw);
-
-	return pinctrl_pm_select_sleep_state(dev);
-}
-
-static int __maybe_unused rkcif_sleep_resume(struct device *dev)
-{
-	struct rkcif_hw *cif_hw = dev_get_drvdata(dev);
-	int ret;
-
-	ret = pinctrl_pm_select_default_state(dev);
-	if (ret < 0)
-		return ret;
-	rkcif_enable_sys_clk(cif_hw);
-	rkcif_hw_soft_reset(cif_hw, true);
-
-	return 0;
-}
-
 static const struct dev_pm_ops rkcif_plat_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(rkcif_sleep_suspend, rkcif_sleep_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
+				pm_runtime_force_resume)
 	SET_RUNTIME_PM_OPS(rkcif_runtime_suspend, rkcif_runtime_resume, NULL)
 };
 

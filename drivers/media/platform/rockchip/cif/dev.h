@@ -325,9 +325,11 @@ struct rkcif_readout_stats {
  */
 struct rkcif_irq_stats {
 	u64 csi_overflow_cnt;
+	u64 csi_overflow_timestamp;
 	u64 csi_bwidth_lack_cnt;
 	u64 dvp_bus_err_cnt;
 	u64 dvp_overflow_cnt;
+	u64 dvp_overflow_timestamp;
 	u64 dvp_line_err_cnt;
 	u64 dvp_pix_err_cnt;
 	u64 all_frm_end_cnt;
@@ -411,6 +413,7 @@ struct rkcif_stream {
 	u64				line_int_cnt;
 	int				vc;
 	u64				streamon_timestamp;
+	struct completion		complete_out;
 	bool				stopping;
 	bool				crop_enable;
 	bool				crop_dyn_en;
@@ -422,6 +425,7 @@ struct rkcif_stream {
 	bool				is_can_stop;
 	bool				is_buf_active;
 	bool				is_high_align;
+	bool				is_wait;
 };
 
 struct rkcif_lvds_subdev {
@@ -526,6 +530,7 @@ struct rkcif_device {
 	bool				is_start_hdr;
 	bool				iommu_en;
 	bool				is_use_dummybuf;
+	bool				is_in_reset;
 };
 
 extern struct platform_driver rkcif_plat_drv;
@@ -570,7 +575,5 @@ void rkcif_config_dvp_clk_sampling_edge(struct rkcif_device *dev,
 void rkcif_enable_dvp_clk_dual_edge(struct rkcif_device *dev, bool on);
 void rkcif_reset_work(struct work_struct *work);
 void rkcif_monitor_reset_event(struct rkcif_hw *hw);
-int rkcif_stream_suspend(struct rkcif_device *cif_dev);
-int rkcif_stream_resume(struct rkcif_device *cif_dev);
 
 #endif

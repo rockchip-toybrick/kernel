@@ -20,6 +20,7 @@
 #include <media/videobuf2-dma-contig.h>
 #include <media/v4l2-fwnode.h>
 #include <linux/iommu.h>
+#include <dt-bindings/soc/rockchip-system-status.h>
 #include <soc/rockchip/rockchip-system-status.h>
 #include <linux/io.h>
 #include <linux/mfd/syscon.h>
@@ -1105,6 +1106,7 @@ int rkcif_plat_init(struct rkcif_device *cif_dev, struct device_node *node, int 
 	cif_dev->isr_hdl = rkcif_irq_handler;
 	if (cif_dev->chip_id == CHIP_RV1126_CIF_LITE)
 		cif_dev->isr_hdl = rkcif_irq_lite_handler;
+	cif_dev->is_in_reset = false;
 
 	if (cif_dev->chip_id < CHIP_RV1126_CIF) {
 		if (cif_dev->inf_id == RKCIF_MIPI_LVDS) {
@@ -1368,25 +1370,9 @@ static int __init rkcif_clr_unready_dev(void)
 late_initcall(rkcif_clr_unready_dev);
 #endif
 
-static int __maybe_unused rkcif_runtime_prepare(struct device *dev)
-{
-	struct rkcif_device *cif_dev = dev_get_drvdata(dev);
-
-	rkcif_stream_suspend(cif_dev);
-	return 0;
-}
-
-static void __maybe_unused rkcif_runtime_complete(struct device *dev)
-{
-	struct rkcif_device *cif_dev = dev_get_drvdata(dev);
-
-	rkcif_stream_resume(cif_dev);
-}
-
-
 static const struct dev_pm_ops rkcif_plat_pm_ops = {
-	.prepare = rkcif_runtime_prepare,
-	.complete = rkcif_runtime_complete,
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
+				pm_runtime_force_resume)
 	SET_RUNTIME_PM_OPS(rkcif_runtime_suspend, rkcif_runtime_resume, NULL)
 };
 
