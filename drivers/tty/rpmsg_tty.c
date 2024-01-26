@@ -101,7 +101,7 @@ static int rpmsg_tty_write(struct tty_struct *tty, const u8 *buf, int len)
 	return msg_size;
 }
 
-static unsigned int rpmsg_tty_write_room(struct tty_struct *tty)
+static int rpmsg_tty_write_room(struct tty_struct *tty)
 {
 	struct rpmsg_tty_port *cport = tty->driver_data;
 	int size;
