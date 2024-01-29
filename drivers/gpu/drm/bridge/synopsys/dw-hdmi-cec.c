@@ -216,6 +216,8 @@ static int dw_hdmi_cec_enable(struct cec_adapter *adap, bool enable)
 			dw_hdmi_mod(cec, HDMI_CEC_CTRL, CEC_CTRL_STANDBY, CEC_CTRL_STANDBY);
 			dw_hdmi_write(cec, 0, HDMI_CEC_LOCK);
 			dw_hdmi_write(cec, 0xff, HDMI_CEC_WKUPCTRL);
+			/* change HDMI_CEC_WKUPCTRL bit5 wake up opcode 0x70 to 0x8f */
+			dw_hdmi_write(cec, 0x8f, HDMI_CEC_WKUPCTRL + 6);
 			dw_hdmi_write(cec, ~(1 << 6), HDMI_CEC_MASK);
 			dw_hdmi_write(cec, ~(1 << 6), HDMI_IH_MUTE_CEC_STAT0);
 			dw_hdmi_write(cec, 0x01, HDMI_IH_MUTE);
