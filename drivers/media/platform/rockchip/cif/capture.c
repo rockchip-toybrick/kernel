@@ -2504,6 +2504,7 @@ static void rkcif_stop_streaming(struct vb2_queue *queue)
 		hw_dev->reset_work_cancel = true;
 		hw_dev->hw_timer.is_running = false;
 		hw_dev->reset_info.is_need_reset = 0;
+		atomic_set(&dev->streamoff_cnt, 0);
 	}
 	spin_unlock_irqrestore(&hw_dev->hw_timer.timer_lock, flags);
 
@@ -6194,16 +6195,26 @@ static int rkcif_subdevs_set_power(struct rkcif_device *cif_dev, int on)
 static int rkcif_subdevs_set_stream(struct rkcif_device *cif_dev, int on)
 {
 	struct rkcif_pipeline *p = &cif_dev->pipe;
-
+	struct rkcif_sensor_info *terminal_sensor = &cif_dev->terminal_sensor;
 	int i = 0;
 	int ret = 0;
 
 	for (i = 0; i < p->num_subdevs; i++) {
-		ret = v4l2_subdev_call(p->subdevs[i], video, s_stream, on);
-		if (ret)
+		if (p->subdevs[i] == terminal_sensor->sd &&
+		    IS_REACHABLE(CONFIG_VIDEO_CAM_SLEEP_WAKEUP)) {
+			ret = v4l2_subdev_call(p->subdevs[i], core, ioctl,
+					       RKMODULE_SET_QUICK_STREAM, &on);
 			v4l2_dbg(1, rkcif_debug, &cif_dev->v4l2_dev,
-				 "%s:stream %s subdev:%s failed\n",
-				 __func__, on ? "on" : "off", p->subdevs[i]->name);
+				 "%s:quick stream %s subdev:%s failed\n",
+				 __func__, on ? "on" : "off",
+				 p->subdevs[i]->name);
+		} else {
+			ret = v4l2_subdev_call(p->subdevs[i], video, s_stream, on);
+			if (ret)
+				v4l2_dbg(1, rkcif_debug, &cif_dev->v4l2_dev,
+					 "%s:stream %s subdev:%s failed\n",
+					 __func__, on ? "on" : "off", p->subdevs[i]->name);
+		}
 	}
 
 	return ret;
@@ -6255,7 +6266,8 @@ int rkcif_stream_suspend(struct rkcif_device *cif_dev)
 	if (suspend_cnt == 0)
 		goto out_suspend;
 
-	rkcif_subdevs_set_power(cif_dev, on);
+	if (cif_dev->resume_mode == 0)
+		rkcif_subdevs_set_power(cif_dev, on);
 
 	rkcif_subdevs_set_stream(cif_dev, on);
 
@@ -6333,8 +6345,10 @@ int rkcif_stream_resume(struct rkcif_device *cif_dev)
 		goto out_resume;
 
 	on = 1;
-	rkcif_subdevs_set_power(cif_dev, on);
+	if (cif_dev->resume_mode == 0)
+		rkcif_subdevs_set_power(cif_dev, on);
 
+	atomic_set(&cif_dev->streamoff_cnt, 0);
 	rkcif_subdevs_set_stream(cif_dev, on);
 	rkcif_start_luma(&cif_dev->luma_vdev,
 			 cif_dev->stream[RKCIF_STREAM_MIPI_ID0].cif_fmt_in);
