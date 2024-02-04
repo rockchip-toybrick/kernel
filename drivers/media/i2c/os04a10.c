@@ -31,6 +31,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/rk-preisp.h>
 #include "../platform/rockchip/isp/rkisp_tb_helper.h"
+#include "cam-sleep-wakeup.h"
 
 #define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x05)
 
@@ -192,6 +193,7 @@ struct os04a10 {
 	bool			is_first_streamoff;
 	u8			flip;
 	u32			dcg_ratio;
+	struct cam_sw_info	*cam_sw_inf;
 };
 
 #define to_os04a10(sd) container_of(sd, struct os04a10, subdev)
@@ -435,6 +437,79 @@ static const struct regval os04a10_global_regs[] = {
 	{0x58d9, 0xff},
 	{REG_NULL, 0x00},
 };
+
+#if IS_REACHABLE(CONFIG_VIDEO_CAM_SLEEP_WAKEUP)
+static const struct regval os04a10_linear10bit_2688x1520_60fps_regs[] = {
+	{0x0305, 0x3c},
+	{0x0308, 0x04},
+	{0x0317, 0x09},
+	{0x0325, 0x90},
+	{0x032e, 0x02},
+	{0x3605, 0x7f},
+	{0x3606, 0x80},
+	{0x362d, 0x0e},
+	{0x3662, 0x02},
+	{0x3667, 0xd4},
+	{0x3671, 0x08},
+	{0x3703, 0x20},
+	{0x3706, 0x72},
+	{0x370a, 0x01},
+	{0x370b, 0x14},
+	{0x3719, 0x1f},
+	{0x371b, 0x16},
+	{0x3756, 0x9d},
+	{0x3757, 0x9d},
+	{0x376c, 0x04},
+	{0x37cc, 0x13},
+	{0x37d1, 0x72},
+	{0x37d2, 0x01},
+	{0x37d3, 0x14},
+	{0x37d4, 0x00},
+	{0x37d5, 0x6c},
+	{0x37d6, 0x00},
+	{0x37d7, 0xf7},
+	{0x3801, 0x00},
+	{0x3803, 0x00},
+	{0x3805, 0x8f},
+	{0x3807, 0xff},
+	{0x3809, 0x80},
+	{0x380b, 0xf0},
+	{0x380c, 0x02}, // HTS
+	{0x380d, 0xdc}, // HTS
+	{0x380e, 0x06}, // VTS
+	{0x380f, 0x58}, // VTS
+	{0x381c, 0x00},
+	{0x3820, 0x00},
+	{0x3833, 0x40},
+	{0x384c, 0x02},
+	{0x384d, 0xdc},
+	{0x3c5a, 0x55},
+	{0x4004, 0x00},
+	{0x4001, 0x2f},
+	{0x4005, 0x40},
+	{0x400a, 0x06},
+	{0x400b, 0x40},
+	{0x402e, 0x00},
+	{0x402f, 0x40},
+	{0x4031, 0x40},
+	{0x4032, 0x0f},
+	{0x4288, 0xcf},
+	{0x430b, 0x0f},
+	{0x430c, 0xfc},
+	{0x4507, 0x02},
+	{0x480e, 0x00},
+	{0x4813, 0x00},
+	{0x4837, 0x0e},
+	{0x484b, 0x27},
+	{0x5000, 0x1f},
+	{0x5001, 0x0d},
+	{0x5782, 0x18},
+	{0x5783, 0x3c},
+	{0x5788, 0x18},
+	{0x5789, 0x3c},
+	{REG_NULL, 0x00},
+};
+#endif
 
 static const struct regval os04a10_linear10bit_2688x1520_regs[] = {
 	{0x0305, 0x3c},
@@ -806,6 +881,23 @@ static const struct regval os04a10_hdr12bit_2560x1440_regs[] = {
  * }
  */
 static const struct os04a10_mode supported_modes[] = {
+#if IS_REACHABLE(CONFIG_VIDEO_CAM_SLEEP_WAKEUP)
+	{
+		.bus_fmt = MEDIA_BUS_FMT_SBGGR10_1X10,
+		.width = 2688,
+		.height = 1520,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 302834 * 2,
+		},
+		.exp_def = 0x0240,
+		.hts_def = 0x02dc * 4,
+		.vts_def = 0x0658,
+		.reg_list = os04a10_linear10bit_2688x1520_60fps_regs,
+		.hdr_mode = NO_HDR,
+		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
+	},
+#endif
 	{
 		.bus_fmt = MEDIA_BUS_FMT_SBGGR10_1X10,
 		.width = 2688,
@@ -1503,12 +1595,19 @@ static long os04a10_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 
 		stream = *((u32 *)arg);
 
-		if (stream)
+		if (stream) {
+			gpiod_direction_output(os04a10->pwdn_gpio, 1);
 			ret = os04a10_write_reg(os04a10->client, OS04A10_REG_CTRL_MODE,
 				OS04A10_REG_VALUE_08BIT, OS04A10_MODE_STREAMING);
-		else
+		} else {
 			ret = os04a10_write_reg(os04a10->client, OS04A10_REG_CTRL_MODE,
 				OS04A10_REG_VALUE_08BIT, OS04A10_MODE_SW_STANDBY);
+			gpiod_direction_output(os04a10->pwdn_gpio, 0);
+		}
+
+		dev_info(&os04a10->client->dev,
+			 "quick stream %s\n",
+			 stream ? "on" : "off");
 		break;
 	case RKMODULE_GET_DCG_RATIO:
 		if (os04a10->dcg_ratio == 0)
@@ -1813,6 +1912,9 @@ static int __os04a10_power_on(struct os04a10 *os04a10)
 		dev_err(dev, "Failed to enable xvclk\n");
 		return ret;
 	}
+
+	cam_sw_regulator_bulk_init(os04a10->cam_sw_inf, OS04A10_NUM_SUPPLIES, os04a10->supplies);
+
 	if (!IS_ERR(os04a10->reset_gpio))
 		gpiod_direction_output(os04a10->reset_gpio, 1);
 
@@ -1903,6 +2005,48 @@ static int os04a10_runtime_suspend(struct device *dev)
 	return 0;
 }
 
+#if IS_REACHABLE(CONFIG_VIDEO_CAM_SLEEP_WAKEUP)
+
+static int __maybe_unused os04a10_resume(struct device *dev)
+{
+	// int ret;
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct os04a10 *os04a10 = to_os04a10(sd);
+
+	cam_sw_prepare_wakeup(os04a10->cam_sw_inf, dev);
+
+	usleep_range(4000, 5000);
+	os04a10_write_array(os04a10->client, os04a10_global_regs);
+	cam_sw_write_array(os04a10->cam_sw_inf);
+
+	os04a10_init_conversion_gain(os04a10);
+
+	if (__v4l2_ctrl_handler_setup(&os04a10->ctrl_handler))
+		dev_err(dev, "__v4l2_ctrl_handler_setup fail!");
+
+	return 0;
+}
+
+static int __maybe_unused os04a10_suspend(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct os04a10 *os04a10 = to_os04a10(sd);
+
+	cam_sw_write_array_cb_init(os04a10->cam_sw_inf, client,
+				   (void *)os04a10->cur_mode->reg_list,
+				   (sensor_write_array)os04a10_write_array);
+	cam_sw_prepare_sleep(os04a10->cam_sw_inf);
+
+	return 0;
+}
+#else
+#define os04a10_resume NULL
+#define os04a10_suspend NULL
+#endif
+
+
 #ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
 static int os04a10_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
@@ -1945,6 +2089,7 @@ static int os04a10_enum_frame_interval(struct v4l2_subdev *sd,
 static const struct dev_pm_ops os04a10_pm_ops = {
 	SET_RUNTIME_PM_OPS(os04a10_runtime_suspend,
 			   os04a10_runtime_resume, NULL)
+	SET_LATE_SYSTEM_SLEEP_PM_OPS(os04a10_suspend, os04a10_resume)
 };
 
 #ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
@@ -2360,6 +2505,13 @@ static int os04a10_probe(struct i2c_client *client,
 		goto err_power_off;
 #endif
 
+	if (!os04a10->cam_sw_inf) {
+		os04a10->cam_sw_inf = cam_sw_init();
+		cam_sw_clk_init(os04a10->cam_sw_inf, os04a10->xvclk, OS04A10_XVCLK_FREQ);
+		cam_sw_reset_pin_init(os04a10->cam_sw_inf, os04a10->reset_gpio, 0);
+		cam_sw_pwdn_pin_init(os04a10->cam_sw_inf, os04a10->pwdn_gpio, 1);
+	}
+
 	memset(facing, 0, sizeof(facing));
 	if (strcmp(os04a10->module_facing, "back") == 0)
 		facing[0] = 'b';
@@ -2409,6 +2561,7 @@ static int os04a10_remove(struct i2c_client *client)
 	v4l2_ctrl_handler_free(&os04a10->ctrl_handler);
 	mutex_destroy(&os04a10->mutex);
 
+	cam_sw_deinit(os04a10->cam_sw_inf);
 	pm_runtime_disable(&client->dev);
 	if (!pm_runtime_status_suspended(&client->dev))
 		__os04a10_power_off(os04a10);
