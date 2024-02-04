@@ -6200,6 +6200,8 @@ static int rkcif_subdevs_set_stream(struct rkcif_device *cif_dev, int on)
 	int ret = 0;
 
 	for (i = 0; i < p->num_subdevs; i++) {
+		if (p->subdevs[i] == terminal_sensor->sd && on)
+			rkcif_set_sof(cif_dev, cif_dev->stream[0].frame_idx);
 		if (p->subdevs[i] == terminal_sensor->sd &&
 		    IS_REACHABLE(CONFIG_VIDEO_CAM_SLEEP_WAKEUP)) {
 			ret = v4l2_subdev_call(p->subdevs[i], core, ioctl,
