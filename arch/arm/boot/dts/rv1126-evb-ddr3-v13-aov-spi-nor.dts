@@ -1,0 +1,48 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2024 Rockchip Electronics Co., Ltd.
+ */
+
+/dts-v1/;
+#include "rv1126.dtsi"
+#include "rv1126-evb-v13.dtsi"
+
+/ {
+	model = "Rockchip RV1126 SPI NOR DDR3 Board";
+	compatible = "rockchip,rv1126-evb-ddr3-v13-spi-nor", "rockchip,rv1126";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0xff570000 console=ttyFIQ0 root=/dev/mtdblock4 rootfstype=squashfs rootwait snd_aloop.index=7";
+	};
+
+};
+
+&dsi {
+	status = "disabled";
+};
+
+&rockchip_suspend {
+	status = "okay";
+	rockchip,wakeup-config = <
+	(0
+	| RKPM_GPIO_WKUP_EN
+	| RKPM_TIME_OUT_WKUP_EN
+	)
+	>;
+};
+
+
+&vcc_1v8 {
+	regulator-state-mem {
+		/delete-property/ regulator-on-in-suspend;
+		regulator-off-in-suspend;
+		regulator-suspend-microvolt = <1800000>;
+	};
+};
+
+&vcc_3v3 {
+	regulator-state-mem {
+		/delete-property/ regulator-on-in-suspend;
+		regulator-off-in-suspend;
+	};
+};
