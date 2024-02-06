@@ -2508,7 +2508,7 @@ static int os04a10_probe(struct i2c_client *client,
 	if (!os04a10->cam_sw_inf) {
 		os04a10->cam_sw_inf = cam_sw_init();
 		cam_sw_clk_init(os04a10->cam_sw_inf, os04a10->xvclk, OS04A10_XVCLK_FREQ);
-		cam_sw_reset_pin_init(os04a10->cam_sw_inf, os04a10->reset_gpio, 0);
+		cam_sw_reset_pin_init(os04a10->cam_sw_inf, os04a10->reset_gpio, 1);
 		cam_sw_pwdn_pin_init(os04a10->cam_sw_inf, os04a10->pwdn_gpio, 1);
 	}
 
