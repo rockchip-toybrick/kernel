@@ -2177,8 +2177,9 @@ static void hdmi_config_vendor_specific_infoframe(struct dw_hdmi *hdmi,
 		 */
 		return;
 
-	/* if sink support hdmi2.0, don't send vsi */
-	if ((is_hdmi2_sink(&hdmi->connector) && is_vsi_disable(&hdmi->connector)) || !frame.vic) {
+	/* Don't send vsi if not in 4k x 2k or 3d mode */
+	if ((is_hdmi2_sink(&hdmi->connector) && is_vsi_disable(&hdmi->connector)) ||
+	    (!frame.vic && frame.s3d_struct == HDMI_3D_STRUCTURE_INVALID)) {
 		hdmi_mask_writeb(hdmi, 0, HDMI_FC_DATAUTO0, HDMI_FC_DATAUTO0_VSD_OFFSET,
 				 HDMI_FC_DATAUTO0_VSD_MASK);
 		return;
