@@ -897,7 +897,8 @@ static void vdpu_shutdown(struct platform_device *pdev)
 
 static int vdpu_runtime_suspend(struct device *dev)
 {
-	struct mpp_dev *mpp = dev_get_drvdata(dev);
+	struct vdpu_dev *dec = dev_get_drvdata(dev);
+	struct mpp_dev *mpp = &dec->mpp;
 	struct mpp_grf_info *info = mpp->grf_info;
 	struct mpp_taskqueue *queue = mpp->queue;
 
@@ -915,7 +916,8 @@ static int vdpu_runtime_suspend(struct device *dev)
 
 static int vdpu_runtime_resume(struct device *dev)
 {
-	struct mpp_dev *mpp = dev_get_drvdata(dev);
+	struct vdpu_dev *dec = dev_get_drvdata(dev);
+	struct mpp_dev *mpp = &dec->mpp;
 	struct mpp_grf_info *info = mpp->grf_info;
 	struct mpp_taskqueue *queue = mpp->queue;
 

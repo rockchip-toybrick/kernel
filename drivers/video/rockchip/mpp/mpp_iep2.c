@@ -1046,7 +1046,8 @@ static void iep2_shutdown(struct platform_device *pdev)
 
 static int iep2_runtime_suspend(struct device *dev)
 {
-	struct mpp_dev *mpp = dev_get_drvdata(dev);
+	struct iep2_dev *iep = dev_get_drvdata(dev);
+	struct mpp_dev *mpp = &iep->mpp;
 	struct mpp_grf_info *info = mpp->grf_info;
 	struct mpp_taskqueue *queue = mpp->queue;
 
@@ -1064,7 +1065,8 @@ static int iep2_runtime_suspend(struct device *dev)
 
 static int iep2_runtime_resume(struct device *dev)
 {
-	struct mpp_dev *mpp = dev_get_drvdata(dev);
+	struct iep2_dev *iep = dev_get_drvdata(dev);
+	struct mpp_dev *mpp = &iep->mpp;
 	struct mpp_grf_info *info = mpp->grf_info;
 	struct mpp_taskqueue *queue = mpp->queue;
 
