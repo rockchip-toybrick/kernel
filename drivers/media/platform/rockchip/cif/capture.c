@@ -4230,6 +4230,7 @@ static long rkcif_ioctl_default(struct file *file, void *fh,
 	struct rkmodule_capture_info *capture_info;
 	int ret = 0;
 	struct csi_channel_info *csi_info = &dev->channels[stream->id];
+	int on = 1;
 
 	switch (cmd) {
 	case RKCIF_CMD_GET_CSI_MEMORY_MODE:
@@ -4325,6 +4326,24 @@ static long rkcif_ioctl_default(struct file *file, void *fh,
 		v4l2_info(&dev->v4l2_dev,
 			  "set capture mode %d\n", dev->channels[0].capture_info.mode);
 		ret = 0;
+		break;
+	case RKCIF_CMD_START_CAPTURE_ONE_FRAME_AOV:
+		if (!dev->sditf[0])
+			return -EINVAL;
+		if (dev->hdr.mode == HDR_X2)
+			stream_num = 2;
+		else if (dev->hdr.mode == HDR_X3)
+			stream_num = 3;
+		else
+			stream_num = 1;
+		for (i = 0; i < stream_num; i++) {
+			dev->stream[i].is_single_cap = true;
+			rkcif_enable_dma_capture(&dev->stream[i]);
+		}
+		rkcif_dphy_quick_stream(dev, on);
+		v4l2_subdev_call(dev->terminal_sensor.sd, core, ioctl,
+				 RKMODULE_SET_QUICK_STREAM, &on);
+		v4l2_dbg(3, rkcif_debug, &dev->v4l2_dev, "call RKCIF_CMD_START_CAPTURE_ONE_FRAME_AOV\n");
 		break;
 	default:
 		return -EINVAL;
