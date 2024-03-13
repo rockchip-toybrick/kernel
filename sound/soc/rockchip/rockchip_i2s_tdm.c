@@ -2605,6 +2605,22 @@ static void rockchip_i2s_tdm_path_config(struct rk_i2s_tdm_dev *i2s_tdm,
 		rockchip_i2s_tdm_tx_path_config(i2s_tdm, num);
 }
 
+static int rockchip_i2s_tdm_wait_time_init(struct rk_i2s_tdm_dev *i2s_tdm)
+{
+	unsigned int wait_time;
+
+	if (!device_property_read_u32(i2s_tdm->dev, "rockchip,i2s-tx-wait-time-ms", &wait_time)) {
+		dev_info(i2s_tdm->dev, "Init TX wait-time-ms: %d\n", wait_time);
+		i2s_tdm->wait_time[SNDRV_PCM_STREAM_PLAYBACK] = wait_time;
+	}
+
+	if (!device_property_read_u32(i2s_tdm->dev, "rockchip,i2s-rx-wait-time-ms", &wait_time)) {
+		dev_info(i2s_tdm->dev, "Init RX wait-time-ms: %d\n", wait_time);
+		i2s_tdm->wait_time[SNDRV_PCM_STREAM_CAPTURE] = wait_time;
+	}
+	return 0;
+}
+
 static int rockchip_i2s_tdm_path_prepare(struct rk_i2s_tdm_dev *i2s_tdm,
 					 struct device_node *np,
 					 bool is_rx_path)
@@ -2984,6 +3000,8 @@ static int rockchip_i2s_tdm_probe(struct platform_device *pdev)
 		soc_dai->capture.channels_min = 0;
 	else if (of_property_read_bool(node, "rockchip,capture-only"))
 		soc_dai->playback.channels_min = 0;
+
+	rockchip_i2s_tdm_wait_time_init(i2s_tdm);
 
 	i2s_tdm->grf = syscon_regmap_lookup_by_phandle(node, "rockchip,grf");
 
