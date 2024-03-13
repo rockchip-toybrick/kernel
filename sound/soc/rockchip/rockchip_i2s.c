@@ -1025,6 +1025,22 @@ static const struct snd_dlp_config dconfig = {
 	.get_fifo_count = rockchip_i2s_get_fifo_count,
 };
 
+static int rockchip_i2s_wait_time_init(struct rk_i2s_dev *i2s)
+{
+	unsigned int wait_time;
+
+	if (!device_property_read_u32(i2s->dev, "rockchip,i2s-tx-wait-time-ms", &wait_time)) {
+		dev_info(i2s->dev, "Init TX wait-time-ms: %d\n", wait_time);
+		i2s->wait_time[SNDRV_PCM_STREAM_PLAYBACK] = wait_time;
+	}
+
+	if (!device_property_read_u32(i2s->dev, "rockchip,i2s-rx-wait-time-ms", &wait_time)) {
+		dev_info(i2s->dev, "Init RX wait-time-ms: %d\n", wait_time);
+		i2s->wait_time[SNDRV_PCM_STREAM_CAPTURE] = wait_time;
+	}
+	return 0;
+}
+
 static int rockchip_i2s_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
@@ -1041,6 +1057,8 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 
 	spin_lock_init(&i2s->lock);
 	i2s->dev = &pdev->dev;
+
+	rockchip_i2s_wait_time_init(i2s);
 
 	i2s->grf = syscon_regmap_lookup_by_phandle(node, "rockchip,grf");
 	if (!IS_ERR(i2s->grf)) {
