@@ -20,13 +20,12 @@
 #include <linux/suspend.h>
 #include <linux/thermal.h>
 #include <linux/version.h>
+#include <linux/ebc.h>
 #include <soc/rockchip/rockchip_system_monitor.h>
 #include <soc/rockchip/rockchip-system-status.h>
 
 #include "../../opp/opp.h"
 #include "../../devfreq/governor.h"
-
-#include "../../gpu/drm/rockchip/ebc-dev/ebc_dev.h"
 
 #define CPU_REBOOT_FREQ		816000 /* kHz */
 #define VIDEO_1080P_SIZE	(1920 * 1080)
