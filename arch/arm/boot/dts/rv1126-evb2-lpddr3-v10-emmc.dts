@@ -1,0 +1,205 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2024 Rockchip Electronics Co., Ltd.
+ */
+
+/dts-v1/;
+#include "rv1126.dtsi"
+#include "rv1126-evb2-v10.dtsi"
+
+/ {
+	model = "Rockchip RV1126 EVB2 V10 EMMC LPDDR3 Board";
+	compatible = "rockchip,rv1126-evb2-v10-emmc", "rockchip,rv1126";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0xff570000 console=ttyFIQ0 root=PARTUUID=614e0000-0000 rootfstype=squashfs rootwait snd_aloop.index=7";
+	};
+};
+
+&rockchip_suspend {
+	status = "okay";
+	rockchip,sleep-debug-en = <1>;
+	rockchip,wakeup-config = <
+		(0
+		| RKPM_GPIO_WKUP_EN
+		| RKPM_TIME_OUT_WKUP_EN
+		)
+	>;
+};
+
+&csi_dphy0 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_in_ucam0: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&ucam_out0>;
+				data-lanes = <1 2>;
+			};
+			mipi_in_ucam1: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&ucam_out1>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			csidphy0_out: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&mipi_csi2_input>;
+			};
+		};
+	};
+};
+
+&i2c1 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	sc200ai: sc200ai@30 {
+		compatible = "smartsens,sc200ai";
+		reg = <0x30>;
+		clocks = <&cru CLK_MIPICSI_OUT>;
+		clock-names = "xvclk";
+		power-domains = <&power RV1126_PD_VI>;
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&mipicsi_clk0>;
+		avdd-supply = <&vcc_3v3>;
+		dovdd-supply = <&vcc_1v8>;
+		dvdd-supply = <&vcc_1v8>;
+		pwdn-gpios = <&gpio1 RK_PD4 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio1 RK_PD5 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "C7234A-400";
+		rockchip,camera-module-lens-name = "30IRC-2MP-F20";
+		port {
+			ucam_out0: endpoint {
+				remote-endpoint = <&mipi_in_ucam0>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+	os04a10: os04a10@36 {
+		compatible = "ovti,os04a10";
+		reg = <0x36>;
+		clocks = <&cru CLK_MIPICSI_OUT>;
+		clock-names = "xvclk";
+		power-domains = <&power RV1126_PD_VI>;
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&mipicsi_clk0>;
+		avdd-supply = <&vcc_3v3>;
+		dovdd-supply = <&vcc_1v8>;
+		dvdd-supply = <&vcc_1v8>;
+		pwdn-gpios = <&gpio1 RK_PD4 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio1 RK_PD5 GPIO_ACTIVE_LOW>;
+		rockchip,camera-module-stb = <1>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-OT1607-FV1";
+		rockchip,camera-module-lens-name = "M12-40IRC-4MP-F16";
+		port {
+			ucam_out1: endpoint {
+				remote-endpoint = <&mipi_in_ucam1>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+
+	};
+};
+
+&isp_reserved {
+	size = <0x20000000>;
+};
+
+&mipi_csi2 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_csi2_input: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&csidphy0_out>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_csi2_output: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&cif_mipi_in>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+};
+
+&rkcif {
+	status = "okay";
+};
+
+&rkcif_mmu {
+	status = "disabled";
+};
+
+&rkcif_mipi_lvds {
+	status = "okay";
+
+	port {
+		/* MIPI CSI-2 endpoint */
+		cif_mipi_in: endpoint {
+			remote-endpoint = <&mipi_csi2_output>;
+			data-lanes = <1 2 3 4>;
+		};
+	};
+};
+
+&rkcif_mipi_lvds_sditf {
+	status = "okay";
+
+	port {
+		/* MIPI CSI-2 endpoint */
+		mipi_lvds_sditf: endpoint {
+			remote-endpoint = <&isp_in>;
+			data-lanes = <1 2 3 4>;
+		};
+	};
+};
+
+&rkisp_vir0 {
+	status = "okay";
+
+	ports {
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			isp_in: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&mipi_lvds_sditf>;
+			};
+		};
+	};
+};
