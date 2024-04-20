@@ -489,47 +489,8 @@ static int rkcif_pipeline_set_stream(struct rkcif_pipeline *p, bool on)
 	struct rkcif_stream *stream = NULL;
 	bool can_be_set = false;
 	int i, ret;
-	int isp_num = 0;
 
-	if (cif_dev->channels[0].capture_info.mode == RKMODULE_ONE_CH_TO_MULTI_ISP) {
-		if (!on && atomic_dec_return(&p->stream_cnt) > 0)
-			return 0;
-		if (on) {
-			atomic_inc(&p->stream_cnt);
-			isp_num = cif_dev->channels[0].capture_info.one_to_multi.isp_num;
-			if (atomic_read(&p->stream_cnt) == 1) {
-				rockchip_set_system_status(SYS_STATUS_CIF0);
-				can_be_set = false;
-			} else if (atomic_read(&p->stream_cnt) == isp_num) {
-				can_be_set = true;
-			}
-		}
-		if ((on && can_be_set) || !on) {
-			if (on) {
-				rockchip_set_system_status(SYS_STATUS_CIF0);
-				cif_dev->irq_stats.csi_overflow_cnt = 0;
-				cif_dev->irq_stats.csi_bwidth_lack_cnt = 0;
-				cif_dev->irq_stats.dvp_bus_err_cnt = 0;
-				cif_dev->irq_stats.dvp_line_err_cnt = 0;
-				cif_dev->irq_stats.dvp_overflow_cnt = 0;
-				cif_dev->irq_stats.dvp_pix_err_cnt = 0;
-				cif_dev->irq_stats.all_err_cnt = 0;
-				cif_dev->irq_stats.all_frm_end_cnt = 0;
-				cif_dev->reset_watchdog_timer.is_triggered = false;
-				for (i = 0; i < cif_dev->num_channels; i++)
-					cif_dev->reset_watchdog_timer.last_buf_wakeup_cnt[i] = 0;
-			}
-
-			/* phy -> sensor */
-			for (i = 0; i < p->num_subdevs; i++) {
-				ret = v4l2_subdev_call(p->subdevs[i], video, s_stream, on);
-				if (on && ret < 0 && ret != -ENOIOCTLCMD && ret != -ENODEV)
-					goto err_stream_off;
-			}
-			if (on)
-				rkcif_monitor_reset_event(cif_dev->hw_dev);
-		}
-	} else if (cif_dev->hdr.mode == NO_HDR) {
+	if (cif_dev->hdr.mode == NO_HDR) {
 		if ((on && atomic_inc_return(&p->stream_cnt) > 1) ||
 		    (!on && atomic_dec_return(&p->stream_cnt) > 0))
 			return 0;
@@ -1313,6 +1274,7 @@ static void rkcif_exp_work(struct work_struct *exp_work)
 	int id = 0;
 	int min_delay = 0;
 	int effect_frame = 0;
+	unsigned long flags;
 
 	id = rkcif_get_exp_effect_stream_id(dev, stream->frame_idx - 1);
 	if (id < 0) {
@@ -1321,8 +1283,6 @@ static void rkcif_exp_work(struct work_struct *exp_work)
 		return;
 	}
 	priv = dev->sditf[id];
-	if (stream->frame_idx != 0)
-		sditf_event_inc_sof(priv);
 
 	if (stream->frame_idx == 0) {
 		cur_time = priv->cur_time;
@@ -1430,6 +1390,8 @@ static void rkcif_exp_work(struct work_struct *exp_work)
 		return;
 	}
 
+	if (dev->stream[id].state == RKCIF_STATE_STREAMING)
+		sditf_event_inc_sof(priv);
 	effect_time = kzalloc(sizeof(*effect_time), GFP_KERNEL);
 	if (effect_time) {
 		effect_time->sequence = stream->frame_idx + dev->exp_delay.time_delay - 1;
@@ -1450,7 +1412,11 @@ static void rkcif_exp_work(struct work_struct *exp_work)
 	}
 
 	rkcif_update_effect_exposure(dev);
-	priv->frame_idx.cur_frame_idx++;
+	if (dev->stream[id].state == RKCIF_STATE_STREAMING) {
+		spin_lock_irqsave(&stream->vbq_lock, flags);
+		priv->frame_idx.cur_frame_idx++;
+		spin_unlock_irqrestore(&stream->vbq_lock, flags);
+	}
 	priv->frame_idx.total_frame_idx = stream->frame_idx;
 }
 
