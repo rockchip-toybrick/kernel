@@ -1011,6 +1011,9 @@ static int rkisp_set_fmt(struct rkisp_stream *stream,
 			plane_fmt->bytesperline = bytesperline;
 
 		plane_fmt->sizeimage = plane_fmt->bytesperline * height;
+		/*fix sensor hot-plugging iommu error*/
+		if (dev->only_rawwr && FIX_HOT_PLUG_IOMMU)
+			plane_fmt->sizeimage = plane_fmt->sizeimage * 2;
 
 		/* uv address is y size offset need 64 align */
 		if (fmt->fmt_type == FMT_FBCGAIN && i == 0)
@@ -1512,6 +1515,15 @@ int rkisp_register_stream_vdev(struct rkisp_stream *stream)
 		sink, 0, stream->linked);
 	if (ret < 0)
 		goto unreg;
+	if (dev->only_rawwr) {
+		if (stream->id == RKISP_STREAM_DMATX0 ||
+		    stream->id == RKISP_STREAM_DMATX2) {
+			init_waitqueue_head(&stream->rawwr_start);
+			stream->rawwr_fs_count = 0;
+			stream->rawwr_fe_count = 0;
+			stream->rawwr_starting = false;
+		}
+	}
 	return 0;
 unreg:
 	video_unregister_device(vdev);

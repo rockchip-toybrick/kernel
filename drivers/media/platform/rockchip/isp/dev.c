@@ -184,7 +184,10 @@ static int __isp_pipeline_s_isp_clk(struct rkisp_pipeline *p)
 	}
 
 	if (dev->isp_inp == INP_DMARX_ISP && dev->hw_dev->clks[0]) {
-		rkisp_set_clk_rate(hw_dev->clks[0], 400 * 1000000UL);
+		if (dev->only_rawwr)
+			rkisp_set_clk_rate(hw_dev->clks[0], 600 * 1000000UL);
+		else
+			rkisp_set_clk_rate(hw_dev->clks[0], 400 * 1000000UL);
 		return 0;
 	}
 
@@ -226,7 +229,10 @@ static int __isp_pipeline_s_isp_clk(struct rkisp_pipeline *p)
 		i--;
 end:
 	/* set isp clock rate */
-	rkisp_set_clk_rate(hw_dev->clks[0], hw_dev->clk_rate_tbl[i].clk_rate * 1000000UL);
+	if (dev->only_rawwr)
+		rkisp_set_clk_rate(hw_dev->clks[0], 600 * 1000000UL);
+	else
+		rkisp_set_clk_rate(hw_dev->clks[0], hw_dev->clk_rate_tbl[i].clk_rate * 1000000UL);
 	dev_dbg(hw_dev->dev, "set isp clk = %luHz\n", clk_get_rate(hw_dev->clks[0]));
 
 	return 0;
@@ -436,11 +442,13 @@ static int _set_pipeline_default_fmt(struct rkisp_device *dev)
 	v4l2_subdev_call(isp, pad, set_selection, NULL, &sel);
 
 	/* change fmt&size of MP/SP */
-	rkisp_set_stream_def_fmt(dev, RKISP_STREAM_MP,
-				 width, height, V4L2_PIX_FMT_NV12);
-	if (dev->isp_ver != ISP_V10_1)
-		rkisp_set_stream_def_fmt(dev, RKISP_STREAM_SP,
+	if (!dev->only_rawwr) {
+		rkisp_set_stream_def_fmt(dev, RKISP_STREAM_MP,
 					 width, height, V4L2_PIX_FMT_NV12);
+		if (dev->isp_ver != ISP_V10_1)
+			rkisp_set_stream_def_fmt(dev, RKISP_STREAM_SP,
+						 width, height, V4L2_PIX_FMT_NV12);
+	}
 	if ((dev->isp_ver == ISP_V20 || dev->isp_ver == ISP_V21) &&
 	    dev->isp_inp == INP_CSI) {
 		width = dev->active_sensor->fmt[1].format.width;
@@ -599,21 +607,23 @@ static int rkisp_register_platform_subdevs(struct rkisp_device *dev)
 	if (ret < 0)
 		goto err_unreg_bridge_subdev;
 
-	ret = rkisp_register_dmarx_vdev(dev);
-	if (ret < 0)
-		goto err_unreg_stream_vdev;
+	if (!dev->only_rawwr) {
+		ret = rkisp_register_dmarx_vdev(dev);
+		if (ret < 0)
+			goto err_unreg_stream_vdev;
 
-	ret = rkisp_register_stats_vdev(&dev->stats_vdev, &dev->v4l2_dev, dev);
-	if (ret < 0)
-		goto err_unreg_dmarx_vdev;
+		ret = rkisp_register_stats_vdev(&dev->stats_vdev, &dev->v4l2_dev, dev);
+		if (ret < 0)
+			goto err_unreg_dmarx_vdev;
 
-	ret = rkisp_register_params_vdev(&dev->params_vdev, &dev->v4l2_dev, dev);
-	if (ret < 0)
-		goto err_unreg_stats_vdev;
+		ret = rkisp_register_params_vdev(&dev->params_vdev, &dev->v4l2_dev, dev);
+		if (ret < 0)
+			goto err_unreg_stats_vdev;
 
-	ret = rkisp_register_luma_vdev(&dev->luma_vdev, &dev->v4l2_dev, dev);
-	if (ret < 0)
-		goto err_unreg_params_vdev;
+		ret = rkisp_register_luma_vdev(&dev->luma_vdev, &dev->v4l2_dev, dev);
+		if (ret < 0)
+			goto err_unreg_params_vdev;
+	}
 
 	ret = isp_subdev_notifier(dev);
 	if (ret < 0) {
@@ -810,6 +820,8 @@ static int rkisp_plat_probe(struct platform_device *pdev)
 		v4l2_err(v4l2_dev, "Failed to register media device:%d\n", ret);
 		goto err_unreg_v4l2_dev;
 	}
+
+	isp_dev->only_rawwr = device_property_read_bool(dev, "rockchip,only-rawwr");
 
 	/* create & register platefom subdev (from of_node) */
 	ret = rkisp_register_platform_subdevs(isp_dev);

@@ -463,6 +463,18 @@ u32 rkisp_mbus_pixelcode_to_v4l2(u32 pixelcode)
 	case MEDIA_BUS_FMT_SPD_2X8:
 		pixelformat = V4l2_PIX_FMT_SPD16;
 		break;
+	case MEDIA_BUS_FMT_UYVY8_2X8:
+		pixelformat = V4L2_PIX_FMT_UYVY;
+		break;
+	case MEDIA_BUS_FMT_VYUY8_2X8:
+		pixelformat = V4L2_PIX_FMT_VYUY;
+		break;
+	case MEDIA_BUS_FMT_YUYV8_2X8:
+		pixelformat = V4L2_PIX_FMT_YUYV;
+		break;
+	case MEDIA_BUS_FMT_YVYU8_2X8:
+		pixelformat = V4L2_PIX_FMT_YVYU;
+		break;
 	default:
 		pixelformat = V4L2_PIX_FMT_SRGGB10;
 	}
@@ -1495,7 +1507,8 @@ static int rkisp_isp_stop(struct rkisp_device *dev)
 		writel(0, base + CIF_ISP_CSI0_MASK2);
 		writel(0, base + CIF_ISP_CSI0_MASK3);
 	} else if (dev->isp_ver == ISP_V20 || dev->isp_ver == ISP_V21) {
-		writel(0, base + CSI2RX_CSI2_RESETN);
+		if (!dev->only_rawwr)
+			writel(0, base + CSI2RX_CSI2_RESETN);
 	}
 
 	dev->hw_dev->is_idle = true;
@@ -1554,7 +1567,8 @@ static int rkisp_isp_start(struct rkisp_device *dev)
 		val |= NOC_HURRY_PRIORITY(2) | NOC_HURRY_W_MODE(2) | NOC_HURRY_R_MODE(1);
 	if (atomic_read(&dev->hw_dev->refcnt) > 1)
 		is_direct = false;
-	rkisp_write(dev, CIF_ISP_CTRL, val, is_direct);
+	if (!dev->only_rawwr)
+		rkisp_write(dev, CIF_ISP_CTRL, val, is_direct);
 
 	dev->isp_err_cnt = 0;
 	dev->isp_isr_cnt = 0;
@@ -2152,7 +2166,9 @@ static void rkisp_global_update_mi(struct rkisp_device *dev)
 	if (dev->hw_dev->is_mi_update)
 		return;
 
-	rkisp_stats_first_ddr_config(&dev->stats_vdev);
+	if (!dev->only_rawwr)
+		rkisp_stats_first_ddr_config(&dev->stats_vdev);
+
 	rkisp_config_dmatx_valid_buf(dev);
 
 	force_cfg_update(dev);
@@ -2180,14 +2196,19 @@ static int rkisp_isp_sd_s_stream(struct v4l2_subdev *sd, int on)
 			isp_dev->irq_ends_mask == (ISP_FRAME_END | ISP_FRAME_IN) &&
 			(!IS_HDR_RDBK(isp_dev->rd_mode) ||
 			 isp_dev->isp_state & ISP_STOP), msecs_to_jiffies(5));
+
 		rkisp_isp_stop(isp_dev);
 		atomic_dec(&isp_dev->hw_dev->refcnt);
-		rkisp_params_stream_stop(&isp_dev->params_vdev);
-		rkisp_stop_3a_run(isp_dev);
+
+		if (!isp_dev->only_rawwr) {
+			rkisp_params_stream_stop(&isp_dev->params_vdev);
+			rkisp_stop_3a_run(isp_dev);
+		}
 		return 0;
 	}
 
-	rkisp_start_3a_run(isp_dev);
+	if (!isp_dev->only_rawwr)
+		rkisp_start_3a_run(isp_dev);
 	memset(&isp_dev->isp_sdev.dbg, 0, sizeof(isp_dev->isp_sdev.dbg));
 	atomic_inc(&isp_dev->hw_dev->refcnt);
 	atomic_set(&isp_dev->isp_sdev.frm_sync_seq, 0);

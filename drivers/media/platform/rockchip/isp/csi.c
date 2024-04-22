@@ -139,7 +139,7 @@ static int rkisp_csi_s_stream(struct v4l2_subdev *sd, int on)
 
 	if (!IS_HDR_RDBK(dev->hdr.op_mode))
 		return 0;
-	if (on)
+	if (on && !dev->only_rawwr)
 		rkisp_write(dev, CSI2RX_Y_STAT_CTRL, SW_Y_STAT_EN, true);
 	else
 		rkisp_write(dev, CSI2RX_Y_STAT_CTRL, 0, true);
@@ -299,6 +299,9 @@ static int csi_config(struct rkisp_csi_device *csi)
 			if (dev->hdr.op_mode == HDR_RDBK_FRAME2)
 				dev->hdr.op_mode = HDR_LINEX2_DDR;
 
+		if (dev->only_rawwr)
+			dev->hdr.op_mode = HDR_RDBK_FRAME1;
+
 		/* op_mode update by mi_cfg_upd */
 		if (!dev->hw_dev->is_mi_update)
 			rkisp_write(dev, CSI2RX_CTRL0,
@@ -320,6 +323,7 @@ static int csi_config(struct rkisp_csi_device *csi)
 				rkisp_set_bits(dev->hw_dev->isp[i],
 					CSI2RX_DATA_IDS_1, mask, val, false);
 		}
+
 		val = SW_CSI_ID4(csi->mipi_di[4]);
 		rkisp_write(dev, CSI2RX_DATA_IDS_2, val, true);
 		/* clear interrupts state */
@@ -341,6 +345,9 @@ static int csi_config(struct rkisp_csi_device *csi)
 			MIPI_DROP_FRM | RAW_WR_SIZE_ERR | MIPI_LINECNT |
 			RAW_RD_SIZE_ERR | RAW0_Y_STATE |
 			RAW1_Y_STATE | RAW2_Y_STATE;
+		if (dev->only_rawwr)
+			val |= MIPI_FRAME_ST_VC(0xf) | MIPI_FRAME_END_VC(0xf);
+
 		rkisp_write(dev, CSI2RX_MASK_STAT, val, true);
 
 		/* hdr merge */

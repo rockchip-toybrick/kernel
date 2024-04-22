@@ -45,6 +45,8 @@
 #define RDBK_M			1
 #define RDBK_S			2
 
+#define FIX_HOT_PLUG_IOMMU		0
+
 struct rkisp_stream;
 
 /*
@@ -227,6 +229,10 @@ struct rkisp_stream {
 	struct frame_debug_info dbg;
 	int conn_id;
 	u32 memory;
+	u32 rawwr_fs_count;
+	u32 rawwr_fe_count;
+	wait_queue_head_t rawwr_start;
+	bool rawwr_starting;
 	union {
 		struct rkisp_stream_sp sp;
 		struct rkisp_stream_mp mp;

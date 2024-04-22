@@ -769,7 +769,7 @@ static struct streams_ops rkisp2_dmatx2_streams_ops = {
 	.config_mi = dmatx2_config_mi,
 	.enable_mi = dmatx_enable_mi,
 	.stop_mi = dmatx_stop_mi,
-	.is_stream_stopped = dmatx2_is_stream_stopped,
+	.is_stream_stopped = dmatx1_is_stream_stopped,
 	.update_mi = update_dmatx_v2,
 	.frame_end = mi_frame_end,
 };
@@ -905,6 +905,8 @@ static int mi_frame_end(struct rkisp_stream *stream)
 			atomic_set(&stream->sequence, i);
 			stream->curr_buf->vb.sequence = i;
 		} else {
+			if (dev->only_rawwr)
+				atomic_inc(&stream->sequence);
 			stream->curr_buf->vb.sequence =
 				atomic_read(&stream->sequence) - 1;
 		}
@@ -1015,7 +1017,8 @@ static void rkisp_stream_stop(struct rkisp_stream *stream)
 	int ret = 0;
 
 	if (!dev->dmarx_dev.trigger &&
-	    (is_rdbk_stream(stream) || is_hdr_stream(stream))) {
+	    (is_rdbk_stream(stream) || is_hdr_stream(stream)) &&
+	    !dev->only_rawwr) {
 		stream->streaming = false;
 		return;
 	}
@@ -1361,8 +1364,10 @@ static void rkisp_stop_streaming(struct vb2_queue *queue)
 		goto end;
 	}
 
-	if (stream->id != RKISP_STREAM_MP && stream->id != RKISP_STREAM_SP)
-		return rkisp_stop_streaming_tx(stream);
+	if (!dev->only_rawwr) {
+		if (stream->id != RKISP_STREAM_MP && stream->id != RKISP_STREAM_SP)
+			return rkisp_stop_streaming_tx(stream);
+	}
 
 	mutex_lock(&dev->hw_dev->dev_lock);
 
@@ -1479,8 +1484,10 @@ rkisp_start_streaming(struct vb2_queue *queue, unsigned int count)
 
 	memset(&stream->dbg, 0, sizeof(stream->dbg));
 
-	if (stream->id != RKISP_STREAM_MP && stream->id != RKISP_STREAM_SP)
-		return rkisp_start_streaming_tx(stream);
+	if (!dev->only_rawwr) {
+		if (stream->id != RKISP_STREAM_MP && stream->id != RKISP_STREAM_SP)
+			return rkisp_start_streaming_tx(stream);
+	}
 
 	mutex_lock(&dev->hw_dev->dev_lock);
 	atomic_inc(&dev->cap_dev.refcnt);
@@ -1672,12 +1679,14 @@ int rkisp_register_stream_v21(struct rkisp_device *dev)
 	struct rkisp_capture_device *cap_dev = &dev->cap_dev;
 	int ret;
 
-	ret = rkisp_stream_init(dev, RKISP_STREAM_MP);
-	if (ret < 0)
-		goto err;
-	ret = rkisp_stream_init(dev, RKISP_STREAM_SP);
-	if (ret < 0)
-		goto err_free_mp;
+	if (!dev->only_rawwr) {
+		ret = rkisp_stream_init(dev, RKISP_STREAM_MP);
+		if (ret < 0)
+			goto err;
+		ret = rkisp_stream_init(dev, RKISP_STREAM_SP);
+		if (ret < 0)
+			goto err_free_mp;
+	}
 	ret = rkisp_stream_init(dev, RKISP_STREAM_DMATX0);
 	if (ret < 0)
 		goto err_free_sp;
@@ -1687,9 +1696,12 @@ int rkisp_register_stream_v21(struct rkisp_device *dev)
 	ret = rkisp_stream_init(dev, RKISP_STREAM_DMATX3);
 	if (ret < 0)
 		goto err_free_tx2;
-	ret = rkisp_stream_init(dev, RKISP_STREAM_VIR);
-	if (ret < 0)
-		goto err_free_tx3;
+
+	if (!dev->only_rawwr) {
+		ret = rkisp_stream_init(dev, RKISP_STREAM_VIR);
+		if (ret < 0)
+			goto err_free_tx3;
+	}
 
 	return 0;
 err_free_tx3:
@@ -1778,7 +1790,7 @@ void rkisp_mi_v21_isr(u32 mis_val, struct rkisp_device *dev)
 			}
 		} else {
 			mi_frame_end(stream);
-			if (dev->dmarx_dev.trigger == T_AUTO &&
+			if (!dev->only_rawwr && dev->dmarx_dev.trigger == T_AUTO &&
 			    ((dev->hdr.op_mode == HDR_RDBK_FRAME1 && end_tx2) ||
 			     (dev->hdr.op_mode == HDR_RDBK_FRAME2 && end_tx2 && end_tx0))) {
 				end_tx0 = false;

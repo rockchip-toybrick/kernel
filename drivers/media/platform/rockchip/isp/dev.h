@@ -244,6 +244,7 @@ struct rkisp_device {
 	bool is_probe_end;
 	bool is_suspend;
 	bool suspend_sync;
+	bool only_rawwr;
 };
 
 static inline bool rkisp_link_sensor(u32 isp_inp)
