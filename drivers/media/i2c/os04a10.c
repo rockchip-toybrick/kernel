@@ -183,6 +183,7 @@ struct os04a10 {
 	const char		*module_facing;
 	const char		*module_name;
 	const char		*len_name;
+	u32			standby_hw;
 	bool			has_init_exp;
 	struct preisp_hdrae_exp_s init_hdrae_exp;
 	bool			long_hcg;
@@ -194,6 +195,7 @@ struct os04a10 {
 	u8			flip;
 	u32			dcg_ratio;
 	struct cam_sw_info	*cam_sw_inf;
+	bool			is_standby;
 };
 
 #define to_os04a10(sd) container_of(sd, struct os04a10, subdev)
@@ -2006,7 +2008,6 @@ static int os04a10_runtime_suspend(struct device *dev)
 }
 
 #if IS_REACHABLE(CONFIG_VIDEO_CAM_SLEEP_WAKEUP)
-
 static int __maybe_unused os04a10_resume(struct device *dev)
 {
 	// int ret;
@@ -2014,16 +2015,26 @@ static int __maybe_unused os04a10_resume(struct device *dev)
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct os04a10 *os04a10 = to_os04a10(sd);
 
-	cam_sw_prepare_wakeup(os04a10->cam_sw_inf, dev);
+	if (os04a10->standby_hw) {
+		dev_info(dev, "resume standby!");
+		if (os04a10->is_standby)
+			os04a10->is_standby = false;
+		gpiod_direction_output(os04a10->pwdn_gpio, 1);
+		if (__v4l2_ctrl_handler_setup(&os04a10->ctrl_handler))
+			dev_err(dev, "__v4l2_ctrl_handler_setup fail!");
+		gpiod_direction_output(os04a10->pwdn_gpio, 0);
+	} else {
+		cam_sw_prepare_wakeup(os04a10->cam_sw_inf, dev);
 
-	usleep_range(4000, 5000);
-	os04a10_write_array(os04a10->client, os04a10_global_regs);
-	cam_sw_write_array(os04a10->cam_sw_inf);
+		usleep_range(4000, 5000);
+		os04a10_write_array(os04a10->client, os04a10_global_regs);
+		cam_sw_write_array(os04a10->cam_sw_inf);
 
-	os04a10_init_conversion_gain(os04a10);
+		os04a10_init_conversion_gain(os04a10);
 
-	if (__v4l2_ctrl_handler_setup(&os04a10->ctrl_handler))
-		dev_err(dev, "__v4l2_ctrl_handler_setup fail!");
+		if (__v4l2_ctrl_handler_setup(&os04a10->ctrl_handler))
+			dev_err(dev, "__v4l2_ctrl_handler_setup fail!");
+	}
 
 	return 0;
 }
@@ -2033,6 +2044,11 @@ static int __maybe_unused os04a10_suspend(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct os04a10 *os04a10 = to_os04a10(sd);
+
+	if (os04a10->standby_hw) {
+		dev_info(dev, "suspend standby!");
+		return 0;
+	}
 
 	cam_sw_write_array_cb_init(os04a10->cam_sw_inf, client,
 				   (void *)os04a10->cur_mode->reg_list,
@@ -2150,6 +2166,11 @@ static int os04a10_set_ctrl(struct v4l2_ctrl *ctrl)
 
 	if (!pm_runtime_get_if_in_use(&client->dev))
 		return 0;
+
+	if (os04a10->standby_hw && os04a10->is_standby) {
+		dev_dbg(&client->dev, "%s: is_standby = true, will return\n", __func__);
+		return 0;
+	}
 
 	switch (ctrl->id) {
 	case V4L2_CID_EXPOSURE:
@@ -2418,6 +2439,9 @@ static int os04a10_probe(struct i2c_client *client,
 				       &os04a10->module_name);
 	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
 				       &os04a10->len_name);
+	/* Compatible with non-standby mode if this attribute is not configured in dts*/
+	of_property_read_u32(node, RKMODULE_CAMERA_STANDBY_HW,
+			     &os04a10->standby_hw);
 	if (ret) {
 		dev_err(dev, "could not get module information!\n");
 		return -EINVAL;
