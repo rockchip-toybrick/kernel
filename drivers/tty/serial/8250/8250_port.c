@@ -2659,6 +2659,7 @@ void serial8250_do_set_divisor(struct uart_port *port, unsigned int baud,
 	struct uart_8250_port *up = up_to_u8250p(port);
 
 #ifdef CONFIG_ARCH_ROCKCHIP
+	int mcr = serial_port_in(port, UART_MCR);
 	serial_port_out(port, UART_MCR, UART_MCR_LOOP);
 #endif
 
@@ -2690,7 +2691,7 @@ void serial8250_do_set_divisor(struct uart_port *port, unsigned int baud,
 		serial_port_out(port, UART_LCR, up->lcr);	/* reset DLAB */
 
 #ifdef CONFIG_ARCH_ROCKCHIP
-	serial_port_out(port, UART_MCR, up->mcr);
+	serial_port_out(port, UART_MCR, mcr);
 #endif
 }
 EXPORT_SYMBOL_GPL(serial8250_do_set_divisor);
