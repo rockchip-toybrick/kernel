@@ -2704,8 +2704,6 @@ static void rkcif_assign_new_buffer_init(struct rkcif_stream *stream,
 					 __func__, __LINE__, stream->id, stream->next_buf->vb.vb2_buf.index);
 				list_del(&stream->next_buf->queue);
 				atomic_inc(&buf_stream->sub_stream_buf_cnt);
-			} else if (stream->curr_buf) {
-				stream->next_buf = stream->curr_buf;
 			}
 		}
 
