@@ -4730,7 +4730,13 @@ EXPORT_SYMBOL_GPL(dw_hdmi_unbind);
 
 static void dw_hdmi_reg_initial(struct dw_hdmi *hdmi)
 {
-	if (hdmi_readb(hdmi, HDMI_IH_MUTE)) {
+	/*
+	 * HDMI PD is power off when system suspend, so ih_mute register
+	 * bit0 and bit1 will be reset to 1 when system resume.
+	 * all hdmi interrupt will be mask, that would cause hdmi plugin could
+	 * not be detected.
+	 */
+	if (hdmi_readb(hdmi, HDMI_IH_MUTE) == 0x3) {
 		initialize_hdmi_ih_mutes(hdmi);
 		/* unmute cec irq */
 		hdmi_writeb(hdmi, 0x68, HDMI_IH_MUTE_CEC_STAT0);
