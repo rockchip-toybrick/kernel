@@ -3283,7 +3283,7 @@ static int rkcif_start_streaming(struct vb2_queue *queue, unsigned int count)
 	if (WARN_ON(stream->state != RKCIF_STATE_READY)) {
 		ret = -EBUSY;
 		v4l2_err(v4l2_dev, "stream in busy state\n");
-		goto destroy_buf;
+		goto out;
 	}
 	if (stream->is_line_wake_up)
 		stream->is_line_inten = true;
@@ -3357,7 +3357,7 @@ static int rkcif_start_streaming(struct vb2_queue *queue, unsigned int count)
 	    rkmodule_stream_seq == RKMODULE_START_STREAM_FRONT) {
 		ret = dev->pipe.set_stream(&dev->pipe, true);
 		if (ret < 0)
-			goto runtime_put;
+			goto destroy_buf;
 	}
 
 	if (dev->chip_id >= CHIP_RK1808_CIF) {
@@ -3371,7 +3371,7 @@ static int rkcif_start_streaming(struct vb2_queue *queue, unsigned int count)
 	}
 
 	if (ret < 0)
-		goto runtime_put;
+		goto pipe_stream_off;
 
 	if (dev->channels[0].capture_info.mode == RKMODULE_ONE_CH_TO_MULTI_ISP &&
 	    atomic_read(&dev->pipe.stream_cnt) == 0) {
@@ -3434,15 +3434,15 @@ stop_stream:
 	rkcif_stream_stop(stream);
 pipe_stream_off:
 	dev->pipe.set_stream(&dev->pipe, false);
-runtime_put:
-	pm_runtime_put_sync(dev->dev);
 destroy_buf:
 	if (stream->next_buf)
 		vb2_buffer_done(&stream->next_buf->vb.vb2_buf,
 				VB2_BUF_STATE_QUEUED);
-	if (stream->curr_buf)
+	if (stream->curr_buf && stream->curr_buf != stream->next_buf)
 		vb2_buffer_done(&stream->curr_buf->vb.vb2_buf,
 				VB2_BUF_STATE_QUEUED);
+	stream->curr_buf = NULL;
+	stream->next_buf = NULL;
 	while (!list_empty(&stream->buf_head)) {
 		struct rkcif_buffer *buf;
 

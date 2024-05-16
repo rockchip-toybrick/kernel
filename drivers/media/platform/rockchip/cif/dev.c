@@ -582,6 +582,7 @@ static int rkcif_pipeline_set_stream(struct rkcif_pipeline *p, bool on)
 err_stream_off:
 	for (--i; i >= 0; --i)
 		v4l2_subdev_call(p->subdevs[i], video, s_stream, false);
+	atomic_set(&p->stream_cnt, 0);
 	rockchip_clear_system_status(SYS_STATUS_CIF0);
 	return ret;
 }
