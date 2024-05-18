@@ -1852,6 +1852,24 @@
 		status = "disabled";
 	};
 
+	rkcif_mipi_lvds_sditf_vir1: rkcif_mipi_lvds_sditf_vir1 {
+		compatible = "rockchip,rkcif-sditf";
+		rockchip,cif = <&rkcif_mipi_lvds>;
+		status = "disabled";
+	};
+
+	rkcif_mipi_lvds_sditf_vir2: rkcif_mipi_lvds_sditf_vir2 {
+		compatible = "rockchip,rkcif-sditf";
+		rockchip,cif = <&rkcif_mipi_lvds>;
+		status = "disabled";
+	};
+
+	rkcif_mipi_lvds_sditf_vir3: rkcif_mipi_lvds_sditf_vir3 {
+		compatible = "rockchip,rkcif-sditf";
+		rockchip,cif = <&rkcif_mipi_lvds>;
+		status = "disabled";
+	};
+
 	rkisp: rkisp@fdff0000 {
 		compatible = "rockchip,rk3568-rkisp";
 		reg = <0x0 0xfdff0000 0x0 0x10000>;
@@ -1890,6 +1908,24 @@
 	};
 
 	rkisp_vir1: rkisp-vir1 {
+		compatible = "rockchip,rkisp-vir";
+		rockchip,hw = <&rkisp>;
+		status = "disabled";
+	};
+
+	rkisp_vir2: rkisp-vir2 {
+		compatible = "rockchip,rkisp-vir";
+		rockchip,hw = <&rkisp>;
+		status = "disabled";
+	};
+
+	rkisp_vir3: rkisp-vir3 {
+		compatible = "rockchip,rkisp-vir";
+		rockchip,hw = <&rkisp>;
+		status = "disabled";
+	};
+
+	rkisp_vir4: rkisp-vir4 {
 		compatible = "rockchip,rkisp-vir";
 		rockchip,hw = <&rkisp>;
 		status = "disabled";
