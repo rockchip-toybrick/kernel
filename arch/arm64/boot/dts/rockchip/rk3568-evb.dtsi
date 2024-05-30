@@ -178,6 +178,7 @@
 		rockchip,card-name = "rockchip,hdmi";
 		rockchip,cpu = <&i2s0_8ch>;
 		rockchip,codec = <&hdmi>;
+		rockchip,jack-det;
 	};
 
 	leds: leds {
