@@ -1108,6 +1108,9 @@ dw_hdmi_rockchip_select_output(struct drm_connector_state *conn_state,
 			*color_format = DRM_HDMI_OUTPUT_YCBCR422;
 	}
 
+	if (drm_mode_is_420_only(info, mode))
+		*color_format = DRM_HDMI_OUTPUT_YCBCR420;
+
 	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
 		pixclock *= 2;
 	if ((mode->flags & DRM_MODE_FLAG_3D_MASK) ==
