@@ -350,6 +350,11 @@ static int dmaengine_trcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	int ret;
 
+#ifdef TRCM_DEBUG
+	ktime_t start_time, stop_time, diff_time;
+
+	start_time = ktime_get();
+#endif
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 		dmaengine_terminate_async(prtd->dma_chan);
@@ -378,6 +383,13 @@ static int dmaengine_trcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	default:
 		return -EINVAL;
 	}
+
+#ifdef TRCM_DEBUG
+	stop_time = ktime_get();
+	diff_time = ktime_sub(stop_time, start_time);
+	dev_dbg(component->dev, "cmd: %d time cost %lld\n",
+		cmd, ktime_to_us(diff_time));
+#endif
 
 	return 0;
 }
