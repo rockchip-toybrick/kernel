@@ -120,8 +120,6 @@ static int dmaengine_trcm_hw_params(struct snd_pcm_substream *substream,
 	prtd->channels = params_channels(params);
 
 	return snd_pcm_lib_malloc_pages(substream, params_buffer_bytes(params));
-
-	return 0;
 }
 
 static int
