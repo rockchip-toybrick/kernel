@@ -133,6 +133,8 @@ struct rk_i2s_tdm_dev {
 	int id;
 	void __iomem *cru_base;
 #endif
+	bool has_playback;
+	bool has_capture;
 	bool is_master_mode;
 	bool io_multiplex;
 	bool mclk_calibrate;
@@ -179,6 +181,25 @@ static struct i2s_of_quirks {
 		.id = QUIRK_HDMI_PATH,
 	},
 };
+
+static bool rockchip_i2s_tdm_stream_valid(struct snd_pcm_substream *substream,
+					  struct snd_soc_dai *dai)
+{
+	struct rk_i2s_tdm_dev *i2s_tdm = snd_soc_dai_get_drvdata(dai);
+
+	if (!substream)
+		return false;
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK &&
+	    i2s_tdm->has_playback)
+		return true;
+
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE &&
+	    i2s_tdm->has_capture)
+		return true;
+
+	return false;
+}
 
 static int to_ch_num(unsigned int val)
 {
@@ -1817,6 +1838,9 @@ static int rockchip_i2s_tdm_hw_params(struct snd_pcm_substream *substream,
 	unsigned int val = 0;
 	unsigned int mclk_rate, bclk_rate, lrck_rate, div_bclk = 4, div_lrck = 64;
 
+	if (!rockchip_i2s_tdm_stream_valid(substream, dai))
+		return 0;
+
 #ifdef CONFIG_SND_SOC_ROCKCHIP_I2S_TDM_MULTI_LANES
 	if (i2s_tdm->is_tdm_multi_lanes)
 		rockchip_i2s_tdm_multi_lanes_set_clk(substream, params, dai);
@@ -1887,6 +1911,9 @@ err:
 static int rockchip_i2s_tdm_hw_free(struct snd_pcm_substream *substream,
 				    struct snd_soc_dai *dai)
 {
+	if (!rockchip_i2s_tdm_stream_valid(substream, dai))
+		return 0;
+
 	rockchip_utils_put_performance(substream, dai);
 
 	return 0;
@@ -1897,6 +1924,9 @@ static int rockchip_i2s_tdm_trigger(struct snd_pcm_substream *substream,
 {
 	struct rk_i2s_tdm_dev *i2s_tdm = to_info(dai);
 	int ret = 0;
+
+	if (!rockchip_i2s_tdm_stream_valid(substream, dai))
+		return 0;
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -2259,6 +2289,9 @@ static int rockchip_i2s_tdm_startup(struct snd_pcm_substream *substream,
 	struct rk_i2s_tdm_dev *i2s_tdm = snd_soc_dai_get_drvdata(dai);
 	int stream = substream->stream;
 
+	if (!rockchip_i2s_tdm_stream_valid(substream, dai))
+		return 0;
+
 	if (i2s_tdm->substreams[stream])
 		return -EBUSY;
 
@@ -2274,6 +2307,9 @@ static void rockchip_i2s_tdm_shutdown(struct snd_pcm_substream *substream,
 				      struct snd_soc_dai *dai)
 {
 	struct rk_i2s_tdm_dev *i2s_tdm = snd_soc_dai_get_drvdata(dai);
+
+	if (!rockchip_i2s_tdm_stream_valid(substream, dai))
+		return;
 
 	i2s_tdm->substreams[substream->stream] = NULL;
 }
@@ -2959,6 +2995,8 @@ static int rockchip_i2s_tdm_probe(struct platform_device *pdev)
 	struct rk_i2s_tdm_dev *i2s_tdm;
 	struct snd_soc_dai_driver *soc_dai;
 	struct resource *res;
+	struct property *dma_names;
+	const char *dma_name;
 	void __iomem *regs;
 #ifdef HAVE_SYNC_RESET
 	bool sync;
@@ -2975,6 +3013,13 @@ static int rockchip_i2s_tdm_probe(struct platform_device *pdev)
 
 	i2s_tdm->dev = &pdev->dev;
 	i2s_tdm->lrck_ratio = 1;
+
+	of_property_for_each_string(node, "dma-names", dma_names, dma_name) {
+		if (!strcmp(dma_name, "tx"))
+			i2s_tdm->has_playback = true;
+		if (!strcmp(dma_name, "rx"))
+			i2s_tdm->has_capture = true;
+	}
 
 	/*
 	 * Should use flag GPIOD_ASIS not to reclaim LRCK pin as GPIO function,
