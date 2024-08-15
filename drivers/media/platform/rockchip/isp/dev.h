@@ -168,6 +168,13 @@ struct rkisp_hdr {
 	struct rkisp_dummy_buffer dummy_buf[HDR_DMA_MAX][HDR_MAX_DUMMY_BUF];
 };
 
+struct rkisp_pm_work {
+	struct work_struct work;
+	int on;
+	int already_on;
+	struct mutex oneframe_lock;
+};
+
 /*
  * struct rkisp_device - ISP platform device
  * @base_addr: base register address
@@ -245,6 +252,11 @@ struct rkisp_device {
 	bool is_suspend;
 	bool suspend_sync;
 	bool only_rawwr;
+	struct rkisp_pm_work pm_work;
+	struct completion stop_cmpl;
+	int resume_mode;
+	bool wait_stop;
+	bool single_cap;
 };
 
 static inline bool rkisp_link_sensor(u32 isp_inp)

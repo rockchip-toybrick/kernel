@@ -2430,8 +2430,11 @@ static long rkisp_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	struct rkisp_thunderboot_resmem_head *head;
 	struct rkisp_thunderboot_shmem *shmem;
 	struct isp2x_buf_idxfd *idxfd;
+	struct rkisp_quick_stream_param *stream_param;
+	struct rkisp_pipeline *p = &isp_dev->pipe;
 	void *resmem_va;
 	long ret = 0;
+	int i = 0;
 
 	if (!arg && cmd != RKISP_CMD_FREE_SHARED_BUF)
 		return -EINVAL;
@@ -2498,6 +2501,39 @@ static long rkisp_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		idxfd = (struct isp2x_buf_idxfd *)arg;
 		ret = rkisp_bridge_get_fbcbuf_fd(isp_dev, idxfd);
 		break;
+	case RKISP_CMD_SET_QUICK_STREAM:
+		stream_param = (struct rkisp_quick_stream_param *)arg;
+
+		if (!rkisp_link_sensor(isp_dev->isp_inp)) {
+			v4l2_err(sd, "sensor not link isp, no support for RKISP_CMD_SET_QUICK_STREAM\n");
+			ret = -EPERM;
+			break;
+		}
+		if (stream_param->on) {
+			mutex_lock(&isp_dev->pm_work.oneframe_lock);
+			isp_dev->pm_work.already_on = 1;
+			for (i = 0; i < p->num_subdevs; i++) {
+				if (p->subdevs[i]->entity.function == MEDIA_ENT_F_VID_IF_BRIDGE ||
+				    p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR)
+					v4l2_subdev_call(p->subdevs[i], core, ioctl,
+							 RKMODULE_SET_QUICK_STREAM, &stream_param->on);
+			}
+			mutex_unlock(&isp_dev->pm_work.oneframe_lock);
+		} else {
+			if (!(isp_dev->isp_state & ISP_STOP)) {
+				isp_dev->wait_stop = true;
+				wait_for_completion_timeout(&isp_dev->stop_cmpl, msecs_to_jiffies(200));
+			}
+			for (i = p->num_subdevs - 1; i >= 0; i--) {
+				if (p->subdevs[i]->entity.function == MEDIA_ENT_F_VID_IF_BRIDGE ||
+				    p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR)
+					v4l2_subdev_call(p->subdevs[i], core, ioctl,
+							 RKMODULE_SET_QUICK_STREAM, &stream_param->on);
+			}
+			isp_dev->resume_mode = stream_param->resume_mode;
+			rkisp_dmarx_get_frame(isp_dev, &stream_param->frame_num, NULL, NULL, true);
+		}
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 	}
@@ -2518,6 +2554,7 @@ static long rkisp_compat_ioctl32(struct v4l2_subdev *sd,
 	struct rkisp_meshbuf_size meshsize;
 	struct rkisp_thunderboot_shmem shmem;
 	struct isp2x_buf_idxfd idxfd;
+	struct rkisp_quick_stream_param stream_param;
 	long ret = 0;
 
 	if (!up && cmd != RKISP_CMD_FREE_SHARED_BUF)
@@ -2569,6 +2606,13 @@ static long rkisp_compat_ioctl32(struct v4l2_subdev *sd,
 	case RKISP_CMD_GET_FBCBUF_FD:
 		ret = rkisp_ioctl(sd, cmd, &idxfd);
 		if (!ret && copy_to_user(up, &idxfd, sizeof(idxfd)))
+			ret = -EFAULT;
+		break;
+	case RKISP_CMD_SET_QUICK_STREAM:
+		if (copy_from_user(&stream_param, up, sizeof(stream_param)))
+			return -EFAULT;
+		ret = rkisp_ioctl(sd, cmd, &stream_param);
+		if (!ret && copy_to_user(up, &stream_param, sizeof(stream_param)))
 			ret = -EFAULT;
 		break;
 	default:
@@ -3073,8 +3117,22 @@ vs_skip:
 
 	if (isp_mis & CIF_ISP_FRAME_IN)
 		rkisp_check_idle(dev, ISP_FRAME_IN);
-	if (isp_mis & CIF_ISP_FRAME)
+	if (isp_mis & CIF_ISP_FRAME) {
 		rkisp_check_idle(dev, ISP_FRAME_END);
+
+		/* pm single mode stop need wait here*/
+		if (dev->wait_stop) {
+			dev->wait_stop = false;
+			complete(&dev->stop_cmpl);
+		}
+
+		/* pm resume single mode only capture oneframe */
+		if (dev->single_cap) {
+			dev->single_cap = false;
+			dev->pm_work.on = 0;
+			schedule_work(&dev->pm_work.work);
+		}
+	}
 }
 
 irqreturn_t rkisp_vs_isr_handler(int irq, void *ctx)

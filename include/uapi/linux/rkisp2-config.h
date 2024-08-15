@@ -52,6 +52,9 @@
 #define RKISP_CMD_SET_IQTOOL_CONN_ID \
 	_IOW('V', BASE_VIDIOC_PRIVATE + 102, int)
 
+#define RKISP_CMD_SET_QUICK_STREAM \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 117, struct rkisp_quick_stream_param)
+
 /*************************************************************/
 
 #define ISP2X_ID_DPCC			(0)
@@ -1807,6 +1810,12 @@ struct rkisp_thunderboot_shmem {
 	u32 shm_start;
 	u32 shm_size;
 	s32 shm_fd;
+} __attribute__ ((packed));
+
+struct rkisp_quick_stream_param {
+	int on;
+	int frame_num;
+	int resume_mode;
 } __attribute__ ((packed));
 
 #endif /* _UAPI_RKISP2_CONFIG_H */

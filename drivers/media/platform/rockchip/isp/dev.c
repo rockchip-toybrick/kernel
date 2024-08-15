@@ -738,6 +738,31 @@ static int rkisp_get_reserved_mem(struct rkisp_device *isp_dev)
 	return ret;
 }
 
+static void rkisp_pm_quick(struct work_struct *work)
+{
+	struct rkisp_pm_work *pm_work = container_of(work,
+						struct rkisp_pm_work,
+						work);
+	struct rkisp_device *isp_dev = container_of(pm_work,
+						    struct rkisp_device,
+						    pm_work);
+	struct rkisp_pipeline *p = &isp_dev->pipe;
+	int i = 0;
+
+	mutex_lock(&pm_work->oneframe_lock);
+	if (pm_work->already_on == 1) {
+		mutex_unlock(&pm_work->oneframe_lock);
+		return;
+	}
+	for (i = p->num_subdevs - 1; i >= 0; i--) {
+		if (p->subdevs[i]->entity.function == MEDIA_ENT_F_VID_IF_BRIDGE ||
+		    p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR)
+			v4l2_subdev_call(p->subdevs[i], core, ioctl,
+					 RKMODULE_SET_QUICK_STREAM, &pm_work->on);
+	}
+	mutex_unlock(&pm_work->oneframe_lock);
+}
+
 static int rkisp_plat_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -787,6 +812,13 @@ static int rkisp_plat_probe(struct platform_device *pdev)
 	isp_dev->pipe.open = rkisp_pipeline_open;
 	isp_dev->pipe.close = rkisp_pipeline_close;
 	isp_dev->pipe.set_stream = rkisp_pipeline_set_stream;
+	isp_dev->pm_work.already_on = 0;
+	mutex_init(&isp_dev->pm_work.oneframe_lock);
+	INIT_WORK(&isp_dev->pm_work.work, rkisp_pm_quick);
+	init_completion(&isp_dev->stop_cmpl);
+	isp_dev->resume_mode = 0;
+	isp_dev->wait_stop = 0;
+	isp_dev->single_cap = 0;
 
 	if (isp_dev->isp_ver == ISP_V20 || isp_dev->isp_ver == ISP_V21) {
 		atomic_set(&isp_dev->hdr.refcnt, 0);
@@ -868,6 +900,7 @@ static int rkisp_plat_remove(struct platform_device *pdev)
 	rkisp_unregister_csi_subdev(isp_dev);
 	rkisp_unregister_isp_subdev(isp_dev);
 	media_device_cleanup(&isp_dev->media_dev);
+	mutex_destroy(&isp_dev->pm_work.oneframe_lock);
 	return 0;
 }
 
@@ -926,8 +959,12 @@ static int rkisp_pm_prepare(struct device *dev)
 	isp_dev->suspend_sync = false;
 	isp_dev->is_suspend = true;
 	if (rkisp_link_sensor(isp_dev->isp_inp)) {
-		for (i = p->num_subdevs - 1; i >= 0; i--)
+		for (i = p->num_subdevs - 1; i >= 0; i--) {
+			if (IS_ENABLED(CONFIG_VIDEO_CAM_SLEEP_WAKEUP) &&
+			    p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR)
+				continue;
 			v4l2_subdev_call(p->subdevs[i], video, s_stream, 0);
+		}
 	}
 	if (IS_HDR_RDBK(isp_dev->rd_mode)) {
 		spin_lock_irqsave(&hw->rdbk_lock, lock_flags);
@@ -947,8 +984,12 @@ static int rkisp_pm_prepare(struct device *dev)
 	}
 
 	if (rkisp_link_sensor(isp_dev->isp_inp)) {
-		for (i = p->num_subdevs - 1; i >= 0; i--)
+		for (i = p->num_subdevs - 1; i >= 0; i--) {
+			if (IS_ENABLED(CONFIG_VIDEO_CAM_SLEEP_WAKEUP) &&
+			    p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR)
+				continue;
 			v4l2_subdev_call(p->subdevs[i], core, s_power, 0);
+		}
 	}
 	return 0;
 }
@@ -959,6 +1000,7 @@ static void rkisp_pm_complete(struct device *dev)
 	struct rkisp_hw_dev *hw = isp_dev->hw_dev;
 	struct rkisp_pipeline *p = &isp_dev->pipe;
 	int i;
+	int on = 1;
 
 	if (isp_dev->isp_state & ISP_STOP) {
 		if (pm_runtime_active(dev) && rkisp_link_sensor(isp_dev->isp_inp)) {
@@ -974,17 +1016,32 @@ static void rkisp_pm_complete(struct device *dev)
 	isp_dev->is_suspend = false;
 	isp_dev->isp_state = ISP_START | ISP_FRAME_END;
 
+	if (isp_dev->resume_mode == RKISP_RTT_MODE_ONE_FRAME) {
+		isp_dev->single_cap = true;
+		isp_dev->pm_work.already_on = 0;
+	}
+
 	if (hw->cur_dev_id == isp_dev->dev_id)
 		rkisp_rdbk_trigger_event(isp_dev, T_CMD_QUEUE, NULL);
 
 	if (rkisp_link_sensor(isp_dev->isp_inp)) {
-		for (i = 0; i < p->num_subdevs; i++)
+		for (i = 0; i < p->num_subdevs; i++) {
+			if (IS_ENABLED(CONFIG_VIDEO_CAM_SLEEP_WAKEUP) &&
+			    p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR)
+				continue;
 			v4l2_subdev_call(p->subdevs[i], core, s_power, 1);
+		}
 	}
 
 	if (rkisp_link_sensor(isp_dev->isp_inp)) {
-		for (i = 0; i < p->num_subdevs; i++)
-			v4l2_subdev_call(p->subdevs[i], video, s_stream, 1);
+		for (i = 0; i < p->num_subdevs; i++) {
+			if (IS_ENABLED(CONFIG_VIDEO_CAM_SLEEP_WAKEUP) &&
+			    p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR)
+				v4l2_subdev_call(p->subdevs[i], core, ioctl,
+						 RKMODULE_SET_QUICK_STREAM, &on);
+			else
+				v4l2_subdev_call(p->subdevs[i], video, s_stream, 1);
+		}
 	}
 }
 
