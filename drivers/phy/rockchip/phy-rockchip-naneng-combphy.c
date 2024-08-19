@@ -559,9 +559,20 @@ static int rk3528_combphy_cfg(struct rockchip_combphy_priv *priv)
 	if (device_property_read_bool(priv->dev, "rockchip,ext-refclk")) {
 		param_write(priv->phy_grf, &cfg->pipe_clk_ext, true);
 		if (priv->mode == PHY_TYPE_PCIE && rate == 100000000) {
+			/*
+			 * PLL charge pump current adjust = 111
+			 * PLL LPF R1 adjust = 1001
+			 * PLL KVCO adjust = 000 (min)
+			 * PLL KVCO fine tuning signals = 01
+			 */
 			val = readl(priv->mmio + 0x108);
-			val |= BIT(29) | (0x3 << 4 | 0x1 << 7);
+			val &= ~0x7;
+			val |= BIT(29) | (0x7 << 4 | 0x9 << 7);
 			writel(val, priv->mmio + 0x108);
+			val = readl(priv->mmio + 0x18);
+			val &= ~(0xf << 10);
+			val |= (0x2 << 10);
+			writel(val, priv->mmio + 0x18);
 		}
 	}
 
@@ -770,6 +781,27 @@ static int rk3568_combphy_cfg(struct rockchip_combphy_priv *priv)
 	if (device_property_read_bool(priv->dev, "rockchip,ext-refclk")) {
 		param_write(priv->phy_grf, &cfg->pipe_clk_ext, true);
 		if (priv->mode == PHY_TYPE_PCIE && rate == 100000000) {
+			/*
+			 * PLL charge pump current adjust = 111
+			 * PLL LPF R1 adjust = 1001
+			 * PLL KVCO adjust = 000 (min)
+			 * PLL KVCO fine tuning signals = 01
+			 */
+			val = readl(priv->mmio + (0xa << 2));
+			val &= ~0x7;
+			val |= 0xf << 4;
+			writel(val, priv->mmio + (0xa << 2));
+
+			val = readl(priv->mmio + (0xb << 2));
+			val &= ~0x7;
+			val |= 0x4;
+			writel(val, priv->mmio + (0xb << 2));
+
+			val = readl(priv->mmio + (0x20 << 2));
+			val &= ~0x1c;
+			val |= 0x2 << 2;
+			writel(val, priv->mmio + (0x20 << 2));
+
 			val = readl(priv->mmio + (0xc << 2));
 			val |= 0x3 << 4 | 0x1 << 7;
 			writel(val, priv->mmio + (0xc << 2));
