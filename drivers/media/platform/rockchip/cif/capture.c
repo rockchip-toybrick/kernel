@@ -2043,8 +2043,11 @@ static int rkcif_csi_stream_start(struct rkcif_stream *stream)
 	struct rkcif_stream *cur_stream = stream;
 	u32 ret = 0;
 
-	if (stream->state != RKCIF_STATE_RESET_IN_STREAMING)
+	if (stream->state != RKCIF_STATE_RESET_IN_STREAMING) {
 		stream->frame_idx = 0;
+		stream->is_finish_single_cap = true;
+		stream->is_wait_single_cap = false;
+	}
 
 	rkcif_csi_get_vc_num(dev, flags);
 
@@ -3711,6 +3714,7 @@ void rkcif_stream_init(struct rkcif_device *dev, u32 id)
 	}
 	stream->is_single_cap = false;
 	init_completion(&stream->stop_complete);
+	init_completion(&stream->start_complete);
 	stream->is_wait_stop_complete = false;
 
 }
@@ -4231,6 +4235,7 @@ static long rkcif_ioctl_default(struct file *file, void *fh,
 	int ret = 0;
 	struct csi_channel_info *csi_info = &dev->channels[stream->id];
 	int on = 1;
+	struct rkcif_stream *last_stream = NULL;
 
 	switch (cmd) {
 	case RKCIF_CMD_GET_CSI_MEMORY_MODE:
@@ -4286,18 +4291,34 @@ static long rkcif_ioctl_default(struct file *file, void *fh,
 		return rkcif_do_reset_work(dev, reset_src);
 	case RKCIF_CMD_SET_QUICK_STREAM:
 		stream_param = (struct rkcif_quick_stream_param *)arg;
-		if (dev->hdr.mode == HDR_X2)
+		if (dev->hdr.mode == HDR_X2) {
 			stream_num = 2;
-		else if (dev->hdr.mode == HDR_X3)
+			last_stream = &dev->stream[1];
+		} else if (dev->hdr.mode == HDR_X3) {
 			stream_num = 3;
-		else
+			last_stream = &dev->stream[2];
+		} else {
 			stream_num = 1;
+			last_stream = &dev->stream[0];
+		}
 		if (stream_param->on) {
-			for (i = 0; i < stream_num; i++)
-				rkcif_enable_dma_capture(&dev->stream[i]);
-			rkcif_dphy_quick_stream(dev, stream_param->on);
-			v4l2_subdev_call(dev->terminal_sensor.sd, core, ioctl,
-					 RKMODULE_SET_QUICK_STREAM, &stream_param->on);
+			spin_lock_irqsave(&dev->stream_spinlock, flags);
+			if (last_stream->is_finish_single_cap) {
+				spin_unlock_irqrestore(&dev->stream_spinlock, flags);
+				for (i = 0; i < stream_num; i++)
+					rkcif_enable_dma_capture(&dev->stream[i]);
+				rkcif_dphy_quick_stream(dev, stream_param->on);
+				v4l2_subdev_call(dev->terminal_sensor.sd, core, ioctl,
+						 RKMODULE_SET_QUICK_STREAM, &stream_param->on);
+			} else {
+				last_stream->is_wait_single_cap = true;
+				spin_unlock_irqrestore(&dev->stream_spinlock, flags);
+				v4l2_dbg(3, rkcif_debug, &dev->v4l2_dev,
+					 "%s %d, wait for single capture finish, and than to restart\n", __func__, __LINE__);
+				reinit_completion(&last_stream->start_complete);
+				wait_for_completion_timeout(&last_stream->start_complete,
+							    msecs_to_jiffies(RKCIF_STOP_MAX_WAIT_TIME_MS));
+			}
 		} else {
 			for (i = 0; i < stream_num; i++) {
 				dev->stream[i].is_wait_stop_complete = true;
@@ -6708,8 +6729,11 @@ int rkcif_stream_resume(struct rkcif_device *cif_dev)
 			stream->curr_buf = NULL;
 			stream->next_buf = NULL;
 		}
-		if (cif_dev->resume_mode == RKISP_RTT_MODE_ONE_FRAME)
+		if (cif_dev->resume_mode == RKISP_RTT_MODE_ONE_FRAME) {
 			stream->is_single_cap = true;
+			stream->is_finish_single_cap = false;
+			stream->is_wait_single_cap = false;
+		}
 		if (cif_dev->active_sensor->mbus.type == V4L2_MBUS_CSI2 ||
 		    cif_dev->active_sensor->mbus.type == V4L2_MBUS_CCP2)
 			ret = rkcif_csi_stream_start(stream);
@@ -6882,15 +6906,24 @@ void rkcif_irq_pingpong(struct rkcif_device *cif_dev)
 				rkcif_dynamic_crop(stream);
 
 			rkcif_update_stream(cif_dev, stream, mipi_id);
+			spin_lock_irqsave(&stream->cifdev->stream_spinlock, flags);
 			if (stream->is_single_cap) {
-				rkcif_stop_dma_capture(stream);
+				stream->is_finish_single_cap = true;
 				stream->is_single_cap = false;
-				if ((cif_dev->hdr.mode == NO_HDR && atomic_read(&cif_dev->streamoff_cnt) == 1) ||
-				    (cif_dev->hdr.mode == HDR_X2 && atomic_read(&cif_dev->streamoff_cnt) == 2) ||
-				    (cif_dev->hdr.mode == HDR_X3 && atomic_read(&cif_dev->streamoff_cnt) == 3)) {
-					rkcif_dphy_quick_stream(stream->cifdev, on);
-					cif_dev->sensor_work.on = on;
-					schedule_work(&cif_dev->sensor_work.work);
+				if (!stream->is_wait_single_cap) {
+					spin_unlock_irqrestore(&stream->cifdev->stream_spinlock, flags);
+					rkcif_stop_dma_capture(stream);
+					if ((cif_dev->hdr.mode == NO_HDR && atomic_read(&cif_dev->streamoff_cnt) == 1) ||
+					    (cif_dev->hdr.mode == HDR_X2 && atomic_read(&cif_dev->streamoff_cnt) == 2) ||
+					    (cif_dev->hdr.mode == HDR_X3 && atomic_read(&cif_dev->streamoff_cnt) == 3)) {
+						rkcif_dphy_quick_stream(stream->cifdev, on);
+						cif_dev->sensor_work.on = on;
+						schedule_work(&cif_dev->sensor_work.work);
+					}
+				} else {
+					stream->is_wait_single_cap = false;
+					complete(&stream->start_complete);
+					spin_unlock_irqrestore(&stream->cifdev->stream_spinlock, flags);
 				}
 			}
 			if (stream->is_wait_stop_complete) {

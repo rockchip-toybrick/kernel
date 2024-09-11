@@ -417,6 +417,7 @@ struct rkcif_stream {
 	int				vc;
 	u64				streamon_timestamp;
 	struct completion		stop_complete;
+	struct completion		start_complete;
 	struct tasklet_struct           vb_done_tasklet;
 	struct list_head                vb_done_list;
 	atomic_t			sub_stream_buf_cnt;
@@ -433,6 +434,8 @@ struct rkcif_stream {
 	bool				is_high_align;
 	bool				is_single_cap;
 	bool				is_wait_stop_complete;
+	bool				is_finish_single_cap;
+	bool				is_wait_single_cap;
 };
 
 struct rkcif_lvds_subdev {
@@ -555,6 +558,7 @@ struct rkcif_device {
 	struct rkcif_dummy_buffer	*buf_user[VIDEO_MAX_FRAME];
 	struct list_head		effect_time_head;
 	struct list_head		effect_gain_head;
+	spinlock_t                      stream_spinlock;
 	int				exp_dbg;
 	bool				is_start_hdr;
 	bool				iommu_en;
