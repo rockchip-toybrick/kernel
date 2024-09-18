@@ -6922,9 +6922,11 @@ void rkcif_irq_pingpong(struct rkcif_device *cif_dev)
 					}
 				} else {
 					stream->is_wait_single_cap = false;
-					complete(&stream->start_complete);
 					spin_unlock_irqrestore(&stream->cifdev->stream_spinlock, flags);
+					complete(&stream->start_complete);
 				}
+			} else {
+				spin_unlock_irqrestore(&stream->cifdev->stream_spinlock, flags);
 			}
 			if (stream->is_wait_stop_complete) {
 				rkcif_stop_dma_capture(stream);
