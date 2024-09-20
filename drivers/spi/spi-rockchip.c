@@ -640,7 +640,7 @@ static int rockchip_spi_config(struct rockchip_spi *rs,
 	cr0 |= (spi->mode & 0x3U) << CR0_SCPH_OFFSET;
 	if (spi->mode & SPI_LSB_FIRST)
 		cr0 |= CR0_FBM_LSB << CR0_FBM_OFFSET;
-	if (spi->mode & SPI_CS_HIGH)
+	if (spi->mode & SPI_CS_HIGH && !gpio_is_valid(spi->cs_gpio))
 		cr0 |= BIT(spi->chip_select) << CR0_SOI_OFFSET;
 
 	if (xfer->rx_buf && xfer->tx_buf) {
@@ -906,7 +906,7 @@ static int rockchip_spi_setup(struct spi_device *spi)
 	cr0 = readl_relaxed(rs->regs + ROCKCHIP_SPI_CTRLR0);
 
 	cr0 |= ((spi->mode & 0x3) << CR0_SCPH_OFFSET);
-	if (spi->mode & SPI_CS_HIGH)
+	if (spi->mode & SPI_CS_HIGH && !gpio_is_valid(spi->cs_gpio))
 		cr0 |= BIT(spi->chip_select) << CR0_SOI_OFFSET;
 	if (spi_controller_is_slave(spi->controller))
 		cr0 |= CR0_OPM_SLAVE << CR0_OPM_OFFSET;
