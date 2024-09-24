@@ -261,6 +261,7 @@ struct rkisp_capture_device {
 extern struct stream_config rkisp_mp_stream_config;
 extern struct stream_config rkisp_sp_stream_config;
 
+void rkisp_stream_vir_cpy_image(struct work_struct *work);
 void rkisp_unregister_stream_vdev(struct rkisp_stream *stream);
 int rkisp_register_stream_vdev(struct rkisp_stream *stream);
 void rkisp_unregister_stream_vdevs(struct rkisp_device *dev);

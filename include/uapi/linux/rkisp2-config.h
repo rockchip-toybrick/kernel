@@ -49,8 +49,11 @@
 #define RKISP_CMD_SET_CSI_MEMORY_MODE \
 	_IOW('V', BASE_VIDIOC_PRIVATE + 101, int)
 
+#define RKISP_CMD_GET_STREAM_INFO \
+	_IOR('V', BASE_VIDIOC_PRIVATE + 104, struct rkisp_stream_info)
+
 #define RKISP_CMD_SET_IQTOOL_CONN_ID \
-	_IOW('V', BASE_VIDIOC_PRIVATE + 102, int)
+	_IOW('V', BASE_VIDIOC_PRIVATE + 113, int)
 
 #define RKISP_CMD_SET_QUICK_STREAM \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 117, struct rkisp_quick_stream_param)
@@ -825,6 +828,20 @@ enum isp2x_wdr_mode {
 	ISP2X_WDR_MODE_BLOCK,
 	ISP2X_WDR_MODE_GLOBAL
 };
+
+/* struct rkisp_stream_info
+ * cur_frame_id: stream current frame id
+ * input_frame_loss: isp input frame loss num
+ * output_frame_loss: stream output frame loss num
+ * stream_on: stream on/off
+ */
+struct rkisp_stream_info {
+	unsigned int cur_frame_id;
+	unsigned int input_frame_loss;
+	unsigned int output_frame_loss;
+	unsigned char stream_on;
+	unsigned char stream_id;
+} __attribute__ ((packed));
 
 struct isp2x_wdr_cfg {
 	enum isp2x_wdr_mode mode;
