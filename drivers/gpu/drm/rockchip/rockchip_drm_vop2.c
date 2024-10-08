@@ -7696,6 +7696,41 @@ static bool vop2_crtc_mode_fixup(struct drm_crtc *crtc,
 
 	drm_mode_set_crtcinfo(adj_mode, CRTC_INTERLACE_HALVE_V | CRTC_STEREO_DOUBLE);
 
+	/*
+	 * When the dsc bpp is less than 9, hdmi output will flash on TV.
+	 * It is speculated that the reason is that pixel rate of sink
+	 * decoding is not enough.
+	 * Taking 8bpp as an example, dsc clk needs to be 1/3 of the input
+	 * clk. the theoretical calculation of DEN compression 1/3, at this
+	 * time, the clk of vop dsc to hdmi tx can be reduced to about 260M
+	 * to meet the 8bpp transmission.
+	 * RK3588 dsc clk only supports 1/2 frequency division, so dsc clk
+	 * is 1/2 input clk, which needs to increase blank, which is
+	 * equivalent to compressing the absolute DEN time. TV is likely to
+	 * decode at a decoding rate of around 260M. DEN absolute time
+	 * shortening results in abnormal TV decoding.
+	 * So the value of hblank needs to be reduced when bpp is below 9.
+	 * The measurement can be displayed normally on TV, but reducing
+	 * the hblank will result in non-standard timing of the hdmi output.
+	 * This may cause compatibility issues and hdmi cts certification
+	 * may fail.
+	 */
+	if (vop2->version == VOP_VERSION_RK3588) {
+		if (output_if_is_hdmi(vcstate->output_if)) {
+			if (vcstate->dsc_sink_cap.target_bits_per_pixel_x16 < 0x90 &&
+			    vcstate->dsc_enable) {
+				u8 vrefresh = drm_mode_vrefresh(adj_mode);
+
+				adj_mode->crtc_hsync_start = adj_mode->hdisplay + 10;
+				adj_mode->crtc_hsync_end = adj_mode->crtc_hsync_start + 10;
+				adj_mode->crtc_htotal = adj_mode->crtc_hsync_end + 10;
+				adj_mode->crtc_clock =
+					(u32)adj_mode->crtc_htotal * adj_mode->crtc_vtotal *
+					vrefresh / 1000;
+			}
+		}
+	}
+
 	if (mode->flags & DRM_MODE_FLAG_DBLCLK || vcstate->output_if & VOP_OUTPUT_IF_BT656)
 		adj_mode->crtc_clock *= 2;
 
