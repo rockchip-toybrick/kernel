@@ -35,6 +35,7 @@
 #include <linux/clk.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/iopoll.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -261,9 +262,6 @@ static int rkisp_pipeline_open(struct rkisp_pipeline *p,
 	if (ret < 0)
 		goto err;
 
-	if (!dev->hw_dev->monitor.is_en)
-		dev->hw_dev->monitor.is_en = rkisp_monitor;
-
 	if (dev->isp_inp & (INP_CSI | INP_RAWRD0 | INP_RAWRD1 | INP_RAWRD2 | INP_CIF))
 		rkisp_csi_config_patch(dev);
 	return 0;
@@ -291,7 +289,7 @@ static int rkisp_pipeline_close(struct rkisp_pipeline *p)
 static int rkisp_pipeline_set_stream(struct rkisp_pipeline *p, bool on)
 {
 	struct rkisp_device *dev = container_of(p, struct rkisp_device, pipe);
-	int i, ret, open_num = 0;
+	int i, ret = 0;
 
 	if ((on && atomic_inc_return(&p->stream_cnt) > 1) ||
 	    (!on && atomic_dec_return(&p->stream_cnt) > 0))
@@ -302,6 +300,19 @@ static int rkisp_pipeline_set_stream(struct rkisp_pipeline *p, bool on)
 			enable_irq(dev->vs_irq);
 		rockchip_set_system_status(SYS_STATUS_ISP);
 		v4l2_subdev_call(&dev->isp_sdev.sd, video, s_stream, true);
+		/* make sure dmatx enable before sensor mipi output when multi sensor
+		 * isp20 dmatx will update by global mi update or isp frame end
+		 */
+		if (dev->isp_ver == ISP_V20 &&
+		    dev->isp_inp & INP_CSI && IS_HDR_RDBK(dev->hdr.op_mode))
+			readl_poll_timeout(dev->base_addr + CSI2RX_RAW2_WR_CTRL,
+					   ret, ret & SW_CSI_RAW_WR_EN_SHD, 5000, 200000);
+		if (rkisp_monitor && atomic_read(&dev->hw_dev->refcnt) == 1) {
+			dev->hw_dev->monitor.is_en = rkisp_monitor;
+			dev->hw_dev->monitor.retry = 0;
+			dev->hw_dev->monitor.state = ISP_FRAME_END;
+			schedule_work(&dev->hw_dev->monitor.work);
+		}
 		/* phy -> sensor */
 		for (i = 0; i < p->num_subdevs; ++i) {
 			if (dev->isp_inp & INP_CIF &&
@@ -311,12 +322,13 @@ static int rkisp_pipeline_set_stream(struct rkisp_pipeline *p, bool on)
 			if (on && ret < 0 && ret != -ENOIOCTLCMD && ret != -ENODEV)
 				goto err_stream_off;
 		}
+		if (dev->isp_inp & INP_CSI)
+			dev->csi_start = true;
 	} else {
-		for (i = 0; i < dev->hw_dev->dev_num; i++) {
-			if (dev->hw_dev->isp_size[i].is_on)
-				open_num++;
-		}
-		if (dev->hw_dev->monitor.is_en && open_num == 1) {
+		if (dev->isp_inp & INP_CSI)
+			dev->csi_start = false;
+		if (dev->hw_dev->monitor.is_en &&
+		    atomic_read(&dev->hw_dev->refcnt) == 1) {
 			dev->hw_dev->monitor.is_en = 0;
 			dev->hw_dev->monitor.state = ISP_STOP;
 			if (!completion_done(&dev->hw_dev->monitor.cmpl))

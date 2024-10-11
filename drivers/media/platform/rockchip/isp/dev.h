@@ -257,6 +257,7 @@ struct rkisp_device {
 	int resume_mode;
 	bool wait_stop;
 	bool single_cap;
+	bool csi_start;
 };
 
 static inline bool rkisp_link_sensor(u32 isp_inp)

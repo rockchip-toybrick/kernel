@@ -760,16 +760,16 @@ void rkisp_check_idle(struct rkisp_device *dev, u32 irq)
 	v4l2_dbg(3, rkisp_debug, &dev->v4l2_dev,
 		 "%s irq:0x%x ends:0x%x mask:0x%x\n",
 		 __func__, irq, dev->irq_ends, dev->irq_ends_mask);
-	if (dev->irq_ends == dev->irq_ends_mask && dev->hw_dev->monitor.is_en) {
-		dev->hw_dev->monitor.retry = 0;
-		dev->hw_dev->monitor.state |= ISP_FRAME_END;
-		if (!completion_done(&dev->hw_dev->monitor.cmpl))
-			complete(&dev->hw_dev->monitor.cmpl);
-	}
 	if ((dev->irq_ends & dev->irq_ends_mask) != dev->irq_ends_mask ||
 	    !IS_HDR_RDBK(dev->rd_mode)) {
 		spin_unlock_irqrestore(&dev->hw_dev->rdbk_lock, lock_flags);
 		return;
+	}
+	if (dev->hw_dev->monitor.is_en) {
+		dev->hw_dev->monitor.retry = 0;
+		dev->hw_dev->monitor.state |= ISP_FRAME_END;
+		if (!completion_done(&dev->hw_dev->monitor.cmpl))
+			complete(&dev->hw_dev->monitor.cmpl);
 	}
 	spin_unlock_irqrestore(&dev->hw_dev->rdbk_lock, lock_flags);
 
@@ -895,7 +895,7 @@ static void rkisp_restart_monitor(struct work_struct *work)
 	dev_info(hw->dev, "%s enter\n", __func__);
 	while (!(monitor->state & ISP_STOP) && monitor->is_en) {
 		ret = wait_for_completion_timeout(&monitor->cmpl,
-						  msecs_to_jiffies(100));
+						  msecs_to_jiffies(200));
 		/* isp stop to exit
 		 * isp err to reset
 		 * mipi err wait isp idle, then reset
@@ -909,8 +909,10 @@ static void rkisp_restart_monitor(struct work_struct *work)
 				isp = hw->isp[i];
 				if (!(isp->isp_inp & INP_CSI))
 					continue;
-				if (!(isp->isp_state & ISP_START))
+				if (!isp->csi_start) {
+					mipi_irq_cnt = 0;
 					break;
+				}
 				if (isp->csi_dev.irq_cnt != mipi_irq_cnt) {
 					mipi_irq_cnt = isp->csi_dev.irq_cnt;
 					timeout = 5;
@@ -974,7 +976,7 @@ static void rkisp_restart_monitor(struct work_struct *work)
 			}
 		}
 	}
-	dev_dbg(hw->dev, "%s exit\n", __func__);
+	dev_info(hw->dev, "%s exit\n", __func__);
 }
 
 static void rkisp_monitor_init(struct rkisp_device *dev)
