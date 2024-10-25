@@ -1561,11 +1561,12 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 		break;
 	case MMC_POWER_OFF:
-		if (!IS_ERR_OR_NULL(slot->host->pinctrl))
-			pinctrl_select_state(slot->host->pinctrl, slot->host->idle_state);
-
 		/* Turn clock off before power goes down */
 		dw_mci_setup_bus(slot, false);
+
+		if (!IS_ERR_OR_NULL(slot->host->pinctrl) &&
+		    !IS_ERR(slot->host->idle_state))
+			pinctrl_select_state(slot->host->pinctrl, slot->host->idle_state);
 
 		if (!IS_ERR(mmc->supply.vmmc))
 			mmc_regulator_set_ocr(mmc, mmc->supply.vmmc, 0);
