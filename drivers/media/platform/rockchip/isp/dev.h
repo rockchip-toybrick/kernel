@@ -258,6 +258,7 @@ struct rkisp_device {
 	int resume_mode;
 	bool wait_stop;
 	bool single_cap;
+	bool add_oneframe;
 	bool csi_start;
 };
 

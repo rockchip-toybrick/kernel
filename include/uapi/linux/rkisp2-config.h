@@ -58,6 +58,9 @@
 #define RKISP_CMD_SET_QUICK_STREAM \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 117, struct rkisp_quick_stream_param)
 
+#define RKISP_CMD_START_CAPTURE_ONE_FRAME_AOV \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 118, int)
+
 /*************************************************************/
 
 #define ISP2X_ID_DPCC			(0)

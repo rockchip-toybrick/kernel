@@ -2442,7 +2442,7 @@ static long rkisp_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	struct rkisp_pipeline *p = &isp_dev->pipe;
 	void *resmem_va;
 	long ret = 0;
-	int i = 0;
+	int i = 0, on;
 
 	if (!arg && cmd != RKISP_CMD_FREE_SHARED_BUF)
 		return -EINVAL;
@@ -2542,6 +2542,21 @@ static long rkisp_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 			rkisp_dmarx_get_frame(isp_dev, &stream_param->frame_num, NULL, NULL, true);
 		}
 		break;
+	case RKISP_CMD_START_CAPTURE_ONE_FRAME_AOV:
+		if (!rkisp_link_sensor(isp_dev->isp_inp)) {
+			v4l2_err(sd, "sensor not link isp, no support for RKISP_CMD_START_CAPTURE_ONE_FRAME_AOV\n");
+			ret = -EPERM;
+			break;
+		}
+		on = 1;
+		for (i = 0; i < p->num_subdevs; i++) {
+			if (p->subdevs[i]->entity.function == MEDIA_ENT_F_VID_IF_BRIDGE ||
+			    p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR)
+				v4l2_subdev_call(p->subdevs[i], core, ioctl,
+						 RKMODULE_SET_QUICK_STREAM, &on);
+		}
+		isp_dev->add_oneframe = true;
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 	}
@@ -2622,6 +2637,9 @@ static long rkisp_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = rkisp_ioctl(sd, cmd, &stream_param);
 		if (!ret && copy_to_user(up, &stream_param, sizeof(stream_param)))
 			ret = -EFAULT;
+		break;
+	case RKISP_CMD_START_CAPTURE_ONE_FRAME_AOV:
+		ret = rkisp_ioctl(sd, cmd, NULL);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -3137,6 +3155,13 @@ vs_skip:
 		/* pm resume single mode only capture oneframe */
 		if (dev->single_cap) {
 			dev->single_cap = false;
+			dev->pm_work.on = 0;
+			schedule_work(&dev->pm_work.work);
+		}
+
+		/* aov single mode add one frame */
+		if (dev->add_oneframe) {
+			dev->add_oneframe = false;
 			dev->pm_work.on = 0;
 			schedule_work(&dev->pm_work.work);
 		}

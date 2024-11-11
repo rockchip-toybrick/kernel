@@ -831,6 +831,7 @@ static int rkisp_plat_probe(struct platform_device *pdev)
 	isp_dev->resume_mode = 0;
 	isp_dev->wait_stop = 0;
 	isp_dev->single_cap = 0;
+	isp_dev->add_oneframe = false;
 
 	if (isp_dev->isp_ver == ISP_V20 || isp_dev->isp_ver == ISP_V21) {
 		atomic_set(&isp_dev->hdr.refcnt, 0);
