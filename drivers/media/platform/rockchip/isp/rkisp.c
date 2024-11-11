@@ -890,7 +890,7 @@ static void rkisp_restart_monitor(struct work_struct *work)
 	struct rkisp_hw_dev *hw = monitor->dev;
 	struct rkisp_device *isp;
 	struct rkisp_pipeline *p;
-	int ret, i, j, timeout = 5, mipi_irq_cnt = 0;
+	int ret, i, j, timeout = 50, mipi_irq_cnt = 0;
 
 	dev_info(hw->dev, "%s enter\n", __func__);
 	while (!(monitor->state & ISP_STOP) && monitor->is_en) {
@@ -915,7 +915,7 @@ static void rkisp_restart_monitor(struct work_struct *work)
 				}
 				if (isp->csi_dev.irq_cnt != mipi_irq_cnt) {
 					mipi_irq_cnt = isp->csi_dev.irq_cnt;
-					timeout = 5;
+					timeout = 50;
 				} else if (mipi_irq_cnt && timeout-- == 0) {
 					/* mipi no input */
 					monitor->state |= ISP_MIPI_ERROR;
@@ -923,8 +923,9 @@ static void rkisp_restart_monitor(struct work_struct *work)
 			}
 			continue;
 		}
-		dev_info(hw->dev, "isp%d to restart state:0x%x try:%d mipi_irq_cnt:%d\n",
-			 hw->cur_dev_id, monitor->state, monitor->retry, mipi_irq_cnt);
+		dev_info(hw->dev, "isp%d to restart state:0x%x try:%d mipi_irq_cnt:%d ret:%d\n",
+			 hw->cur_dev_id, monitor->state, monitor->retry, mipi_irq_cnt, ret);
+		mipi_irq_cnt = 0;
 		if (monitor->retry++ > RKISP_MAX_RETRY_CNT || hw->is_shutdown) {
 			monitor->is_en = false;
 			break;

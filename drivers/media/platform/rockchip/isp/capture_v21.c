@@ -1233,15 +1233,22 @@ static void rkisp_stop_streaming_tx(struct rkisp_stream *stream)
 {
 	struct rkisp_device *dev = stream->ispdev;
 
-	stream->stopping = true;
-	if (dev->isp_state & ISP_START &&
-	    !stream->ops->is_stream_stopped(dev->base_addr)) {
+	if (IS_HDR_RDBK(dev->hdr.op_mode) && stream->id == RKISP_STREAM_DMATX2) {
+		quick_off_sensor(stream);
 		stream->ops->stop_mi(stream);
-		wait_event_timeout(stream->done, !stream->streaming,
-				   msecs_to_jiffies(300));
+	} else {
+		stream->stopping = true;
+		if (dev->isp_state & ISP_START && dev->csi_start &&
+		    !stream->ops->is_stream_stopped(dev->base_addr)) {
+			stream->ops->stop_mi(stream);
+			wait_event_timeout(stream->done, !stream->streaming,
+					   msecs_to_jiffies(300));
+		}
+		stream->stopping = false;
 	}
-	stream->stopping = false;
+
 	stream->streaming = false;
+	stream->start_stream = false;
 	destroy_buf_queue(stream, VB2_BUF_STATE_ERROR);
 }
 
@@ -1255,7 +1262,7 @@ static void rkisp_stop_streaming(struct vb2_queue *queue)
 
 	v4l2_dbg(1, rkisp_debug, &dev->v4l2_dev,
 		 "%s %d\n", __func__, stream->id);
-	if (!stream->streaming)
+	if (!stream->start_stream)
 		return;
 
 	if (stream->id == RKISP_STREAM_VIR) {
@@ -1296,7 +1303,7 @@ static void rkisp_stop_streaming(struct vb2_queue *queue)
 		v4l2_err(v4l2_dev, "pipeline close failed error:%d\n", ret);
 	rkisp_destroy_dummy_buf(stream);
 	atomic_dec(&dev->cap_dev.refcnt);
-
+	stream->start_stream = false;
 end:
 	mutex_unlock(&dev->hw_dev->dev_lock);
 }
@@ -1348,13 +1355,19 @@ rkisp_start_streaming_tx(struct rkisp_stream *stream)
 	if (!dev->isp_inp || !stream->linked)
 		goto buffer_done;
 
+	if (!(dev->isp_state & ISP_START)) {
+		stream->start_stream = true;
+		return 0;
+	}
 	ret = rkisp_stream_start(stream);
 	if (ret < 0)
 		goto buffer_done;
+	stream->start_stream = true;
 	return 0;
 buffer_done:
 	destroy_buf_queue(stream, VB2_BUF_STATE_QUEUED);
 	stream->streaming = false;
+	stream->start_stream = false;
 	return ret;
 }
 
@@ -1369,7 +1382,7 @@ rkisp_start_streaming(struct vb2_queue *queue, unsigned int count)
 
 	v4l2_dbg(1, rkisp_debug, &dev->v4l2_dev,
 		 "%s %d\n", __func__, stream->id);
-	if (WARN_ON(stream->streaming))
+	if (WARN_ON(stream->start_stream))
 		return -EBUSY;
 
 	if (stream->id == RKISP_STREAM_VIR) {
@@ -1459,6 +1472,8 @@ rkisp_start_streaming(struct vb2_queue *queue, unsigned int count)
 			 "start pipeline failed %d\n", ret);
 		goto pipe_stream_off;
 	}
+
+	stream->start_stream = true;
 
 	mutex_unlock(&dev->hw_dev->dev_lock);
 	return 0;
@@ -1688,7 +1703,8 @@ void rkisp_mi_v21_isr(u32 mis_val, struct rkisp_device *dev)
 				stream->streaming = false;
 				stream->ops->disable_mi(stream);
 				wake_up(&stream->done);
-			} else if (stream->ops->is_stream_stopped(dev->base_addr)) {
+			} else if (is_rdbk_stream(stream) ||
+				   stream->ops->is_stream_stopped(dev->base_addr)) {
 				stream->stopping = false;
 				stream->streaming = false;
 				wake_up(&stream->done);

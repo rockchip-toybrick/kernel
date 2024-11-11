@@ -161,6 +161,7 @@ struct rkisp_hdr {
 	u8 esp_mode;
 	u8 index[HDR_DMA_MAX];
 	atomic_t refcnt;
+	atomic_t stopcnt;
 	struct v4l2_subdev *sensor;
 	struct list_head q_tx[HDR_DMA_MAX];
 	struct list_head q_rx[HDR_DMA_MAX];

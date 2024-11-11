@@ -220,7 +220,7 @@ int hdr_config_dmatx(struct rkisp_device *dev)
 {
 	struct rkisp_stream *stream;
 	struct v4l2_pix_format_mplane pixm;
-	u32 memory = 0;
+	u32 i, memory = 0;
 
 	if (atomic_inc_return(&dev->hdr.refcnt) > 1 ||
 	    !dev->active_sensor ||
@@ -278,6 +278,17 @@ int hdr_config_dmatx(struct rkisp_device *dev)
 			stream->ops->config_mi(stream);
 		}
 	}
+	for (i = RKISP_STREAM_DMATX0; i <= RKISP_STREAM_DMATX3; i++) {
+		stream = &dev->cap_dev.stream[i];
+		if (!stream->start_stream)
+			continue;
+		if (i == RKISP_STREAM_DMATX3)
+			stream->ops->config_mi(stream);
+		if (stream->ops && stream->ops->enable_mi)
+			stream->ops->enable_mi(stream);
+		stream->streaming = true;
+	}
+	atomic_set(&dev->hdr.stopcnt, 1);
 
 	if (dev->hdr.op_mode != HDR_NORMAL && !dev->dmarx_dev.trigger) {
 		raw_rd_ctrl(dev->base_addr, memory << 2);
@@ -285,6 +296,38 @@ int hdr_config_dmatx(struct rkisp_device *dev)
 			rkisp_rawrd_set_pic_size(dev, pixm.width, pixm.height);
 	}
 	return 0;
+}
+
+void quick_off_sensor(struct rkisp_stream *stream)
+{
+	struct rkisp_device *dev = stream->ispdev;
+	struct rkisp_pipeline *p = &dev->pipe;
+	int ret, i, on = 0;
+
+	if (atomic_dec_return(&dev->hdr.stopcnt) < 0)
+		return;
+
+	if (stream->start_stream && !stream->stopping &&
+		!stream->ops->is_stream_stopped(dev->base_addr)) {
+		stream->stopping = true;
+		ret = wait_event_timeout(stream->done, !stream->streaming, msecs_to_jiffies(300));
+		if (!ret)
+			v4l2_err(&dev->v4l2_dev, "stop dmatx2 timeout %d\n", ret);
+		stream->stopping = false;
+
+		for (i = p->num_subdevs - 1; i >= 0; i--) {
+			if (p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR) {
+				ret = v4l2_subdev_call(p->subdevs[i], core, ioctl,
+						 RKMODULE_SET_QUICK_STREAM, &on);
+				if (!ret)
+					dev->csi_start = false;
+				else
+					v4l2_err(&dev->v4l2_dev,
+						 "sensor ioctl RKMODULE_SET_QUICK_STREAM err:%d\n", ret);
+				break;
+			}
+		}
+	}
 }
 
 void hdr_stop_dmatx(struct rkisp_device *dev)
@@ -298,6 +341,11 @@ void hdr_stop_dmatx(struct rkisp_device *dev)
 	    (dev->isp_inp & INP_CIF) ||
 	    (dev->isp_ver != ISP_V20 && dev->isp_ver != ISP_V21))
 		return;
+
+	if (IS_HDR_RDBK(dev->hdr.op_mode)) {
+		stream = &dev->cap_dev.stream[RKISP_STREAM_DMATX2];
+		quick_off_sensor(stream);
+	}
 
 	if (dev->hdr.op_mode == HDR_FRAMEX2_DDR ||
 	    dev->hdr.op_mode == HDR_LINEX2_DDR ||

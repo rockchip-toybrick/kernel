@@ -1411,6 +1411,29 @@ static void destroy_buf_queue(struct rkisp_stream *stream,
 	spin_unlock_irqrestore(&stream->vbq_lock, lock_flags);
 }
 
+static void rkisp_stop_streaming_tx(struct rkisp_stream *stream)
+{
+	struct rkisp_device *dev = stream->ispdev;
+
+	if (IS_HDR_RDBK(dev->hdr.op_mode) && stream->id == RKISP_STREAM_DMATX2) {
+		quick_off_sensor(stream);
+		stream->ops->stop_mi(stream);
+	} else {
+		stream->stopping = true;
+		if (dev->isp_state & ISP_START && dev->csi_start &&
+		    !stream->ops->is_stream_stopped(dev->base_addr)) {
+			stream->ops->stop_mi(stream);
+			wait_event_timeout(stream->done, !stream->streaming,
+					   msecs_to_jiffies(300));
+		}
+		stream->stopping = false;
+	}
+
+	stream->streaming = false;
+	stream->start_stream = false;
+	destroy_buf_queue(stream, VB2_BUF_STATE_ERROR);
+}
+
 static void rkisp_stop_streaming(struct vb2_queue *queue)
 {
 	struct rkisp_stream *stream = queue->drv_priv;
@@ -1419,10 +1442,14 @@ static void rkisp_stop_streaming(struct vb2_queue *queue)
 	struct v4l2_device *v4l2_dev = &dev->v4l2_dev;
 	int ret;
 
-	mutex_lock(&dev->hw_dev->dev_lock);
-
 	v4l2_dbg(1, rkisp_debug, &dev->v4l2_dev,
 		 "%s %d\n", __func__, stream->id);
+	if (!stream->start_stream)
+		return;
+	if (stream->id != RKISP_STREAM_MP && stream->id != RKISP_STREAM_SP)
+		return rkisp_stop_streaming_tx(stream);
+
+	mutex_lock(&dev->hw_dev->dev_lock);
 
 	if (stream->id != RKISP_STREAM_SP || stream->out_isp_fmt.fmt_type != FMT_FBCGAIN) {
 		if (!stream->streaming)
@@ -1494,6 +1521,30 @@ end:
 }
 
 static int
+rkisp_start_streaming_tx(struct rkisp_stream *stream)
+{
+	struct rkisp_device *dev = stream->ispdev;
+	int ret = -1;
+
+	if (!dev->isp_inp || !stream->linked)
+		goto buffer_done;
+	if (!(dev->isp_state & ISP_START)) {
+		stream->start_stream = true;
+		return 0;
+	}
+	ret = rkisp_stream_start(stream);
+	if (ret < 0)
+		goto buffer_done;
+	stream->start_stream = true;
+	return 0;
+buffer_done:
+	destroy_buf_queue(stream, VB2_BUF_STATE_QUEUED);
+	stream->streaming = false;
+	stream->start_stream = false;
+	return ret;
+}
+
+static int
 rkisp_start_streaming(struct vb2_queue *queue, unsigned int count)
 {
 	struct rkisp_stream *stream = queue->drv_priv;
@@ -1502,19 +1553,19 @@ rkisp_start_streaming(struct vb2_queue *queue, unsigned int count)
 	struct v4l2_device *v4l2_dev = &dev->v4l2_dev;
 	int ret = -1;
 
-	mutex_lock(&dev->hw_dev->dev_lock);
-
 	v4l2_dbg(1, rkisp_debug, &dev->v4l2_dev,
 		 "%s %d\n", __func__, stream->id);
 
 	if (stream->id != RKISP_STREAM_SP || stream->out_isp_fmt.fmt_type != FMT_FBCGAIN) {
-		if (WARN_ON(stream->streaming)) {
-			mutex_unlock(&dev->hw_dev->dev_lock);
+		if (WARN_ON(stream->streaming))
 			return -EBUSY;
-		}
 	}
 
 	memset(&stream->dbg, 0, sizeof(stream->dbg));
+	if (stream->id != RKISP_STREAM_MP && stream->id != RKISP_STREAM_SP)
+		return rkisp_start_streaming_tx(stream);
+
+	mutex_lock(&dev->hw_dev->dev_lock);
 	atomic_inc(&dev->cap_dev.refcnt);
 	if (!dev->isp_inp || !stream->linked) {
 		v4l2_err(v4l2_dev, "check video link or isp input\n");
@@ -1869,7 +1920,8 @@ void rkisp_mi_v20_isr(u32 mis_val, struct rkisp_device *dev)
 			 * frame end that sync the configurations to shadow
 			 * regs.
 			 */
-			if (stream->ops->is_stream_stopped(dev->base_addr)) {
+			if (is_rdbk_stream(stream) ||
+			    stream->ops->is_stream_stopped(dev->base_addr)) {
 				stream->stopping = false;
 				stream->streaming = false;
 				wake_up(&stream->done);
