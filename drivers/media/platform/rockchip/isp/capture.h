@@ -269,7 +269,7 @@ int rkisp_register_stream_vdevs(struct rkisp_device *dev);
 void rkisp_mi_isr(u32 mis_val, struct rkisp_device *dev);
 void rkisp_set_stream_def_fmt(struct rkisp_device *dev, u32 id,
 			      u32 width, u32 height, u32 pixelformat);
-void quick_off_sensor(struct rkisp_stream *stream);
+void rkisp_quick_off_sensor(struct rkisp_stream *stream);
 int rkisp_fcc_xysubs(u32 fcc, u32 *xsubs, u32 *ysubs);
 int rkisp_mbus_code_xysubs(u32 code, u32 *xsubs, u32 *ysubs);
 int rkisp_fh_open(struct file *filp);

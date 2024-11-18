@@ -77,7 +77,7 @@ static int rkisp_create_hdr_buf(struct rkisp_device *dev)
 					"Failed to allocate the memory for hdr buffer\n");
 				return -ENOMEM;
 			}
-			hdr_qbuf(&dev->hdr.q_tx[i], buf);
+			rkisp_hdr_qbuf(&dev->hdr.q_tx[i], buf);
 			v4l2_dbg(1, rkisp_debug, &dev->v4l2_dev,
 				 "hdr buf[%d][%d]:0x%x\n",
 				 i, j, (u32)buf->dma_addr);
@@ -116,7 +116,7 @@ static int rkisp_create_hdr_buf(struct rkisp_device *dev)
 	return 0;
 }
 
-void hdr_destroy_buf(struct rkisp_device *dev)
+void rkisp_hdr_destroy_buf(struct rkisp_device *dev)
 {
 	int i, j;
 	struct rkisp_dummy_buffer *buf;
@@ -138,17 +138,17 @@ void hdr_destroy_buf(struct rkisp_device *dev)
 		}
 
 		for (j = 0; j < HDR_MAX_DUMMY_BUF; j++) {
-			buf = hdr_dqbuf(&dev->hdr.q_tx[i]);
+			buf = rkisp_hdr_dqbuf(&dev->hdr.q_tx[i]);
 			if (buf)
 				rkisp_free_buffer(dev, buf);
-			buf = hdr_dqbuf(&dev->hdr.q_rx[i]);
+			buf = rkisp_hdr_dqbuf(&dev->hdr.q_rx[i]);
 			if (buf)
 				rkisp_free_buffer(dev, buf);
 		}
 	}
 }
 
-int hdr_update_dmatx_buf(struct rkisp_device *dev)
+int rkisp_hdr_update_dmatx_buf(struct rkisp_device *dev)
 {
 	void __iomem *base = dev->base_addr;
 	struct rkisp_stream *dmatx;
@@ -173,7 +173,7 @@ int hdr_update_dmatx_buf(struct rkisp_device *dev)
 
 	/* for rawrd auto trigger mode, config first buf */
 	index = dev->hdr.index[HDR_DMA0];
-	buf = hdr_dqbuf(&dev->hdr.q_rx[index]);
+	buf = rkisp_hdr_dqbuf(&dev->hdr.q_rx[index]);
 	if (buf) {
 		mi_raw0_rd_set_addr(base, buf->dma_addr);
 		dev->hdr.rx_cur_buf[index] = buf;
@@ -183,7 +183,7 @@ int hdr_update_dmatx_buf(struct rkisp_device *dev)
 	}
 
 	index = dev->hdr.index[HDR_DMA1];
-	buf = hdr_dqbuf(&dev->hdr.q_rx[index]);
+	buf = rkisp_hdr_dqbuf(&dev->hdr.q_rx[index]);
 	if (buf) {
 		mi_raw1_rd_set_addr(base, buf->dma_addr);
 		dev->hdr.rx_cur_buf[index] = buf;
@@ -193,7 +193,7 @@ int hdr_update_dmatx_buf(struct rkisp_device *dev)
 	}
 
 	index = dev->hdr.index[HDR_DMA2];
-	buf = hdr_dqbuf(&dev->hdr.q_rx[index]);
+	buf = rkisp_hdr_dqbuf(&dev->hdr.q_rx[index]);
 	if (buf) {
 		mi_raw2_rd_set_addr(base, buf->dma_addr);
 		dev->hdr.rx_cur_buf[index] = buf;
@@ -216,7 +216,7 @@ end:
 	return 0;
 }
 
-int hdr_config_dmatx(struct rkisp_device *dev)
+int rkisp_hdr_config_dmatx(struct rkisp_device *dev)
 {
 	struct rkisp_stream *stream;
 	struct v4l2_pix_format_mplane pixm;
@@ -298,7 +298,7 @@ int hdr_config_dmatx(struct rkisp_device *dev)
 	return 0;
 }
 
-void quick_off_sensor(struct rkisp_stream *stream)
+void rkisp_quick_off_sensor(struct rkisp_stream *stream)
 {
 	struct rkisp_device *dev = stream->ispdev;
 	struct rkisp_pipeline *p = &dev->pipe;
@@ -330,7 +330,7 @@ void quick_off_sensor(struct rkisp_stream *stream)
 	}
 }
 
-void hdr_stop_dmatx(struct rkisp_device *dev)
+void rkisp_hdr_stop_dmatx(struct rkisp_device *dev)
 {
 	struct rkisp_stream *stream;
 
@@ -344,7 +344,7 @@ void hdr_stop_dmatx(struct rkisp_device *dev)
 
 	if (IS_HDR_RDBK(dev->hdr.op_mode)) {
 		stream = &dev->cap_dev.stream[RKISP_STREAM_DMATX2];
-		quick_off_sensor(stream);
+		rkisp_quick_off_sensor(stream);
 	}
 
 	if (dev->hdr.op_mode == HDR_FRAMEX2_DDR ||
@@ -370,7 +370,7 @@ void hdr_stop_dmatx(struct rkisp_device *dev)
 	}
 }
 
-struct rkisp_dummy_buffer *hdr_dqbuf(struct list_head *q)
+struct rkisp_dummy_buffer *rkisp_hdr_dqbuf(struct list_head *q)
 {
 	struct rkisp_dummy_buffer *buf = NULL;
 
@@ -382,7 +382,7 @@ struct rkisp_dummy_buffer *hdr_dqbuf(struct list_head *q)
 	return buf;
 }
 
-void hdr_qbuf(struct list_head *q,
+void rkisp_hdr_qbuf(struct list_head *q,
 	      struct rkisp_dummy_buffer *buf)
 {
 	if (buf)

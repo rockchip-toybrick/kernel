@@ -405,10 +405,10 @@ static void update_rawrd(struct rkisp_stream *stream)
 			rawwr_addr = MI_RAW0_WR_BASE_SHD;
 		}
 		if (dev->hdr.rx_cur_buf[id]) {
-			hdr_qbuf(&dev->hdr.q_tx[id], dev->hdr.rx_cur_buf[id]);
+			rkisp_hdr_qbuf(&dev->hdr.q_tx[id], dev->hdr.rx_cur_buf[id]);
 			dev->hdr.rx_cur_buf[id] = NULL;
 		}
-		buf = hdr_dqbuf(&dev->hdr.q_rx[id]);
+		buf = rkisp_hdr_dqbuf(&dev->hdr.q_rx[id]);
 		if (buf) {
 			val = buf->dma_addr;
 			dev->hdr.rx_cur_buf[id] = buf;

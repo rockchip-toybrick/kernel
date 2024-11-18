@@ -2181,7 +2181,7 @@ static void rkisp_global_update_mi(struct rkisp_device *dev)
 
 	force_cfg_update(dev);
 
-	hdr_update_dmatx_buf(dev);
+	rkisp_hdr_update_dmatx_buf(dev);
 	if (dev->br_dev.en && dev->isp_ver == ISP_V20) {
 		stream = &dev->cap_dev.stream[RKISP_STREAM_SP];
 		rkisp_update_spstream_buf(stream);

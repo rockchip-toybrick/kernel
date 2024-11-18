@@ -654,12 +654,12 @@ static void update_dmatx_v2(struct rkisp_stream *stream)
 
 		if ((stream->id == RKISP_STREAM_DMATX0 ||
 		     stream->id == RKISP_STREAM_DMATX2)) {
-			buf = hdr_dqbuf(&dev->hdr.q_tx[index]);
+			buf = rkisp_hdr_dqbuf(&dev->hdr.q_tx[index]);
 			if (IS_HDR_RDBK(dev->hdr.op_mode) &&
 			    !dev->dmarx_dev.trigger)
-				hdr_qbuf(&dev->hdr.q_rx[index], buf);
+				rkisp_hdr_qbuf(&dev->hdr.q_rx[index], buf);
 			else
-				hdr_qbuf(&dev->hdr.q_tx[index], buf);
+				rkisp_hdr_qbuf(&dev->hdr.q_tx[index], buf);
 		}
 		if (!buf && dev->hw_dev->dummy_buf.mem_priv) {
 			buf = &dev->hw_dev->dummy_buf;
@@ -1029,7 +1029,7 @@ static void rkisp_stream_stop(struct rkisp_stream *stream)
 		stream->ops->stop_mi(stream);
 
 	if (stream->id == RKISP_STREAM_MP || stream->id == RKISP_STREAM_SP)
-		hdr_stop_dmatx(dev);
+		rkisp_hdr_stop_dmatx(dev);
 
 	if (dev->isp_state & ISP_START &&
 	    !stream->ops->is_stream_stopped(dev->base_addr)) {
@@ -1078,7 +1078,7 @@ static int rkisp_start(struct rkisp_stream *stream)
 
 	stream->ops->enable_mi(stream);
 	if (stream->id == RKISP_STREAM_MP || stream->id == RKISP_STREAM_SP)
-		hdr_config_dmatx(dev);
+		rkisp_hdr_config_dmatx(dev);
 	stream->streaming = true;
 
 	return 0;
@@ -1179,7 +1179,7 @@ static void rkisp_destroy_dummy_buf(struct rkisp_stream *stream)
 {
 	struct rkisp_device *dev = stream->ispdev;
 
-	hdr_destroy_buf(dev);
+	rkisp_hdr_destroy_buf(dev);
 	rkisp_free_common_dummy_buf(dev);
 }
 
@@ -1234,7 +1234,7 @@ static void rkisp_stop_streaming_tx(struct rkisp_stream *stream)
 	struct rkisp_device *dev = stream->ispdev;
 
 	if (IS_HDR_RDBK(dev->hdr.op_mode) && stream->id == RKISP_STREAM_DMATX2) {
-		quick_off_sensor(stream);
+		rkisp_quick_off_sensor(stream);
 		stream->ops->stop_mi(stream);
 	} else {
 		stream->stopping = true;

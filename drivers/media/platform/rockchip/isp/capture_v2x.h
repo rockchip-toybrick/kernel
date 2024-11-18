@@ -6,12 +6,12 @@
 
 struct rkisp_stream;
 
-struct rkisp_dummy_buffer *hdr_dqbuf(struct list_head *q);
-void hdr_qbuf(struct list_head *q, struct rkisp_dummy_buffer *buf);
-int hdr_config_dmatx(struct rkisp_device *dev);
-int hdr_update_dmatx_buf(struct rkisp_device *dev);
-void hdr_stop_dmatx(struct rkisp_device *dev);
-void hdr_destroy_buf(struct rkisp_device *dev);
+struct rkisp_dummy_buffer *rkisp_hdr_dqbuf(struct list_head *q);
+void rkisp_hdr_qbuf(struct list_head *q, struct rkisp_dummy_buffer *buf);
+int rkisp_hdr_config_dmatx(struct rkisp_device *dev);
+int rkisp_hdr_update_dmatx_buf(struct rkisp_device *dev);
+void rkisp_hdr_stop_dmatx(struct rkisp_device *dev);
+void rkisp_hdr_destroy_buf(struct rkisp_device *dev);
 void rkisp_config_dmatx_valid_buf(struct rkisp_device *dev);
 
 #if IS_ENABLED(CONFIG_VIDEO_ROCKCHIP_ISP_VERSION_V20)
