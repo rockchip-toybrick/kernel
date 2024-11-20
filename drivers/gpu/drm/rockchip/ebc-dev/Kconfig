@@ -2,6 +2,7 @@
 
 menuconfig ROCKCHIP_EBC_DEV
 	bool "Rockchip eBook Device Driver"
+	select DMA_SHARED_BUFFER
 	help
 	Rockchip eBook Device Dirver could help to driver the electronic ink screen.
 
@@ -9,3 +10,17 @@ config EPD_TPS65185_SENSOR
     bool "eink pmic Tps65185"
     depends on ROCKCHIP_EBC_DEV
     default y
+
+config EPD_SY7636A_PMIC
+	bool "EINK PMIC SY7636A Support"
+	depends on ROCKCHIP_EBC_DEV
+	default y
+	help
+	  If you say yes here you get support for the Silergy SY7636A PMIC.
+
+config EPD_FP9931_PMIC
+	bool "EINK PMIC FP9931 Support"
+	depends on ROCKCHIP_EBC_DEV
+	default y
+	help
+	  If you say yes here you get support for the Fitipower FP9931 PMIC.

@@ -56,26 +56,6 @@ int ebc_buf_release(struct ebc_buf_s  *release_buf)
 	return BUF_SUCCESS;
 }
 
-static void do_dsp_buf_list(struct ebc_buf_s *dsp_buf)
-{
-	struct ebc_buf_s *temp_buf;
-	int temp_pos;
-
-	if (ebc_buf_info.dsp_buf_list->nb_elt > 0) {
-		temp_pos = ebc_buf_info.dsp_buf_list->nb_elt;
-		while (temp_pos) {
-			temp_pos--;
-			temp_buf = (struct ebc_buf_s *)buf_list_get(ebc_buf_info.dsp_buf_list, temp_pos);
-			if (temp_buf->needpic) {
-				continue;
-			} else {
-				buf_list_remove(ebc_buf_info.dsp_buf_list, temp_pos);
-				ebc_buf_release(temp_buf);
-			}
-		}
-	}
-}
-
 int ebc_drop_one_dsp_buf(void)
 {
 	struct ebc_buf_s *temp_buf;
@@ -86,7 +66,7 @@ int ebc_drop_one_dsp_buf(void)
 		if (ebc_buf_info.dsp_buf_list->nb_elt > 0) {
 			temp_pos = ebc_buf_info.dsp_buf_list->nb_elt - 1;
 			temp_buf = (struct ebc_buf_s *)buf_list_get(ebc_buf_info.dsp_buf_list, temp_pos);
-			if (temp_buf->needpic == 2) {
+			if (temp_buf->dropable == 0) {
 				buf_list_remove(ebc_buf_info.dsp_buf_list, temp_pos);
 				ebc_buf_release(temp_buf);
 				mutex_unlock(&ebc_buf_info.dsp_buf_lock);
@@ -103,8 +83,6 @@ int ebc_add_to_dsp_buf_list(struct ebc_buf_s *dsp_buf)
 {
 	mutex_lock(&ebc_buf_info.dsp_buf_lock);
 	if (ebc_buf_info.dsp_buf_list) {
-		do_dsp_buf_list(dsp_buf);
-
 		if (-1 == buf_list_add(ebc_buf_info.dsp_buf_list, (int *)dsp_buf, -1)) {
 			ebc_buf_release(dsp_buf);
 			mutex_unlock(&ebc_buf_info.dsp_buf_lock);
