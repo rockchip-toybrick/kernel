@@ -482,6 +482,15 @@ u32 rkisp_mbus_pixelcode_to_v4l2(u32 pixelcode)
 	return pixelformat;
 }
 
+static void rkisp_set_state(u32 *state, u32 val)
+{
+	u32 mask = 0xff;
+
+	if (val < ISP_STOP)
+		mask = 0xff00;
+	*state &= mask;
+	*state |= val;
+}
 
 /*
  * for hdr read back mode, rawrd read back data
@@ -646,6 +655,16 @@ void rkisp_trigger_read_back(struct rkisp_device *dev, u8 dma2frm, u32 mode, boo
 		rkisp_bridge_update_mi(dev, 0);
 	if (!hw->is_shutdown)
 		rkisp_write(dev, CSI2RX_CTRL0, val, true);
+
+	if (dev->hw_dev->monitor.is_en &&
+	    (cur_frame_id % dev->hw_dev->monitor.quota) == 0) {
+		rkisp_set_state(&dev->hw_dev->monitor.state, ISP_FRAME_VS);
+		if (!completion_done(&dev->hw_dev->monitor.cmpl)) {
+			v4l2_dbg(4, rkisp_debug, &dev->v4l2_dev,
+				 "%s send vs to monitor\n", __func__);
+			complete(&dev->hw_dev->monitor.cmpl);
+		}
+	}
 }
 
 static void rkisp_rdbk_trigger_handle(struct rkisp_device *dev, u32 cmd)
@@ -754,23 +773,39 @@ void rkisp_check_idle(struct rkisp_device *dev, u32 irq)
 {
 	unsigned long lock_flags = 0;
 	u32 val = 0;
+	u32 id = 0;
 
 	spin_lock_irqsave(&dev->hw_dev->rdbk_lock, lock_flags);
 	dev->irq_ends |= (irq & dev->irq_ends_mask);
 	v4l2_dbg(3, rkisp_debug, &dev->v4l2_dev,
 		 "%s irq:0x%x ends:0x%x mask:0x%x\n",
 		 __func__, irq, dev->irq_ends, dev->irq_ends_mask);
-	if ((dev->irq_ends & dev->irq_ends_mask) != dev->irq_ends_mask ||
-	    !IS_HDR_RDBK(dev->rd_mode)) {
+	rkisp_dmarx_get_frame(dev, &id, NULL, NULL, true);
+	/* set monitor state ISP_FRAME_END */
+	if ((dev->irq_ends & dev->irq_ends_mask) == dev->irq_ends_mask &&
+	    dev->hw_dev->monitor.is_en &&
+	    (id % dev->hw_dev->monitor.quota == 0)) {
+		dev->hw_dev->monitor.retry = 0;
+		dev->hw_dev->monitor.state |= ISP_FRAME_END;
+		if (!completion_done(&dev->hw_dev->monitor.cmpl)) {
+			v4l2_dbg(4, rkisp_debug, &dev->v4l2_dev,
+				 "%s send frame end to monitor\n", __func__);
+			complete(&dev->hw_dev->monitor.cmpl);
+		}
+	}
+
+	if ((dev->irq_ends & dev->irq_ends_mask) != dev->irq_ends_mask) {
 		spin_unlock_irqrestore(&dev->hw_dev->rdbk_lock, lock_flags);
 		return;
 	}
-	if (dev->hw_dev->monitor.is_en) {
-		dev->hw_dev->monitor.retry = 0;
-		dev->hw_dev->monitor.state |= ISP_FRAME_END;
-		if (!completion_done(&dev->hw_dev->monitor.cmpl))
-			complete(&dev->hw_dev->monitor.cmpl);
+
+	if (!IS_HDR_RDBK(dev->hdr.op_mode)) {
+		if ((dev->irq_ends & dev->irq_ends_mask) == dev->irq_ends_mask)
+			dev->irq_ends = 0;
+		spin_unlock_irqrestore(&dev->hw_dev->rdbk_lock, lock_flags);
+		return;
 	}
+
 	spin_unlock_irqrestore(&dev->hw_dev->rdbk_lock, lock_flags);
 
 	/* check output stream is off */
@@ -807,16 +842,6 @@ void rkisp_check_idle(struct rkisp_device *dev, u32 irq)
 		rkisp_rdbk_trigger_event(dev, T_CMD_END, NULL);
 	if (dev->isp_state == ISP_STOP)
 		wake_up(&dev->sync_onoff);
-}
-
-static void rkisp_set_state(u32 *state, u32 val)
-{
-	u32 mask = 0xff;
-
-	if (val < ISP_STOP)
-		mask = 0xff00;
-	*state &= mask;
-	*state |= val;
 }
 
 /*
@@ -890,12 +915,15 @@ static void rkisp_restart_monitor(struct work_struct *work)
 	struct rkisp_hw_dev *hw = monitor->dev;
 	struct rkisp_device *isp;
 	struct rkisp_pipeline *p;
-	int ret, i, j, timeout = 50, mipi_irq_cnt = 0;
+	int ret, i, j, timeout = monitor->times, mipi_irq_cnt = 0;
 
 	dev_info(hw->dev, "%s enter\n", __func__);
 	while (!(monitor->state & ISP_STOP) && monitor->is_en) {
 		ret = wait_for_completion_timeout(&monitor->cmpl,
-						  msecs_to_jiffies(200));
+						  msecs_to_jiffies(100 * monitor->quota));
+		v4l2_dbg(4, rkisp_debug, &hw->isp[0]->v4l2_dev,
+			 "monitor after wait monitor state:0x%x ret:%d\n",
+			 monitor->state, ret);
 		/* isp stop to exit
 		 * isp err to reset
 		 * mipi err wait isp idle, then reset
@@ -915,7 +943,7 @@ static void rkisp_restart_monitor(struct work_struct *work)
 				}
 				if (isp->csi_dev.irq_cnt != mipi_irq_cnt) {
 					mipi_irq_cnt = isp->csi_dev.irq_cnt;
-					timeout = 50;
+					timeout = monitor->times;
 				} else if (mipi_irq_cnt && timeout-- == 0) {
 					/* mipi no input */
 					monitor->state |= ISP_MIPI_ERROR;
@@ -1595,12 +1623,6 @@ static int rkisp_isp_start(struct rkisp_device *dev)
 		 "%s MI_CTRL 0x%08x ISP_CTRL 0x%08x\n", __func__,
 		 readl(base + CIF_MI_CTRL), readl(base + CIF_ISP_CTRL));
 
-	if (dev->hw_dev->monitor.is_en &&
-	    atomic_read(&dev->hw_dev->refcnt) < 2) {
-		dev->hw_dev->monitor.retry = 0;
-		dev->hw_dev->monitor.state = ISP_FRAME_END;
-		schedule_work(&dev->hw_dev->monitor.work);
-	}
 	return 0;
 }
 
@@ -2965,6 +2987,7 @@ void rkisp_isp_isr(unsigned int isp_mis,
 		ISP2X_3A_RAWAF_SUM | ISP2X_3A_RAWAF_LUM |
 		ISP2X_3A_RAWAF | ISP2X_3A_RAWAWB;
 	bool sof_event_later = false;
+	u32 id = 0;
 
 	/*
 	 * The last time that rx perform 'back read' don't clear done flag
@@ -2987,10 +3010,16 @@ void rkisp_isp_isr(unsigned int isp_mis,
 			dev->isp_sdev.dbg.delay = dev->isp_sdev.dbg.timestamp - tmp;
 		}
 		rkisp_set_state(&dev->isp_state, ISP_FRAME_VS);
-		if (dev->hw_dev->monitor.is_en) {
+		rkisp_dmarx_get_frame(dev, &id, NULL, NULL, true);
+		if (dev->hw_dev->monitor.is_en &&
+		    !IS_HDR_RDBK(dev->hdr.op_mode) &&
+		    ((id + 1) % dev->hw_dev->monitor.quota == 0)) {
 			rkisp_set_state(&dev->hw_dev->monitor.state, ISP_FRAME_VS);
-			if (!completion_done(&dev->hw_dev->monitor.cmpl))
+			if (!completion_done(&dev->hw_dev->monitor.cmpl)) {
+				v4l2_dbg(4, rkisp_debug, &dev->v4l2_dev,
+					 "%s send vs to monitor\n", __func__);
 				complete(&dev->hw_dev->monitor.cmpl);
+			}
 		}
 		/* last vsync to config next buf */
 		if (!dev->filt_state[RDBK_F_VS])

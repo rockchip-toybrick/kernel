@@ -64,6 +64,14 @@ bool rkisp_monitor;
 module_param_named(monitor, rkisp_monitor, bool, 0644);
 MODULE_PARM_DESC(monitor, "rkisp abnormal restart monitor");
 
+static int rkisp_monitor_quota = 1;
+module_param_named(monitor_quota, rkisp_monitor_quota, int, 0644);
+MODULE_PARM_DESC(monitor_quota, "rkisp monitor detect every quota frame");
+
+static int rkisp_monitor_times = 5;
+module_param_named(monitor_times, rkisp_monitor_times, int, 0644);
+MODULE_PARM_DESC(monitor_times, "rkisp monitor times");
+
 static bool rkisp_clk_dbg;
 module_param_named(clk_dbg, rkisp_clk_dbg, bool, 0644);
 MODULE_PARM_DESC(clk_dbg, "rkisp clk set by user");
@@ -290,6 +298,8 @@ static int rkisp_pipeline_set_stream(struct rkisp_pipeline *p, bool on)
 {
 	struct rkisp_device *dev = container_of(p, struct rkisp_device, pipe);
 	int i, ret = 0;
+	int quota = rkisp_monitor_quota;
+	int times = rkisp_monitor_times;
 
 	if ((on && atomic_inc_return(&p->stream_cnt) > 1) ||
 	    (!on && atomic_dec_return(&p->stream_cnt) > 0))
@@ -311,6 +321,14 @@ static int rkisp_pipeline_set_stream(struct rkisp_pipeline *p, bool on)
 			dev->hw_dev->monitor.is_en = rkisp_monitor;
 			dev->hw_dev->monitor.retry = 0;
 			dev->hw_dev->monitor.state = ISP_FRAME_END;
+			if (quota <= 0)
+				quota = 1;
+			if (quota > 10)
+				quota = 10;
+			dev->hw_dev->monitor.quota = quota;
+			if (times < 5)
+				times = 5;
+			dev->hw_dev->monitor.times = times;
 			schedule_work(&dev->hw_dev->monitor.work);
 		}
 		/* phy -> sensor */
