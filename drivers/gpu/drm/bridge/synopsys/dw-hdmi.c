@@ -2209,8 +2209,13 @@ static void hdmi_config_vendor_specific_infoframe(struct dw_hdmi *hdmi,
 	if (frame.s3d_struct >= HDMI_3D_STRUCTURE_SIDE_BY_SIDE_HALF)
 		hdmi_writeb(hdmi, buffer[9], HDMI_FC_VSDPAYLOAD2);
 
-	/* Packet frame interpolation */
-	hdmi_writeb(hdmi, 1, HDMI_FC_DATAUTO1);
+	/*
+	 * HDMI spec requires at least sending vsi once in
+	 * two frames, but it will cause some sinks like NXP
+	 * projector fail to recognize vsi and display error.
+	 * So vsi must be sent once per frame.
+	 */
+	hdmi_writeb(hdmi, 0, HDMI_FC_DATAUTO1);
 
 	/* Auto packets per frame and line spacing */
 	hdmi_writeb(hdmi, 0x11, HDMI_FC_DATAUTO2);
