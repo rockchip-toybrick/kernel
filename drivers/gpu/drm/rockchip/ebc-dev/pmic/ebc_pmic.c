@@ -79,7 +79,7 @@ int ebc_regulator_set_vcom(struct regulator *r, int value)
 
 	pr_info("set chip vcom to: %dmV\n", value);
 
-	ret = regulator_set_voltage(r, value * 1000, value * 1000 + 1);
+	ret = regulator_set_voltage(r, value * 1000, VCOM_MAX_MV * 1000);
 	if (ret) {
 		pr_err("Failed to set vcom:%d\n", ret);
 		return ret;
@@ -114,7 +114,7 @@ void ebc_regulator_verity_vcom(struct regulator *r)
 	if (value_chip != value_vendor) {
 		pr_info("chip_vcom %d != vendor_vcom %d, set vcom from vendor\n", value_chip,
 			value_vendor);
-		ret = regulator_set_voltage(r, value_vendor * 1000, value_vendor * 1000 + 1);
+		ret = regulator_set_voltage(r, value_vendor * 1000, VCOM_MAX_MV * 1000);
 		if (ret)
 			pr_err("set vcom value failed\n");
 	}
