@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2020 Rockchip Electronics Co. Ltd.
+ * Copyright (c) 2020-2024 Rockchip Electronics Co., Ltd.
  *
  * Author: Zorro Liu <zorro.liu@rock-chips.com>
  */
@@ -231,7 +231,7 @@ get_wf_frm_num:
 .L42:
 	adrp	x1, .LANCHOR1
 	adrp	x0, .LC0
-	mov	w2, 229
+	mov	w2, 256
 	add	x1, x1, :lo12:.LANCHOR1
 	add	x0, x0, :lo12:.LC0
 	bl	printk
@@ -246,7 +246,7 @@ get_wf_frm_num:
 .L43:
 	adrp	x1, .LANCHOR1
 	adrp	x0, .LC0
-	mov	w2, 236
+	mov	w2, 263
 	add	x1, x1, :lo12:.LANCHOR1
 	add	x0, x0, :lo12:.LC0
 	bl	printk
@@ -258,7 +258,7 @@ get_wf_frm_num:
 	.type	get_wf_mode_index, %function
 get_wf_mode_index:
 	cmp	w0, 14
-	bhi	.L83
+	bhi	.L91
 	mov	x1, 3
 	cmp	w0, 10
 	beq	.L50
@@ -277,93 +277,109 @@ get_wf_mode_index:
 	csel	x1, x1, x0, ne
 .L50:
 	adrp	x0, .LANCHOR0
-	ldr	x0, [x0, #:lo12:.LANCHOR0]
-	ldrb	w0, [x0, 16]
-	cmp	w0, 35
+	ldr	x2, [x0, #:lo12:.LANCHOR0]
+	ldrb	w2, [x2, 16]
+	cmp	w2, 32
 	beq	.L52
-	bhi	.L53
-	cmp	w0, 18
-	beq	.L68
-	bls	.L84
-	cmp	w0, 22
-	bne	.L85
-	adrp	x0, .LANCHOR1
-	add	x0, x0, :lo12:.LANCHOR1
-	add	x0, x0, 36
-	ldrb	w0, [x0, x1]
-	ret
-	.p2align 3
-.L53:
-	cmp	w0, 72
+	bls	.L92
+	cmp	w2, 72
 	beq	.L59
-	bls	.L86
-	cmp	w0, 84
-	beq	.L61
-	cmp	w0, 114
+	bls	.L93
+	cmp	w2, 84
+	beq	.L62
+	cmp	w2, 114
 	bne	.L51
 	adrp	x0, .LANCHOR1
 	add	x0, x0, :lo12:.LANCHOR1
-	add	x0, x0, 86
+	add	x0, x0, 79
 	ldrb	w0, [x0, x1]
 	ret
 	.p2align 3
-.L84:
-	cmp	w0, 9
+.L92:
+	cmp	w2, 22
+	beq	.L54
+	bhi	.L55
+	cmp	w2, 9
+	beq	.L56
+	cmp	w2, 18
 	bne	.L51
+	adrp	x0, .LANCHOR1
+	add	x0, x0, :lo12:.LANCHOR1
+	add	x0, x0, 25
+	ldrb	w0, [x0, x1]
+	ret
+	.p2align 3
+.L56:
 	adrp	x0, .LANCHOR1
 	add	x0, x0, :lo12:.LANCHOR1
 	add	x0, x0, 16
 	ldrb	w0, [x0, x1]
 	ret
 	.p2align 3
-.L61:
+.L62:
 	adrp	x0, .LANCHOR1
 	add	x0, x0, :lo12:.LANCHOR1
-	add	x0, x0, 76
+	add	x0, x0, 70
+	ldrb	w0, [x0, x1]
+	ret
+	.p2align 3
+.L93:
+	cmp	w2, 35
+	bne	.L94
+	adrp	x0, .LANCHOR1
+	add	x0, x0, :lo12:.LANCHOR1
+	add	x0, x0, 52
+	ldrb	w0, [x0, x1]
+	ret
+	.p2align 3
+.L55:
+	cmp	w2, 24
+	beq	.L52
+	cmp	w2, 25
+	bne	.L51
+.L58:
+	adrp	x0, .LANCHOR1
+	add	x0, x0, :lo12:.LANCHOR1
+	add	x0, x0, 43
+	ldrb	w0, [x0, x1]
+	ret
+	.p2align 3
+.L94:
+	cmp	w2, 67
+	beq	.L58
+.L51:
+	add	x3, x0, :lo12:.LANCHOR0
+	adrp	x0, .LANCHOR1
+	add	x0, x0, :lo12:.LANCHOR1
+	add	x3, x3, 16
+	add	x0, x0, 88
+	ldrb	w4, [x3, 9]
+	cmp	w4, w2
+	csel	x0, x0, x3, ne
 	ldrb	w0, [x0, x1]
 	ret
 	.p2align 3
 .L59:
 	adrp	x0, .LANCHOR1
 	add	x0, x0, :lo12:.LANCHOR1
-	add	x0, x0, 66
+	add	x0, x0, 61
 	ldrb	w0, [x0, x1]
 	ret
 	.p2align 3
-.L68:
+.L54:
 	adrp	x0, .LANCHOR1
 	add	x0, x0, :lo12:.LANCHOR1
-	add	x0, x0, 26
+	add	x0, x0, 34
 	ldrb	w0, [x0, x1]
 	ret
 	.p2align 3
 .L52:
 	adrp	x0, .LANCHOR1
 	add	x0, x0, :lo12:.LANCHOR1
-	add	x0, x0, 56
+	add	x0, x0, 88
 	ldrb	w0, [x0, x1]
 	ret
-	.p2align 3
-.L85:
-	cmp	w0, 25
-	beq	.L58
-.L51:
-	adrp	x0, .LANCHOR1
-	add	x0, x0, :lo12:.LANCHOR1
-	add	x0, x0, 96
-	ldrb	w0, [x0, x1]
-	ret
-	.p2align 3
-.L86:
-	cmp	w0, 67
-	bne	.L51
-.L58:
-	adrp	x0, .LANCHOR1
-	add	x0, x0, :lo12:.LANCHOR1
-	add	x0, x0, 46
-	ldrb	w0, [x0, x1]
-	ret
-.L83:
+.L91:
 	stp	x29, x30, [sp, -16]!
 	adrp	x0, .LC3
 	add	x0, x0, :lo12:.LC3
@@ -373,6 +389,45 @@ get_wf_mode_index:
 	ldp	x29, x30, [sp], 16
 	ret
 	.size	get_wf_mode_index, .-get_wf_mode_index
+	.align	2
+	.p2align 3,,7
+	.global	pvi_wf_add_custom_mode_table
+	.type	pvi_wf_add_custom_mode_table, %function
+pvi_wf_add_custom_mode_table:
+	cmp	w1, 11
+	bne	.L98
+	adrp	x1, .LANCHOR0
+	add	x1, x1, :lo12:.LANCHOR0
+	add	x2, x1, 16
+	ldr	x4, [x0, 2]
+	ldrb	w3, [x0, 10]
+	str	x4, [x1, 16]
+	strb	w3, [x2, 8]
+	ldrb	w1, [x0]
+	strb	w1, [x2, 9]
+	ldrb	w1, [x0, 1]
+	cmp	w1, 4
+	beq	.L100
+	mov	w0, 0
+	cmp	w1, 5
+	beq	.L101
+	ret
+	.p2align 3
+.L101:
+	mov	w1, 32
+	str	w1, [x2, 12]
+	ret
+	.p2align 3
+.L100:
+	mov	w1, 16
+	mov	w0, 0
+	str	w1, [x2, 12]
+	ret
+	.p2align 3
+.L98:
+	mov	w0, -1
+	ret
+	.size	pvi_wf_add_custom_mode_table, .-pvi_wf_add_custom_mode_table
 	.align	2
 	.p2align 3,,7
 	.global	pvi_wf_get_lut
@@ -386,9 +441,9 @@ pvi_wf_get_lut:
 	ldr	x5, [x25, #:lo12:.LANCHOR0]
 	stp	x21, x22, [sp, 32]
 	stp	x23, x24, [sp, 48]
-	cbz	x5, .L127
-	cbz	x0, .L156
-.L89:
+	cbz	x5, .L143
+	cbz	x0, .L173
+.L104:
 	mov	w20, w2
 	adrp	x21, .LANCHOR2
 	add	x2, x21, :lo12:.LANCHOR2
@@ -405,54 +460,54 @@ pvi_wf_get_lut:
 	lsr	x0, x0, 32
 	sub	w0, w0, w1, asr 31
 	cmp	w24, w0
-	beq	.L157
+	beq	.L174
 	str	w3, [x2, 4]
 	cmp	w23, 10
-	beq	.L124
-.L123:
+	beq	.L140
+.L139:
 	add	x0, x25, :lo12:.LANCHOR0
 	ldrb	w6, [x5, 38]
 	ldr	x1, [x22, 16]
 	str	x1, [x0, 8]
-	cbz	w6, .L92
+	cbz	w6, .L107
 	ldrb	w0, [x5, 48]
 	cmp	w20, w0
-	ble	.L129
+	ble	.L145
 	add	x2, x5, 49
 	mov	w19, 0
-	b	.L94
+	b	.L109
 	.p2align 3
-.L95:
+.L110:
 	ldrb	w3, [x2], 1
 	cmp	w20, w3
-	ble	.L125
-.L94:
+	ble	.L141
+.L109:
 	add	w19, w19, 1
 	cmp	w6, w19
-	bne	.L95
-.L92:
+	bne	.L110
+.L107:
 	sub	w19, w6, #1
-.L125:
+.L141:
 	mov	w0, w23
 	bl	get_wf_mode_index
 	mov	w1, w19
 	and	w0, w0, 255
 	bl	get_wf_frm_num
-	tbnz	w0, #31, .L122
+	tbnz	w0, #31, .L138
 	cmp	w23, 7
-	beq	.L158
+	beq	.L175
 	cmp	w23, 1
-	beq	.L159
+	beq	.L176
 	sub	w1, w23, #5
 	cmp	w1, 1
-	bls	.L160
+	bls	.L177
 	sub	w1, w23, #11
 	cmp	w1, 1
-	bls	.L161
+	bls	.L178
 	sub	w1, w23, #13
 	cmp	w1, 1
-	bls	.L162
-.L99:
+	bls	.L179
+.L114:
 	add	x3, x21, :lo12:.LANCHOR2
 	ldr	w2, [x22]
 	mov	w1, 21846
@@ -463,60 +518,51 @@ pvi_wf_get_lut:
 	ldr	w3, [x3, 8]
 	add	x2, x25, :lo12:.LANCHOR0
 	str	w0, [x22]
-	str	w26, [x2, 16]
+	str	w26, [x2, 32]
 	smull	x0, w3, w1
 	lsr	x0, x0, 32
 	sub	w0, w0, w3, asr 31
 	cmp	w24, w0
-	bne	.L124
-	mov	w0, 0
-.L164:
-	ldp	x19, x20, [sp, 16]
-	ldp	x21, x22, [sp, 32]
-	ldp	x23, x24, [sp, 48]
-	ldp	x25, x26, [sp, 64]
-	ldp	x29, x30, [sp], 80
-	ret
-	.p2align 3
-.L124:
+	beq	.L133
+.L140:
 	ldr	x1, [x22, 24]
 	add	x0, x25, :lo12:.LANCHOR0
 	str	x1, [x0, 8]
 	bl	epd_overlay_lut
 	ldr	x1, [x25, #:lo12:.LANCHOR0]
 	ldrb	w3, [x1, 38]
-	cbz	w3, .L118
+	cbz	w3, .L134
 	ldrb	w2, [x1, 48]
 	cmp	w20, w2
-	ble	.L130
+	ble	.L146
 	add	x1, x1, 49
 	mov	w19, 0
-	b	.L120
+	b	.L136
 	.p2align 3
-.L121:
+.L137:
 	ldrb	w2, [x1], 1
 	cmp	w20, w2
-	ble	.L126
-.L120:
+	ble	.L142
+.L136:
 	add	w19, w19, 1
 	cmp	w3, w19
-	bne	.L121
-.L118:
+	bne	.L137
+.L134:
 	sub	w19, w3, #1
-.L126:
+.L142:
 	bl	get_wf_mode_index
 	and	w0, w0, 255
 	mov	w1, w19
 	bl	get_wf_frm_num
 	mov	w1, w0
-	tbnz	w0, #31, .L122
+	tbnz	w0, #31, .L138
 	ldrb	w2, [x22]
 	add	x21, x21, :lo12:.LANCHOR2
 	mov	w0, 0
 	orr	w1, w2, w1, lsl 8
 	str	w20, [x21, 8]
 	str	w1, [x22]
-.L87:
+.L102:
 	ldp	x19, x20, [sp, 16]
 	ldp	x21, x22, [sp, 32]
 	ldp	x23, x24, [sp, 48]
@@ -524,51 +570,111 @@ pvi_wf_get_lut:
 	ldp	x29, x30, [sp], 80
 	ret
 	.p2align 3
-.L157:
+.L174:
 	ldr	w0, [x2, 12]
 	cmp	w0, w23
-	beq	.L163
-.L91:
+	beq	.L180
+.L106:
 	add	x0, x21, :lo12:.LANCHOR2
 	cmp	w23, 10
 	str	w3, [x0, 4]
-	bne	.L123
+	bne	.L139
+.L133:
 	mov	w0, 0
-	b	.L164
-	.p2align 3
-.L159:
+.L181:
+	ldp	x19, x20, [sp, 16]
+	ldp	x21, x22, [sp, 32]
+	ldp	x23, x24, [sp, 48]
+	ldp	x25, x26, [sp, 64]
+	ldp	x29, x30, [sp], 80
+	ret
+.L176:
 	mov	w2, 0
-	ldr	x3, [x22, 16]
-	cbz	w0, .L105
+	ldr	x4, [x22, 16]
+	cbz	w0, .L121
 	.p2align 2
-.L142:
+.L158:
+	lsl	w3, w2, 10
+	add	w2, w2, 1
+	add	x1, x4, x3, sxtw
+	cmp	w0, w2
+	ldrb	w5, [x1, 960]
+	strb	w5, [x4, w3, sxtw]
+	ldrb	w3, [x1, 30]
+	strb	w3, [x1, 990]
+	bne	.L158
+	mov	w3, 0
+	.p2align 2
+.L120:
+	lsl	w1, w3, 10
+	add	w3, w3, 2
+	add	x1, x4, x1, sxtw
+	cmp	w2, w3
+	ldrb	w5, [x1, 960]
+	strb	w5, [x1, 96]
+	ldrb	w5, [x1, 30]
+	strb	w5, [x1, 126]
+	bgt	.L120
+.L121:
+	sub	w1, w0, #2
+	lsl	w1, w1, 10
+	add	x4, x4, x1, sxtw
+	mov	w1, 2
+	strb	w1, [x4, 830]
+	b	.L114
+	.p2align 3
+.L175:
+	mov	w3, 0
+	ldr	x4, [x22, 16]
+	cbz	w0, .L121
+	.p2align 2
+.L157:
+	lsl	w5, w3, 10
+	add	w3, w3, 1
+	add	x2, x4, x5, sxtw
+	cmp	w0, w3
+	ldrb	w1, [x2, 960]
+	strb	w1, [x4, w5, sxtw]
+	strb	w1, [x2, 96]
+	ldrb	w1, [x2, 30]
+	strb	w1, [x2, 990]
+	strb	w1, [x2, 126]
+	bne	.L157
+	sub	w1, w0, #2
+	lsl	w1, w1, 10
+	add	x4, x4, x1, sxtw
+	mov	w1, 2
+	strb	w1, [x4, 830]
+	b	.L114
+	.p2align 3
+.L173:
+	ldr	x6, [x0, 16]
+	cbnz	x6, .L104
+	mov	w0, -22
+	b	.L102
+	.p2align 3
+.L177:
+	mov	w2, 0
+	ldr	x4, [x22, 16]
+	cbz	w0, .L114
+	.p2align 2
+.L159:
 	lsl	w1, w2, 10
 	add	w2, w2, 1
-	add	x1, x3, x1, sxtw
+	add	x1, x4, x1, sxtw
 	cmp	w0, w2
-	ldrb	w4, [x1, 960]
-	strb	w4, [x1, 928]
-	bne	.L142
-.L105:
-	add	x3, x3, 4096
-	mov	w1, 1
-	strb	w1, [x3]
-	strb	w1, [x3, 1024]
-	strb	w1, [x3, 2048]
-	strb	w1, [x3, 958]
-	mov	w1, 2
-	strb	w1, [x3, 990]
-	strb	w1, [x3, 2014]
-	strb	w1, [x3, 3038]
-	strb	w1, [x3, 1982]
-	strb	w1, [x3, 3006]
-	b	.L99
-.L161:
+	ldrb	w3, [x1, 30]
+	strb	w3, [x1, 31]
+	strb	w3, [x1, 29]
+	bne	.L159
+	b	.L114
+	.p2align 3
+.L178:
 	ldr	x4, [x22, 16]
-	cbz	w0, .L99
+	cbz	w0, .L114
 	mov	w2, 0
 	.p2align 2
-.L112:
+.L128:
 	lsl	w1, w2, 10
 	add	w2, w2, 1
 	add	x1, x4, x1, sxtw
@@ -577,88 +683,36 @@ pvi_wf_get_lut:
 	strb	wzr, [x1, 989]
 	strb	w3, [x1, 31]
 	strb	w3, [x1, 29]
-	cbz	w26, .L111
+	cbz	w26, .L127
 	strb	wzr, [x1, 1021]
 	strb	wzr, [x1, 1022]
-.L111:
-	bne	.L112
-	b	.L99
+.L127:
+	bne	.L128
+	b	.L114
 	.p2align 3
-.L158:
-	mov	w3, 0
-	ldr	x4, [x22, 16]
-	cbz	w0, .L101
-	.p2align 2
-.L141:
-	lsl	w1, w3, 10
-	add	w3, w3, 1
-	add	x2, x4, x1, sxtw
-	cmp	w0, w3
-	ldrb	w5, [x2, 960]
-	strb	w5, [x2, 928]
-	strb	w5, [x4, w1, sxtw]
-	ldrb	w1, [x2, 30]
-	strb	w1, [x2, 990]
-	bne	.L141
-.L101:
-	mov	w1, 1
-	strb	w1, [x4, 958]
-	mov	w1, 2
-	strb	w1, [x4, 1982]
-	strb	w1, [x4, 3006]
-	b	.L99
-	.p2align 3
-.L156:
-	ldr	x6, [x0, 16]
-	cbnz	x6, .L89
-	mov	w0, -22
-	b	.L87
-	.p2align 3
-.L160:
-	mov	w2, 0
-	ldr	x4, [x22, 16]
-	cbz	w0, .L99
-	.p2align 2
-.L143:
-	lsl	w1, w2, 10
-	add	w2, w2, 1
-	add	x1, x4, x1, sxtw
-	cmp	w0, w2
-	ldrb	w3, [x1, 30]
-	strb	w3, [x1, 31]
-	strb	w3, [x1, 29]
-	bne	.L143
-	b	.L99
-	.p2align 3
-.L163:
+.L180:
 	add	x0, x25, :lo12:.LANCHOR0
-	ldr	w0, [x0, 16]
+	ldr	w0, [x0, 32]
 	cmp	w0, w4
-	bne	.L91
+	bne	.L106
 	mov	w0, 0
-	b	.L164
-.L129:
-	mov	w19, 0
-	b	.L125
-.L130:
-	mov	w19, 0
-	b	.L126
-.L162:
+	b	.L181
+.L179:
 	mov	w2, 0
 	ldr	x4, [x22, 16]
-	cbz	w0, .L116
+	cbz	w0, .L132
 	.p2align 2
-.L144:
+.L160:
 	lsl	w1, w2, 10
 	add	w2, w2, 1
 	add	x1, x4, x1, sxtw
-	cbz	w26, .L114
+	cbz	w26, .L130
 	ldrb	w3, [x1, 990]
 	strb	w3, [x1, 989]
 	strb	wzr, [x1, 990]
 	strb	w3, [x1, 1021]
 	strb	w3, [x1, 957]
-.L114:
+.L130:
 	ldrb	w3, [x1, 30]
 	cmp	w0, w2
 	strb	wzr, [x1, 958]
@@ -666,8 +720,8 @@ pvi_wf_get_lut:
 	strb	w3, [x1, 31]
 	strb	w3, [x1, 29]
 	strb	w3, [x1, 61]
-	bne	.L144
-.L116:
+	bne	.L160
+.L132:
 	sub	w3, w0, #4
 	sub	w2, w0, #3
 	lsl	w3, w3, 10
@@ -688,16 +742,22 @@ pvi_wf_get_lut:
 	strb	w1, [x4, 991]
 	strb	w1, [x4, 959]
 	strb	w1, [x4, 1023]
-	b	.L99
-.L127:
+	b	.L114
+.L145:
+	mov	w19, 0
+	b	.L141
+.L146:
+	mov	w19, 0
+	b	.L142
+.L143:
 	mov	w0, -19
-	b	.L87
-.L122:
+	b	.L102
+.L138:
 	adrp	x0, .LC4
 	add	x0, x0, :lo12:.LC4
 	bl	printk
 	mov	w0, -5
-	b	.L87
+	b	.L102
 	.size	pvi_wf_get_lut, .-pvi_wf_get_lut
 	.align	2
 	.p2align 3,,7
@@ -709,13 +769,13 @@ pvi_wf_input:
 	stp	x19, x20, [sp, 16]
 	adrp	x19, .LANCHOR0
 	ldr	x1, [x19, #:lo12:.LANCHOR0]
-	cbz	x1, .L202
+	cbz	x1, .L220
 	mov	w0, -16
-.L165:
+.L182:
 	ldp	x19, x20, [sp, 16]
 	ldp	x29, x30, [sp], 32
 	ret
-.L202:
+.L220:
 	ldrb	w1, [x0, 16]
 	mov	x20, x0
 	adrp	x0, .LC5
@@ -723,49 +783,59 @@ pvi_wf_input:
 	bl	printk
 	ldrb	w1, [x20, 16]
 	cmp	w1, 32
-	beq	.L168
-	bls	.L203
+	beq	.L185
+	bls	.L221
 	cmp	w1, 72
-	beq	.L168
-	bhi	.L172
+	beq	.L185
+	bhi	.L189
 	cmp	w1, 35
-	beq	.L171
+	beq	.L188
 	cmp	w1, 67
-	beq	.L168
-.L167:
+	beq	.L185
+.L184:
+	add	x0, x19, :lo12:.LANCHOR0
+	add	x0, x0, 16
+	ldrb	w2, [x0, 9]
+	cmp	w2, w1
+	bne	.L190
+	adrp	x1, .LANCHOR2
+	ldr	w0, [x0, 12]
+	str	w0, [x1, #:lo12:.LANCHOR2]
+.L188:
+	str	x20, [x19, #:lo12:.LANCHOR0]
+	mov	w0, 0
+	b	.L182
+.L221:
+	cmp	w1, 22
+	beq	.L185
+	bhi	.L187
+	cmp	w1, 9
+	beq	.L188
+	cmp	w1, 18
+	beq	.L188
+	b	.L184
+.L189:
+	cmp	w1, 84
+	beq	.L188
+	cmp	w1, 114
+	bne	.L184
+.L185:
+	adrp	x0, .LANCHOR2
+	mov	w1, 32
+	str	w1, [x0, #:lo12:.LANCHOR2]
+	b	.L188
+.L187:
+	sub	w0, w1, #24
+	cmp	w0, 1
+	bhi	.L184
+	b	.L185
+.L190:
 	ldrb	w2, [x20, 22]
 	adrp	x0, .LC6
 	add	x0, x0, :lo12:.LC6
 	bl	printk
 	mov	w0, -8
-	b	.L165
-.L172:
-	cmp	w1, 84
-	beq	.L171
-	cmp	w1, 114
-	bne	.L167
-.L168:
-	adrp	x0, .LANCHOR2
-	mov	w1, 32
-	str	w1, [x0, #:lo12:.LANCHOR2]
-.L171:
-	str	x20, [x19, #:lo12:.LANCHOR0]
-	mov	w0, 0
-	b	.L165
-.L203:
-	cmp	w1, 22
-	beq	.L168
-	bhi	.L170
-	cmp	w1, 9
-	beq	.L171
-	cmp	w1, 18
-	beq	.L171
-	b	.L167
-.L170:
-	sub	w0, w1, #24
-	cmp	w0, 1
-	bhi	.L167
-	b	.L168
+	b	.L182
 	.size	pvi_wf_input, .-pvi_wf_input
 	.align	2
 	.p2align 3,,7
@@ -775,12 +845,12 @@ pvi_wf_get_version:
 	adrp	x0, .LANCHOR0
 	add	x3, x0, :lo12:.LANCHOR0
 	ldr	x1, [x0, #:lo12:.LANCHOR0]
-	cbz	x1, .L206
+	cbz	x1, .L224
 	add	x1, x1, 65
-	add	x2, x3, 24
+	add	x2, x3, 40
 	mov	x0, x2
 	ldp	x4, x5, [x1]
-	stp	x4, x5, [x3, 24]
+	stp	x4, x5, [x3, 40]
 	ldr	x3, [x1, 16]
 	str	x3, [x2, 16]
 	ldr	x1, [x1, 23]
@@ -788,21 +858,22 @@ pvi_wf_get_version:
 	strb	wzr, [x2, 31]
 	ret
 	.p2align 3
-.L206:
+.L224:
 	mov	x0, 0
 	ret
 	.size	pvi_wf_get_version, .-pvi_wf_get_version
+	.global	custom_mode_table
 	.global	pvi_mode_table
 	.section	.rodata
 	.align	3
 	.set	.LANCHOR1,. + 0
-	.type	__func__.16869, %object
-	.size	__func__.16869, 15
-__func__.16869:
+	.type	__func__.16881, %object
+	.size	__func__.16881, 15
+__func__.16881:
 	.string	"get_wf_frm_num"
 	.zero	1
 	.type	pvi_mode_table, %object
-	.size	pvi_mode_table, 90
+	.size	pvi_mode_table, 81
 pvi_mode_table:
 	.byte	0
 	.byte	1
@@ -813,7 +884,6 @@ pvi_mode_table:
 	.byte	3
 	.byte	4
 	.byte	3
-	.zero	1
 	.byte	0
 	.byte	1
 	.byte	7
@@ -823,7 +893,6 @@ pvi_mode_table:
 	.byte	6
 	.byte	4
 	.byte	5
-	.zero	1
 	.byte	0
 	.byte	1
 	.byte	1
@@ -833,7 +902,6 @@ pvi_mode_table:
 	.byte	4
 	.byte	6
 	.byte	5
-	.zero	1
 	.byte	0
 	.byte	1
 	.byte	7
@@ -843,7 +911,6 @@ pvi_mode_table:
 	.byte	5
 	.byte	6
 	.byte	4
-	.zero	1
 	.byte	0
 	.byte	1
 	.byte	5
@@ -853,7 +920,6 @@ pvi_mode_table:
 	.byte	3
 	.byte	4
 	.byte	3
-	.zero	1
 	.byte	0
 	.byte	1
 	.byte	1
@@ -863,7 +929,6 @@ pvi_mode_table:
 	.byte	4
 	.byte	6
 	.byte	4
-	.zero	1
 	.byte	0
 	.byte	1
 	.byte	1
@@ -873,7 +938,6 @@ pvi_mode_table:
 	.byte	4
 	.byte	5
 	.byte	4
-	.zero	1
 	.byte	0
 	.byte	1
 	.byte	1
@@ -883,7 +947,6 @@ pvi_mode_table:
 	.byte	11
 	.byte	6
 	.byte	10
-	.zero	1
 	.byte	0
 	.byte	1
 	.byte	1
@@ -893,7 +956,6 @@ pvi_mode_table:
 	.byte	5
 	.byte	6
 	.byte	4
-	.zero	1
 	.data
 	.align	2
 	.set	.LANCHOR2,. + 0
@@ -905,13 +967,13 @@ maxpic:
 	.size	need_pic, 4
 need_pic:
 	.word	16
-	.type	sftemp.16928, %object
-	.size	sftemp.16928, 4
-sftemp.16928:
+	.type	sftemp.16940, %object
+	.size	sftemp.16940, 4
+sftemp.16940:
 	.word	-1
-	.type	stype.16927, %object
-	.size	stype.16927, 4
-stype.16927:
+	.type	stype.16939, %object
+	.size	stype.16939, 4
+stype.16939:
 	.word	15
 	.bss
 	.align	3
@@ -924,14 +986,18 @@ global_waveform:
 	.size	waveformdata, 8
 waveformdata:
 	.zero	8
-	.type	fix.16929, %object
-	.size	fix.16929, 4
-fix.16929:
+	.type	custom_mode_table, %object
+	.size	custom_mode_table, 16
+custom_mode_table:
+	.zero	16
+	.type	fix.16941, %object
+	.size	fix.16941, 4
+fix.16941:
 	.zero	4
 	.zero	4
-	.type	spi_id_buffer.16955, %object
-	.size	spi_id_buffer.16955, 32
-spi_id_buffer.16955:
+	.type	spi_id_buffer.16967, %object
+	.size	spi_id_buffer.16967, 32
+spi_id_buffer.16967:
 	.zero	32
 	.section	.rodata.str1.8,"aMS",@progbits,1
 	.align	3

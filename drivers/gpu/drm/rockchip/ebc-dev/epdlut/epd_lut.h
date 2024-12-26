@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2020 Rockchip Electronics Co. Ltd.
+ * Copyright (c) 2020 Rockchip Electronics Co., Ltd.
  *
  * Author: Zorro Liu <zorro.liu@rock-chips.com>
  */
@@ -54,6 +54,7 @@ int epd_overlay_lut(void);
  * PVI Waveform Interfaces
  */
 int pvi_wf_input(void *waveform_file);
+int pvi_wf_add_custom_mode_table(u8 *table, int size);
 const char *pvi_wf_get_version(void);
 int pvi_wf_get_lut(struct epd_lut_data *output, enum epd_lut_type lut_type, int temperture, int pic, int regal_pix);
 
