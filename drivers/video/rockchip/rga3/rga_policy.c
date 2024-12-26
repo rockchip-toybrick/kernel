@@ -265,6 +265,27 @@ check_error:
 	return false;
 }
 
+static bool rga_check_rotate(struct rga_job *job, const struct rga_hw_data *data,
+			    struct rga_req *rga_base)
+{
+	/* rot-90 and rot-270 */
+	if (((rga_base->rotate_mode & 0x0f) == 1) &&
+	    ((rga_base->sina == 65536 && rga_base->cosa == 0) ||
+	     (rga_base->sina == -65536 && rga_base->cosa == 0))) {
+		if (data == &rga3_data &&
+		    (rga_is_yuv422_packed_format(rga_base->src.format) ||
+		     rga_is_yuv422_semi_planar_format(rga_base->src.format))) {
+			if (DEBUGGER_EN(MSG))
+				rga_job_log(job, "rotate check error, RGA3 unsupported YUV422 rotate 90/270, format[%s(%#x)]\n",
+					    rga_get_format_name(rga_base->src.format),
+					    rga_base->src.format);
+			return false;
+		}
+	}
+
+	return true;
+}
+
 int rga_job_assign(struct rga_job *job)
 {
 	struct rga_img_info_t *src0 = &job->rga_command_base.src;
@@ -416,6 +437,14 @@ int rga_job_assign(struct rga_job *job)
 		if (!rga_check_csc(data, rga_base)) {
 			if (DEBUGGER_EN(MSG))
 				rga_job_log(job, "%s(%#x), break on rga_check_csc",
+					rga_get_core_name(scheduler->core),
+					scheduler->core);
+			continue;
+		}
+
+		if (!rga_check_rotate(job, data, rga_base)) {
+			if (DEBUGGER_EN(MSG))
+				rga_job_log(job, "%s(%#x), break on rga_check_rotate",
 					rga_get_core_name(scheduler->core),
 					scheduler->core);
 			continue;
