@@ -325,6 +325,7 @@ static const struct regulator_desc vcom_desc = {
 	.owner = THIS_MODULE,
 	.regulators_node = of_match_ptr("regulators"),
 	.of_match = of_match_ptr("vcom"),
+	.n_voltages = 255,
 };
 
 static int fp9931_regulator_probe(struct platform_device *pdev)
