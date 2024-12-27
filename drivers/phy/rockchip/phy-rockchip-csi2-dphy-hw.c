@@ -350,24 +350,34 @@ static void csi2_dphy_config_dual_mode(struct csi2_dphy *dphy,
 			write_grf_reg(hw, GRF_DPHY_CSI2PHY_DATALANE_EN0,
 				      GENMASK(sensor->lanes - 1, 0));
 			write_grf_reg(hw, GRF_DPHY_CSI2PHY_CLKLANE_EN, 0x1);
-			if (is_cif)
+			if (is_cif) {
 				write_grf_reg(hw, GRF_DPHY_CIF_CSI2PHY_SEL,
 					      GRF_CSI2PHY_SEL_SPLIT_0_1);
-			else
+				write_grf_reg(hw, GRF_DPHY_ISP_CSI2PHY_SEL,
+					      GRF_CSI2PHY_SEL_SPLIT_2_3);
+			} else {
 				write_grf_reg(hw, GRF_DPHY_ISP_CSI2PHY_SEL,
 					      GRF_CSI2PHY_SEL_SPLIT_0_1);
+				write_grf_reg(hw, GRF_DPHY_CIF_CSI2PHY_SEL,
+					      GRF_CSI2PHY_SEL_SPLIT_2_3);
+			}
 		}
 
 		if (dphy->phy_index == DPHY2) {
 			write_grf_reg(hw, GRF_DPHY_CSI2PHY_DATALANE_EN1,
 				      GENMASK(sensor->lanes - 1, 0));
 			write_grf_reg(hw, GRF_DPHY_CSI2PHY_CLKLANE1_EN, 0x1);
-			if (is_cif)
+			if (is_cif) {
 				write_grf_reg(hw, GRF_DPHY_CIF_CSI2PHY_SEL,
 					      GRF_CSI2PHY_SEL_SPLIT_2_3);
-			else
+				write_grf_reg(hw, GRF_DPHY_ISP_CSI2PHY_SEL,
+					      GRF_CSI2PHY_SEL_SPLIT_0_1);
+			} else {
 				write_grf_reg(hw, GRF_DPHY_ISP_CSI2PHY_SEL,
 					      GRF_CSI2PHY_SEL_SPLIT_2_3);
+				write_grf_reg(hw, GRF_DPHY_CIF_CSI2PHY_SEL,
+					      GRF_CSI2PHY_SEL_SPLIT_0_1);
+			}
 		}
 	}
 }
