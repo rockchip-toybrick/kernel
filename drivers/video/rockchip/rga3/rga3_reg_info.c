@@ -1968,24 +1968,20 @@ static void print_debug_info(struct rga_job *job, struct rga3_req *req)
 static int rga3_align_check(struct rga_job *job, struct rga3_req *req)
 {
 	if (rga_is_yuv10bit_format(req->win0.format))
-		if ((req->win0.vir_w % 64) || (req->win0.x_offset % 4) ||
-			(req->win0.src_act_w % 4) || (req->win0.y_offset % 4) ||
-			(req->win0.src_act_h % 4) || (req->win0.vir_h % 2))
+		if ((req->win0.x_offset % 4) || (req->win0.y_offset % 2) ||
+			(req->win0.src_act_w % 4) || (req->win0.src_act_h % 2))
 			rga_job_log(job, "yuv10bit err win0 wstride is not align\n");
 	if (rga_is_yuv10bit_format(req->win1.format))
-		if ((req->win1.vir_w % 64) || (req->win1.x_offset % 4) ||
-			(req->win1.src_act_w % 4) || (req->win1.y_offset % 4) ||
-			(req->win1.src_act_h % 4) || (req->win1.vir_h % 2))
+		if ((req->win1.x_offset % 4) || (req->win1.y_offset % 2) ||
+			(req->win1.src_act_w % 4) || (req->win1.src_act_h % 2))
 			rga_job_log(job, "yuv10bit err win1 wstride is not align\n");
 	if (rga_is_yuv8bit_format(req->win0.format))
-		if ((req->win0.vir_w % 16) || (req->win0.x_offset % 2) ||
-			(req->win0.src_act_w % 2) || (req->win0.y_offset % 2) ||
-			(req->win0.src_act_h % 2) || (req->win0.vir_h % 2))
+		if ((req->win0.x_offset % 2) || (req->win0.y_offset % 2) ||
+			(req->win0.src_act_w % 2) || (req->win0.src_act_h % 2))
 			rga_job_log(job, "yuv8bit err win0 wstride is not align\n");
 	if (rga_is_yuv8bit_format(req->win1.format))
-		if ((req->win1.vir_w % 16) || (req->win1.x_offset % 2) ||
-			(req->win1.src_act_w % 2) || (req->win1.y_offset % 2) ||
-			(req->win1.src_act_h % 2) || (req->win1.vir_h % 2))
+		if ((req->win1.x_offset % 2) || (req->win1.y_offset % 2) ||
+			(req->win1.src_act_w % 2) || (req->win1.src_act_h % 2))
 			rga_job_log(job, "yuv8bit err win1 wstride is not align\n");
 	return 0;
 }
