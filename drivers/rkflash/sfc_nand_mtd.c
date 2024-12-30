@@ -373,6 +373,7 @@ int sfc_nand_mtd_init(struct SFNAND_DEV *p_dev, struct mutex *lock)
 	nand->mtd.writesize_shift = ffs(nand->mtd.writesize) - 1;
 	nand->mtd.writesize_mask = (1 << nand->mtd.writesize_shift) - 1;
 	nand->mtd.bitflip_threshold = 1;
+	nand->mtd.ecc_strength = 1;
 	nand->mtd.priv = nand;
 	nand->lock = lock;
 	nand->dma_buf = kmalloc(SFC_NAND_PAGE_MAX_SIZE, GFP_KERNEL | GFP_DMA);
