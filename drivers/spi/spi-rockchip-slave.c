@@ -816,9 +816,9 @@ static int rockchip_spi_slave_probe(struct platform_device *pdev)
 
 		rs->max_transfer_size = resource_size(&sram_res);
 		rs->dma_phys = sram_res.start;
-		rs->dma_buf = devm_ioremap_resource(&pdev->dev, &sram_res);
-		if (IS_ERR(rs->dma_buf)) {
-			ret = PTR_ERR(rs->dma_buf);
+		rs->dma_buf = devm_ioremap(&pdev->dev, sram_res.start, resource_size(&sram_res));
+		if (!rs->dma_buf) {
+			ret = -ENOMEM;
 			goto err_put_ctlr;
 		}
 		dev_err(&pdev->dev, "set sram_buf\n");
