@@ -37,6 +37,8 @@
 #define OF_CIF_MONITOR_PARA	"rockchip,cif-monitor"
 #define OF_CIF_WAIT_LINE	"wait-line"
 #define OF_CIF_FASTBOOT_RESERVED_BUFS	"fastboot-reserved-bufs"
+#define OF_CIF_SWITCH_HOST_IDX	"switch-host-idx"
+#define OF_CIF_SWITCH_GPIO_VAL	"switch-gpio-val"
 
 #define CIF_MONITOR_PARA_NUM	(5)
 
@@ -92,6 +94,7 @@
 
 #define RKCIF_EXP_NUM_MAX	(8)
 
+#define RKCIF_MAX_DEV		(8)
 /*
  * for distinguishing cropping from senosr or usr
  */
@@ -479,6 +482,7 @@ struct rkcif_rx_buffer {
 	struct rkcif_dummy_buffer dummy;
 	struct rkisp_thunderboot_shmem shmem;
 	u64 fe_timestamp;
+	bool is_init[RKCIF_MAX_DEV];
 };
 
 enum rkcif_dma_en_mode {
@@ -918,6 +922,17 @@ struct rkcif_stream_info {
 	struct sditf_priv *priv;
 };
 
+struct rkcif_switch_info {
+	bool is_use_switch;
+	bool is_active;
+	bool is_init;
+	bool is_init_buf;
+	int host_idx;
+	int gpio_val;
+	struct gpio_desc *gpio_pin;
+	struct rkcif_device *switch_dev;
+};
+
 /*
  * struct rkcif_device - ISP platform device
  * @base_addr: base register address
@@ -971,7 +986,7 @@ struct rkcif_device {
 	spinlock_t			stream_spinlock;
 	struct rkcif_timer		reset_watchdog_timer;
 	struct rkcif_work_struct	reset_work;
-	int				id_use_cnt;
+	atomic_t			id_use_cnt;
 	unsigned int			csi_host_idx;
 	unsigned int			csi_host_idx_def;
 	unsigned int			dvp_sof_in_oneframe;
@@ -1009,6 +1024,7 @@ struct rkcif_device {
 	bool				is_thunderboot_start;
 	bool				is_in_flip;
 	bool				is_support_get_exp;
+	bool				is_detect_group_sync;
 	int				rdbk_debug;
 	struct rkcif_sync_cfg		sync_cfg;
 	int				sditf_cnt;
@@ -1035,6 +1051,7 @@ struct rkcif_device {
 	u32				pre_buf_num;
 	u32				pre_buf_addr[MAX_PRE_BUF_NUM];
 	u64				pre_buf_timestamp[MAX_PRE_BUF_NUM];
+	struct rkcif_switch_info	switch_info;
 };
 
 extern struct platform_driver rkcif_plat_drv;
@@ -1159,4 +1176,6 @@ void rkcif_modify_line_int(struct rkcif_stream *stream, bool en);
 void rkcif_set_sof(struct rkcif_device *cif_dev, u32 seq);
 
 void rkcif_set_sensor_streamon_in_sync_mode(struct rkcif_device *cif_dev);
+void rkcif_switch_change(struct rkcif_device *cif_dev, bool is_switch);
+
 #endif
