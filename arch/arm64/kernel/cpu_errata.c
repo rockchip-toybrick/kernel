@@ -17,6 +17,7 @@
  */
 
 #include <linux/arm-smccc.h>
+#include <linux/psci.h>
 #include <linux/types.h>
 #include <linux/cpu.h>
 #include <asm/cpu.h>
@@ -146,7 +147,9 @@ static void install_bp_hardening_cb(bp_hardening_cb_t fn,
 }
 #endif	/* CONFIG_KVM_INDIRECT_VECTORS */
 
+#include <uapi/linux/psci.h>
 #include <linux/arm-smccc.h>
+#include <linux/psci.h>
 
 static void call_smc_arch_workaround_1(void)
 {
@@ -190,8 +193,11 @@ static int detect_harden_bp_fw(void)
 	struct arm_smccc_res res;
 	u32 midr = read_cpuid_id();
 
-	switch (arm_smccc_1_1_get_conduit()) {
-	case SMCCC_CONDUIT_HVC:
+	if (psci_ops.smccc_version == SMCCC_VERSION_1_0)
+		return -1;
+
+	switch (psci_ops.conduit) {
+	case PSCI_CONDUIT_HVC:
 		arm_smccc_1_1_hvc(ARM_SMCCC_ARCH_FEATURES_FUNC_ID,
 				  ARM_SMCCC_ARCH_WORKAROUND_1, &res);
 		switch ((int)res.a0) {
@@ -209,7 +215,7 @@ static int detect_harden_bp_fw(void)
 		}
 		break;
 
-	case SMCCC_CONDUIT_SMC:
+	case PSCI_CONDUIT_SMC:
 		arm_smccc_1_1_smc(ARM_SMCCC_ARCH_FEATURES_FUNC_ID,
 				  ARM_SMCCC_ARCH_WORKAROUND_1, &res);
 		switch ((int)res.a0) {
@@ -283,11 +289,11 @@ void __init arm64_update_smccc_conduit(struct alt_instr *alt,
 
 	BUG_ON(nr_inst != 1);
 
-	switch (arm_smccc_1_1_get_conduit()) {
-	case SMCCC_CONDUIT_HVC:
+	switch (psci_ops.conduit) {
+	case PSCI_CONDUIT_HVC:
 		insn = aarch64_insn_get_hvc_value();
 		break;
-	case SMCCC_CONDUIT_SMC:
+	case PSCI_CONDUIT_SMC:
 		insn = aarch64_insn_get_smc_value();
 		break;
 	default:
@@ -326,12 +332,12 @@ void arm64_set_ssbd_mitigation(bool state)
 		return;
 	}
 
-	switch (arm_smccc_1_1_get_conduit()) {
-	case SMCCC_CONDUIT_HVC:
+	switch (psci_ops.conduit) {
+	case PSCI_CONDUIT_HVC:
 		arm_smccc_1_1_hvc(ARM_SMCCC_ARCH_WORKAROUND_2, state, NULL);
 		break;
 
-	case SMCCC_CONDUIT_SMC:
+	case PSCI_CONDUIT_SMC:
 		arm_smccc_1_1_smc(ARM_SMCCC_ARCH_WORKAROUND_2, state, NULL);
 		break;
 
@@ -365,13 +371,20 @@ static bool has_ssbd_mitigation(const struct arm64_cpu_capabilities *entry,
 		goto out_printmsg;
 	}
 
-	switch (arm_smccc_1_1_get_conduit()) {
-	case SMCCC_CONDUIT_HVC:
+	if (psci_ops.smccc_version == SMCCC_VERSION_1_0) {
+		ssbd_state = ARM64_SSBD_UNKNOWN;
+		if (!this_cpu_safe)
+			__ssb_safe = false;
+		return false;
+	}
+
+	switch (psci_ops.conduit) {
+	case PSCI_CONDUIT_HVC:
 		arm_smccc_1_1_hvc(ARM_SMCCC_ARCH_FEATURES_FUNC_ID,
 				  ARM_SMCCC_ARCH_WORKAROUND_2, &res);
 		break;
 
-	case SMCCC_CONDUIT_SMC:
+	case PSCI_CONDUIT_SMC:
 		arm_smccc_1_1_smc(ARM_SMCCC_ARCH_FEATURES_FUNC_ID,
 				  ARM_SMCCC_ARCH_WORKAROUND_2, &res);
 		break;
