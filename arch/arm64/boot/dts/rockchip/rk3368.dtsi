@@ -1323,6 +1323,7 @@
 		dma-names = "tx";
 		pinctrl-names = "default";
 		pinctrl-0 = <&spdif_bus>;
+		#sound-dai-cells = <0>;
 		status = "disabled";
 	};
 
@@ -1336,6 +1337,7 @@
 		dma-names = "tx", "rx";
 		resets = <&cru SRST_I2S2CH>;
 		reset-names = "reset-m";
+		#sound-dai-cells = <0>;
 		status = "disabled";
 	};
 
@@ -1351,6 +1353,7 @@
 		reset-names = "reset-m";
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2s_8ch_bus>;
+		#sound-dai-cells = <0>;
 		status = "disabled";
 	};
 

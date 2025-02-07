@@ -38,6 +38,9 @@ import sys
 import subprocess
 
 allowed_warnings = set([
+    "nvp6158_drv.c:353", # drivers/media/i2c/nvp6158_drv/nvp6158_drv.c:353:6: warning: stack frame size of 1624 bytes in function 'nvp6158_native_ioctl' [-Wframe-larger-than=]
+    "super.c:1126", # fs/udf/super.c:1126:7: warning: comparison of distinct pointer types ('typeof (map->s_partition_len) *' (aka 'unsigned int *') and 'typeof (sizeof(struct spaceBitmapDesc) << 3) *' (aka 'unsigned long *')) [-Wcompare-distinct-pointer-types]
+    "inode.c:2175", # fs/udf/inode.c:2175:7: warning: comparison of distinct pointer types ('typeof (sizeof(struct allocExtDesc)) *' (aka 'unsigned long *') and 'typeof (&alen)' (aka 'int *')) [-Wcompare-distinct-pointer-types]
     "atags_to_fdt.c:109", # arch/arm/boot/compressed/atags_to_fdt.c:109:5: warning: stack frame size of 4416 bytes in function 'atags_to_fdt' [-Wframe-larger-than=]
     "file.c:3010", # fs/f2fs/file.c:3010:12: warning: unused function 'f2fs_ioctl_check_project'
     "configfs.c:1488", # drivers/usb/gadget/configfs.c:1488:12: warning: unused function 'configfs_composite_setup'
