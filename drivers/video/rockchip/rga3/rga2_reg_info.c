@@ -3268,6 +3268,12 @@ static int rga2_isr_thread(struct rga_job *job, struct rga_scheduler_t *schedule
 		} else if (job->intr_status & m_RGA2_INT_MMU_INT_FLAG) {
 			rga_job_err(job, "mmu failed, please check size of the buffer or whether the buffer has been freed.\n");
 			job->ret = -EACCES;
+		} else if (job->intr_status & m_RGA2_INT_SCL_ERROR_INTR) {
+			rga_job_err(job, "scale failed, check scale config or formula.\n");
+			job->ret = -EACCES;
+		} else if (job->intr_status & m_RGA2_INT_FBCIN_DEC_ERROR) {
+			rga_job_err(job, "FBC decode failed, please check if the source data is FBC data.\n");
+			job->ret = -EACCES;
 		}
 
 		if (job->ret == 0) {
