@@ -133,6 +133,22 @@ static void rga2_scale_down_bilinear_protect(u32 *param_fix, u32 *src_fix,
 	*src_fix = final_steps + 1;
 }
 
+static void rag2_scale_down_average_protect(u32 *param_fix, u32 param,
+					    u32 src, u32 dst)
+{
+	/* division Loss */
+	param = param + 1;
+
+	/*
+	 *   Ensure that the (src - 1) drop point is to the left of the last
+	 * point of the dst.
+	 */
+	while ((param * (src - 1)) > (dst << 16))
+		param--;
+
+	*param_fix = param;
+}
+
 static void RGA2_reg_get_param(unsigned char *base, struct rga2_req *msg)
 {
 	u32 *bRGA_SRC_X_FACTOR;
@@ -182,7 +198,8 @@ static void RGA2_reg_get_param(unsigned char *base, struct rga2_req *msg)
 				((*bRGA_SRC_ACT_INFO & (~m_RGA2_SRC_ACT_INFO_SW_SRC_ACT_WIDTH)) |
 				s_RGA2_SRC_ACT_INFO_SW_SRC_ACT_WIDTH((src_fix - 1)));
 		} else {
-			param_x = ((dw << 16) + (sw / 2)) / sw;
+			param_x = (dw << 16) / sw;
+			rag2_scale_down_average_protect(&param_x, param_x, sw, dw);
 
 			*bRGA_SRC_X_FACTOR |= ((param_x & 0xffff) << 0);
 		}
@@ -219,7 +236,8 @@ static void RGA2_reg_get_param(unsigned char *base, struct rga2_req *msg)
 				((*bRGA_SRC_ACT_INFO & (~m_RGA2_SRC_ACT_INFO_SW_SRC_ACT_HEIGHT)) |
 				s_RGA2_SRC_ACT_INFO_SW_SRC_ACT_HEIGHT((src_fix - 1)));
 		} else {
-			param_y = ((dh << 16) + (sh / 2)) / sh;
+			param_y = (dh << 16) / sh;
+			rag2_scale_down_average_protect(&param_y, param_y, sh, dh);
 
 			*bRGA_SRC_Y_FACTOR |= ((param_y & 0xffff) << 0);
 		}
