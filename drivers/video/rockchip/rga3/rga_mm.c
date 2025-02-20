@@ -1409,12 +1409,15 @@ static int rga_mm_get_buffer_info(struct rga_job *job,
 
 	switch (job->scheduler->data->mmu) {
 	case RGA_IOMMU:
-		addr = rga_mm_lookup_iova(internal_buffer);
-		if (addr == 0) {
-			rga_job_err(job, "core[%d] lookup buffer_type[0x%x] iova error!\n",
-			       job->core, internal_buffer->type);
+		if (rga_mm_is_invalid_dma_buffer(internal_buffer->dma_buffer)) {
+			rga_job_err(job,
+				"core[%d] handle[%d] lookup buffer_type[0x%x] iova error!\n",
+				job->core, internal_buffer->handle, internal_buffer->type);
 			return -EINVAL;
 		}
+
+		addr = rga_mm_lookup_iova(internal_buffer);
+
 		break;
 	case RGA_MMU:
 	default:
