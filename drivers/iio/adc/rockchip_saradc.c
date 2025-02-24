@@ -4,6 +4,7 @@
  * Copyright (C) 2014 ROCKCHIP, Inc.
  */
 
+#include <linux/bitfield.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/platform_device.h>
@@ -51,6 +52,8 @@
 #define SARADC2_EN_END_INT		BIT(0)
 #define SARADC2_START			BIT(4)
 #define SARADC2_SINGLE_MODE		BIT(5)
+
+#define SARADC2_CONV_CHANNELS GENMASK(3, 0)
 
 struct rockchip_saradc;
 
@@ -112,10 +115,14 @@ static void rockchip_saradc_start_v2(struct rockchip_saradc *info,
 
 	writel_relaxed(0xc, info->regs + SARADC_T_DAS_SOC);
 	writel_relaxed(0x20, info->regs + SARADC_T_PD_SOC);
-	val = SARADC2_EN_END_INT << 16 | SARADC2_EN_END_INT;
+	val = FIELD_PREP(SARADC2_EN_END_INT, 1);
+	val |= SARADC2_EN_END_INT << 16;
 	writel_relaxed(val, info->regs + SARADC2_END_INT_EN);
-	val = SARADC2_START | SARADC2_SINGLE_MODE | chn;
-	writel(val << 16 | val, info->regs + SARADC2_CONV_CON);
+	val = FIELD_PREP(SARADC2_START, 1) |
+	      FIELD_PREP(SARADC2_SINGLE_MODE, 1) |
+	      FIELD_PREP(SARADC2_CONV_CHANNELS, chn);
+	val |= (SARADC2_START | SARADC2_SINGLE_MODE | SARADC2_CONV_CHANNELS) << 16;
+	writel(val, info->regs + SARADC2_CONV_CON);
 }
 
 static void rockchip_saradc_start(struct rockchip_saradc *info,
