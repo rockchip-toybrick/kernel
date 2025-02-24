@@ -1963,6 +1963,7 @@ int rockchip_dw_pcie_pm_ctrl_for_user(struct pci_dev *dev, enum rockchip_pcie_pm
 {
 	struct dw_pcie *pci;
 	struct rk_pcie *rk_pcie;
+	u32 intr_mask;
 
 	if (!dev || !dev->bus || !dev->bus->sysdata) {
 		pr_err("%s input invalid\n", __func__);
@@ -1974,8 +1975,16 @@ int rockchip_dw_pcie_pm_ctrl_for_user(struct pci_dev *dev, enum rockchip_pcie_pm
 
 	switch (flag) {
 	case ROCKCHIP_PCIE_PM_CTRL_RESET:
+		/*
+		 * suspend and resume should be called in noirq context, masking and
+		 * unmasking local irq to prevent hunging for accessing died controller
+		 * if serving irq, for instance, hot reset case.
+		 */
+		intr_mask = rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_INTR_MASK);
+		rk_pcie_writel_apb(rk_pcie, PCIE_CLIENT_INTR_MASK, 0xffffffff);
 		rockchip_dw_pcie_suspend(rk_pcie->pci->dev);
 		rockchip_dw_pcie_resume(rk_pcie->pci->dev);
+		rk_pcie_writel_apb(rk_pcie, PCIE_CLIENT_INTR_MASK, intr_mask | 0xffff0000);
 		break;
 	default:
 		dev_err(rk_pcie->pci->dev, "%s flag=%d invalid\n", __func__, flag);
