@@ -12020,10 +12020,13 @@ void rkcif_enable_dma_capture(struct rkcif_stream *stream, bool is_only_enable)
 		} else {
 			val |= CSI_DMA_ENABLE_RK3576;
 			uncompact = CSI_WRDDR_TYPE_RAW_UNCOMPACT << 3;
-			rkcif_write_register(cif_dev, CIF_REG_MIPI_LVDS_INTSTAT,
-					     CSI_START_INTSTAT_RK3576(stream->id));
-			rkcif_write_register_or(cif_dev, CIF_REG_MIPI_LVDS_INTEN,
-						CSI_START_INTEN_RK3576(stream->id));
+			if (!(rkcif_read_register(cif_dev, CIF_REG_MIPI_LVDS_INTEN) &
+			      CSI_START_INTEN_RK3576(stream->id))) {
+				rkcif_write_register(cif_dev, CIF_REG_MIPI_LVDS_INTSTAT,
+						     CSI_START_INTSTAT_RK3576(stream->id));
+				rkcif_write_register_or(cif_dev, CIF_REG_MIPI_LVDS_INTEN,
+							CSI_START_INTEN_RK3576(stream->id));
+			}
 		}
 		if (!stream->is_compact)
 			val |= uncompact;
