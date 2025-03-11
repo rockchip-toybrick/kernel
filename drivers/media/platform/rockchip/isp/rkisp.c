@@ -1046,7 +1046,7 @@ static void rkisp_rdbk_trigger_handle(struct rkisp_device *dev, u32 cmd)
 		/* fast offline switch to online for multi sensor or unite mode
 		 * one isp running first and switch to online, then other isp running
 		 */
-		if (!IS_HDR_RDBK(dev->rd_mode) &&
+		if (!IS_HDR_RDBK(dev->rd_mode) && !hw->is_single &&
 		    (dev->unite_div > ISP_UNITE_DIV1 || atomic_read(&hw->refcnt) == 1))
 			isp = dev;
 		else
