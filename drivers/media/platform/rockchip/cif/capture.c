@@ -10701,27 +10701,6 @@ static void rkcif_store_last_buf_for_online(struct rkcif_stream *stream,
 			     buf->dummy.dma_addr);
 }
 
-static void rkcif_release_unnecessary_buf_for_online(struct rkcif_stream *stream,
-						     struct rkcif_rx_buffer *buf)
-{
-	struct rkcif_device *dev = stream->cifdev;
-	struct sditf_priv *priv = dev->sditf[0];
-	struct rkcif_rx_buffer *rx_buf = NULL;
-	unsigned long flags;
-	int i = 0;
-
-	spin_lock_irqsave(&priv->cif_dev->buffree_lock, flags);
-	for (i = 0; i < priv->buf_num; i++) {
-		rx_buf = &stream->rx_buf[i];
-		if (rx_buf && (!rx_buf->dummy.is_free) && rx_buf != buf) {
-			list_add_tail(&rx_buf->list_free, &priv->buf_free_list);
-			stream->total_buf_num--;
-		}
-	}
-	spin_unlock_irqrestore(&priv->cif_dev->buffree_lock, flags);
-	schedule_work(&priv->buffree_work.work);
-}
-
 static void rkcif_line_wake_up_rdbk(struct rkcif_stream *stream, int mipi_id)
 {
 	u32 mode;
@@ -10784,7 +10763,6 @@ static void rkcif_line_wake_up_rdbk(struct rkcif_stream *stream, int mipi_id)
 			stream->cur_stream_mode &= ~RKCIF_STREAM_MODE_TOISP_RDBK;
 			stream->cur_stream_mode |= RKCIF_STREAM_MODE_TOISP;
 			stream->cifdev->wait_line = 0;
-			stream->is_line_wake_up = false;
 			v4l2_dbg(3, rkcif_debug, &stream->cifdev->v4l2_dev,
 				 "stream[%d] frame_idx %d, last_rx_buf_idx %d cur dma buf %x,  change to online\n",
 				 stream->id, stream->frame_idx, stream->last_rx_buf_idx,
@@ -14066,11 +14044,9 @@ void rkcif_irq_pingpong_v1(struct rkcif_device *cif_dev)
 				rkcif_modify_frame_skip_config(stream);
 			if (stream->is_change_toisp) {
 				stream->is_change_toisp = false;
-				if ((cif_dev->hdr.hdr_mode == HDR_X2 && stream->id != 1) ||
-				    (cif_dev->hdr.hdr_mode == HDR_X3 && stream->id != 2))
-					rkcif_release_unnecessary_buf_for_online(stream,
-										 stream->curr_buf_toisp);
-				else
+				if (cif_dev->hdr.hdr_mode == NO_HDR ||
+				    (cif_dev->hdr.hdr_mode == HDR_X2 && stream->id == 1) ||
+				    (cif_dev->hdr.hdr_mode == HDR_X3 && stream->id == 2))
 					sditf_change_to_online(cif_dev->sditf[0]);
 				rkcif_modify_line_int(stream, false);
 				stream->is_line_inten = false;
