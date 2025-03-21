@@ -2001,7 +2001,7 @@ static void dw_mci_set_drto(struct dw_mci *host)
 				   host->bus_hz);
 
 	/* add a bit spare time */
-	drto_ms += 10;
+	drto_ms += 1000;
 
 	spin_lock_irqsave(&host->irq_lock, irqflags);
 	if (!test_bit(EVENT_DATA_COMPLETE, &host->pending_events))
@@ -2026,7 +2026,7 @@ static void dw_mci_set_xfer_timeout(struct dw_mci *host)
 
 	/* add a bit spare time */
 	if (host->dir_status == DW_MCI_RECV_STATUS)
-		xfer_ms += 100;
+		xfer_ms += 1000;
 	else
 		xfer_ms += 2500;
 	spin_lock_irqsave(&host->irq_lock, irqflags);
