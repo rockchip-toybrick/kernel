@@ -169,20 +169,28 @@ static int dw_mci_v2_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 	 * It's impossible all 4 fixed phase won't be able to work.
 	 */
 	for (i = 0; i < ARRAY_SIZE(degrees); i++) {
-		degree = degrees[i] + priv->last_degree;
+		degree = degrees[i] + priv->last_degree + 90;
 		degree = degree % 360;
 		clk_set_phase(priv->sample_clk, degree);
-		if (!mmc_send_tuning(mmc, opcode, NULL))
-			break;
+		if (mmc_send_tuning(mmc, opcode, NULL)) {
+			/*
+			 * Tuning error, the phase is a bad phase,
+			 * then try using the calculated best phase.
+			 */
+			degree = (degree + 180) % 360;
+			clk_set_phase(priv->sample_clk, degree);
+			if (!mmc_send_tuning(mmc, opcode, NULL))
+				break;
+		}
 	}
 
 	if (i == ARRAY_SIZE(degrees)) {
-		dev_warn(host->dev, "All phases bad!");
+		dev_warn(host->dev, "V2 All phases bad!");
 		return -EIO;
 	}
 
 done:
-	dev_info(host->dev, "Successfully tuned phase to %d\n", degrees[i]);
+	dev_info(host->dev, "Successfully tuned phase to %d\n", degree);
 	priv->last_degree = degree;
 	return 0;
 }
@@ -211,8 +219,7 @@ static int dw_mci_rk3288_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 	}
 
 	if (priv->use_v2_tuning) {
-		ret = dw_mci_v2_execute_tuning(slot, opcode);
-		if (!ret)
+		if (!dw_mci_v2_execute_tuning(slot, opcode))
 			return 0;
 		/* Otherwise we continue using fine tuning */
 	}
@@ -402,7 +409,7 @@ static int dw_mci_rockchip_init(struct dw_mci *host)
 static unsigned long dw_mci_rk3288_dwmmc_caps[4] = {
 	MMC_CAP_CMD23,
 	MMC_CAP_CMD23,
-	MMC_CAP_CMD23,
+	0,//MMC_CAP_CMD23
 	MMC_CAP_CMD23,
 };
 
