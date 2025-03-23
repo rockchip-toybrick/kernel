@@ -6304,7 +6304,8 @@ void rkcif_do_stop_stream(struct rkcif_stream *stream,
 				spin_unlock_irqrestore(&stream->fps_lock, flags);
 				cur_time = rkcif_time_get_ns(dev);
 				if (cur_time > fs_time &&
-				    cur_time - fs_time < (frame_time_ns - 10000000))
+				    cur_time - fs_time < (frame_time_ns - 10000000) &&
+				    stream->is_in_vblank)
 					rkcif_stream_stop(stream);
 				else
 					stream->stopping = true;
