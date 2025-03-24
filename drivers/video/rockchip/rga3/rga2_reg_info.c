@@ -2958,6 +2958,27 @@ static void rga2_dump_read_back_csc_reg(struct rga_job *job, struct rga_schedule
 			csc_reg[2 + i * 4], csc_reg[3 + i * 4]);
 }
 
+static void rga2_dump_read_back_other_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
+{
+	int i;
+	unsigned long flags;
+	uint32_t other_reg[4] = {0};
+
+	spin_lock_irqsave(&scheduler->irq_lock, flags);
+
+	for (i = 0; i < 4; i++)
+		other_reg[i] = rga_read(RGA2_OTHER_REG_BASE + i * 4, scheduler);
+
+	spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+
+	rga_job_log(job, "OTHER_READ_BACK_REG\n");
+	for (i = 0; i < 1; i++)
+		rga_job_log(job, "0x%04x : %.8x %.8x %.8x %.8x\n",
+			RGA2_OTHER_REG_BASE + i * 0x10,
+			other_reg[0 + i * 4], other_reg[1 + i * 4],
+			other_reg[2 + i * 4], other_reg[3 + i * 4]);
+}
+
 static void rga2_dump_read_back_cmd_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
 {
 	int i;
@@ -2983,6 +3004,8 @@ static void rga2_dump_read_back_reg(struct rga_job *job, struct rga_scheduler_t 
 {
 	rga2_dump_read_back_sys_reg(job, scheduler);
 	rga2_dump_read_back_csc_reg(job, scheduler);
+	if (scheduler->data->version > 0)
+		rga2_dump_read_back_other_reg(job, scheduler);
 	rga2_dump_read_back_cmd_reg(job, scheduler);
 }
 
@@ -3065,6 +3088,8 @@ static int rga2_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
 	if (DEBUGGER_EN(REG)) {
 		rga2_dump_read_back_sys_reg(job, scheduler);
 		rga2_dump_read_back_csc_reg(job, scheduler);
+		if (scheduler->data->version > 0)
+			rga2_dump_read_back_other_reg(job, scheduler);
 
 		rga_job_log(job, "CMD_REG\n");
 		for (i = 0; i < 8; i++)
@@ -3077,9 +3102,11 @@ static int rga2_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
 	spin_lock_irqsave(&scheduler->irq_lock, flags);
 
 	/* sys_reg init */
-	sys_ctrl = m_RGA2_SYS_CTRL_AUTO_CKG |
-		   m_RGA2_SYS_CTRL_DST_WR_OPT_DIS |
-		   m_RGA2_SYS_CTRL_SRC0YUV420SP_RD_OPT_DIS;
+	sys_ctrl = m_RGA2_SYS_CTRL_AUTO_CKG;
+
+	/* RV1106 need disables these optimizations */
+	if (scheduler->data == &rga2e_1106_data)
+		sys_ctrl |= m_RGA2_SYS_CTRL_DST_WR_OPT_DIS | m_RGA2_SRC0_YUV420SP_RD_OPT_DIS;
 
 	if (rga_hw_has_issue(scheduler, RGA_HW_ISSUE_DIS_AUTO_RST)) {
 		/*
@@ -3174,10 +3201,17 @@ static int rga2_get_version(struct rga_scheduler_t *scheduler)
 static int rga2_read_back_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
 {
 	if (job->rga_command_base.osd_info.enable) {
-		job->rga_command_base.osd_info.cur_flags0 = rga_read(RGA2_OSD_CUR_FLAGS0,
-								     scheduler);
-		job->rga_command_base.osd_info.cur_flags1 = rga_read(RGA2_OSD_CUR_FLAGS1,
-								     scheduler);
+		if (scheduler->data->version == 0) {
+			job->rga_command_base.osd_info.cur_flags0 =
+				rga_read(RGA2_OSD_CUR_FLAGS0, scheduler);
+			job->rga_command_base.osd_info.cur_flags1 =
+				rga_read(RGA2_OSD_CUR_FLAGS1, scheduler);
+		} else {
+			job->rga_command_base.osd_info.cur_flags0 =
+				rga_read(RGA2_FIXED_OSD_CUR_FLAGS0, scheduler);
+			job->rga_command_base.osd_info.cur_flags1 =
+				rga_read(RGA2_FIXED_OSD_CUR_FLAGS1, scheduler);
+		}
 	}
 
 	return 0;

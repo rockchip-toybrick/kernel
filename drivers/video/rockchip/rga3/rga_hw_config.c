@@ -710,7 +710,8 @@ const struct rga_hw_data rga2p_lite_1103b_data = {
 };
 
 const struct rga_hw_data rga2p_iommu_non_fbc_data = {
-	.version = 0,
+	/* Register have changed, so the version is increased. */
+	.version = 1,
 	.input_range = {{2, 2}, {8192, 8192}},
 	.output_range = {{2, 2}, {8192, 8192}},
 
