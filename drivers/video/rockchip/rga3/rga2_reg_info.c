@@ -3276,10 +3276,7 @@ static int rga2_irq(struct rga_scheduler_t *scheduler)
 			job->intr_status, job->hw_status, job->cmd_status,
 			job->work_cycle, job->work_cycle);
 
-	if (job->intr_status &
-	    (m_RGA2_INT_CUR_CMD_DONE_INT_FLAG | m_RGA2_INT_ALL_CMD_DONE_INT_FLAG)) {
-		set_bit(RGA_JOB_STATE_FINISH, &job->state);
-	} else if (job->intr_status & m_RGA2_INT_ERROR_FLAG_MASK) {
+	if (job->intr_status & m_RGA2_INT_ERROR_FLAG_MASK) {
 		set_bit(RGA_JOB_STATE_INTR_ERR, &job->state);
 
 		rga_job_err(job, "irq handler err! INTR[0x%x], HW_STATUS[0x%x], CMD_STATUS[0x%x], WORK_CYCLE[0x%x(%d)]\n",
@@ -3287,6 +3284,9 @@ static int rga2_irq(struct rga_scheduler_t *scheduler)
 			job->work_cycle, job->work_cycle);
 
 		scheduler->ops->soft_reset(scheduler);
+	} else if (job->intr_status &
+		   (m_RGA2_INT_CUR_CMD_DONE_INT_FLAG | m_RGA2_INT_ALL_CMD_DONE_INT_FLAG)) {
+		set_bit(RGA_JOB_STATE_FINISH, &job->state);
 	}
 
 	rga2_clear_intr(scheduler);
