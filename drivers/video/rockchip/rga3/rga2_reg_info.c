@@ -2866,6 +2866,10 @@ static int rga2_init_reg(struct rga_job *job)
 	memcpy(&job->pre_intr_info, &job->rga_command_base.pre_intr_info,
 	       sizeof(job->pre_intr_info));
 
+	/* for debug */
+	if (DEBUGGER_EN(MSG))
+		print_debug_info(job, &req);
+
 	/* check value if legal */
 	ret = rga2_check_param(job, scheduler->data, &req);
 	if (ret == -EINVAL) {
@@ -2874,10 +2878,6 @@ static int rga2_init_reg(struct rga_job *job)
 	}
 
 	rga2_align_check(job, &req);
-
-	/* for debug */
-	if (DEBUGGER_EN(MSG))
-		print_debug_info(job, &req);
 
 	/* RGA2 mmu set */
 	if ((req.mmu_info.src0_mmu_flag & 1) || (req.mmu_info.src1_mmu_flag & 1) ||

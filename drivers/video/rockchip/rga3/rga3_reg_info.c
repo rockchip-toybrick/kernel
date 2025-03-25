@@ -2003,6 +2003,10 @@ static int rga3_init_reg(struct rga_job *job)
 
 	rga_cmd_to_rga3_cmd(&job->rga_command_base, &req);
 
+	/* for debug */
+	if (DEBUGGER_EN(MSG))
+		print_debug_info(job, &req);
+
 	/* check value if legal */
 	ret = rga3_check_param(job, scheduler->data, &req);
 	if (ret == -EINVAL) {
@@ -2011,10 +2015,6 @@ static int rga3_init_reg(struct rga_job *job)
 	}
 
 	rga3_align_check(job, &req);
-
-	/* for debug */
-	if (DEBUGGER_EN(MSG))
-		print_debug_info(job, &req);
 
 	if (rga3_gen_reg_info((uint8_t *) job->cmd_buf->vaddr, &req) == -1) {
 		rga_job_err(job, "RKA: gen reg info error\n");
