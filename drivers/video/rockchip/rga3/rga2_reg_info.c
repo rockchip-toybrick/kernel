@@ -297,6 +297,9 @@ static void RGA2_set_mode_ctrl(u8 *base, struct rga2_req *msg)
 		reg = ((reg & (~m_RGA2_MODE_CTRL_SW_TILE4x4_OUT_EN)) |
 		       (s_RGA2_MODE_CTRL_SW_TILE4x4_OUT_EN(1)));
 
+	reg = ((reg & (~m_RGA2_MODE_CTRL_SW_TABLE_PRE_FETCH_MODE)) |
+	       (s_RGA2_MODE_CTRL_SW_TABLE_PRE_FETCH_MODE(0))); /* 128k */
+
 	if (msg->src.rd_mode == RGA_RKFBC_MODE || msg->src.rd_mode == RGA_AFBC32x8_MODE)
 		reg = ((reg & (~m_RGA2_MODE_CTRL_SW_FBC_IN_EN)) |
 		       (s_RGA2_MODE_CTRL_SW_FBC_IN_EN(1)));
@@ -1668,11 +1671,19 @@ static void RGA2_set_reg_dst_info(u8 *base, struct rga2_req *msg)
 
 	if (rot_90_flag == 1) {
 		if (y_mirr == 1) {
-			msg->iommu_prefetch.y_threshold = y_lt_addr;
-			msg->iommu_prefetch.uv_threshold = u_lt_addr;
+			msg->iommu_prefetch.y_threshold = y_lt_addr >> 16 ?
+				RGA2_IOMMU_PREFETCH_ALIGN_DOWN(y_lt_addr) :
+				RGA2_IOMMU_PREFETCH_THRESHOLD_MIN;
+			msg->iommu_prefetch.uv_threshold = u_lt_addr >> 16 ?
+				RGA2_IOMMU_PREFETCH_ALIGN_DOWN(u_lt_addr) :
+				RGA2_IOMMU_PREFETCH_THRESHOLD_MIN;
 		} else {
-			msg->iommu_prefetch.y_threshold = y_rd_addr;
-			msg->iommu_prefetch.uv_threshold = u_rd_addr;
+			msg->iommu_prefetch.y_threshold = (y_rd_addr >> 16) == 0xffff ?
+				RGA2_IOMMU_PREFETCH_THRESHOLD_MAX :
+				RGA2_IOMMU_PREFETCH_ALIGN(y_rd_addr);
+			msg->iommu_prefetch.uv_threshold = (u_rd_addr >> 16) == 0xffff ?
+				RGA2_IOMMU_PREFETCH_THRESHOLD_MAX :
+				RGA2_IOMMU_PREFETCH_ALIGN(u_rd_addr);
 		}
 	}
 }
@@ -2326,8 +2337,9 @@ static void RGA2_set_mmu_reg_info(struct rga_scheduler_t *scheduler, u8 *base, s
 	case RGA_IOMMU:
 		RGA_PREFETCH_ADDR_TH = (u32 *)(base + RGA2_PREFETCH_ADDR_TH_OFFSET);
 
-		*RGA_PREFETCH_ADDR_TH = (msg->iommu_prefetch.y_threshold >> 16) |
-					((msg->iommu_prefetch.uv_threshold >> 16) << 16);
+		*RGA_PREFETCH_ADDR_TH =
+			(msg->iommu_prefetch.y_threshold >> RGA2_IOMMU_PREFETCH_SHIFT) |
+			((msg->iommu_prefetch.uv_threshold >> RGA2_IOMMU_PREFETCH_SHIFT) << 16);
 		break;
 	default:
 		break;
