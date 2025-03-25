@@ -1765,8 +1765,8 @@ static int rga3_scale_check(struct rga_job *job, const struct rga3_req *req)
 				win0_daw = req->win0.dst_act_h;
 				win0_dah = req->win0.dst_act_w;
 
-				win1_saw = req->win1.dst_act_w;
-				win1_sah = req->win1.dst_act_h;
+				win1_saw = req->win1.src_act_w;
+				win1_sah = req->win1.src_act_h;
 				win1_daw = req->win1.dst_act_h;
 				win1_dah = req->win1.dst_act_w;
 			} else {
