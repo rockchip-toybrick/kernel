@@ -2028,6 +2028,27 @@ static int rga3_init_reg(struct rga_job *job)
 	return ret;
 }
 
+static void rga3_dump_read_back_sys_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
+{
+	int i;
+	unsigned long flags;
+	uint32_t sys_reg[20] = {0};
+
+	spin_lock_irqsave(&scheduler->irq_lock, flags);
+
+	for (i = 0; i < 20; i++)
+		sys_reg[i] = rga_read(RGA3_SYS_REG_BASE + i * 4, scheduler);
+
+	spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+
+	rga_job_log(job, "SYS_READ_BACK_REG\n");
+	for (i = 0; i < 5; i++)
+		rga_job_log(job, "0x%04x : %.8x %.8x %.8x %.8x\n",
+			RGA3_SYS_REG_BASE + i * 0x10,
+			sys_reg[0 + i * 4], sys_reg[1 + i * 4],
+			sys_reg[2 + i * 4], sys_reg[3 + i * 4]);
+}
+
 static void rga3_dump_read_back_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
 {
 	int i;
@@ -2037,13 +2058,14 @@ static void rga3_dump_read_back_reg(struct rga_job *job, struct rga_scheduler_t 
 	spin_lock_irqsave(&scheduler->irq_lock, flags);
 
 	for (i = 0; i < 48; i++)
-		cmd_reg[i] = rga_read(0x100 + i * 4, scheduler);
+		cmd_reg[i] = rga_read(RGA3_CMD_REG_BASE + i * 4, scheduler);
 
 	spin_unlock_irqrestore(&scheduler->irq_lock, flags);
 
 	rga_job_log(job, "CMD_READ_BACK_REG\n");
 	for (i = 0; i < 12; i++)
-		rga_job_log(job, "i = %x : %.8x %.8x %.8x %.8x\n", i,
+		rga_job_log(job, "0x%04x : %.8x %.8x %.8x %.8x\n",
+			RGA3_CMD_REG_BASE + i * 0x10,
 			cmd_reg[0 + i * 4], cmd_reg[1 + i * 4],
 			cmd_reg[2 + i * 4], cmd_reg[3 + i * 4]);
 }
@@ -2068,9 +2090,12 @@ static int rga3_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
 		master_mode_en = false;
 
 	if (DEBUGGER_EN(REG)) {
+		rga3_dump_read_back_sys_reg(job, scheduler);
+
 		rga_job_log(job, "CMD_REG\n");
 		for (i = 0; i < 12; i++)
-			rga_job_log(job, "i = %x : %.8x %.8x %.8x %.8x\n", i,
+			rga_job_log(job, "0x%04x : %.8x %.8x %.8x %.8x\n",
+				RGA3_CMD_REG_BASE + i * 0x10,
 				cmd[0 + i * 4], cmd[1 + i * 4],
 				cmd[2 + i * 4], cmd[3 + i * 4]);
 	}
@@ -2096,17 +2121,6 @@ static int rga3_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
 		rga_write(sys_ctrl, RGA3_SYS_CTRL, scheduler);
 	}
 
-	if (DEBUGGER_EN(REG)) {
-		rga_job_log(job, "sys_ctrl = 0x%x, int_en = 0x%x, int_raw = 0x%x\n",
-			rga_read(RGA3_SYS_CTRL, scheduler),
-			rga_read(RGA3_INT_EN, scheduler),
-			rga_read(RGA3_INT_RAW, scheduler));
-
-		rga_job_log(job, "hw_status = 0x%x, cmd_status = 0x%x\n",
-			rga_read(RGA3_STATUS0, scheduler),
-			rga_read(RGA3_CMD_STATE, scheduler));
-	}
-
 	if (DEBUGGER_EN(TIME))
 		rga_job_log(job, "set register cost time %lld us\n",
 			ktime_us_delta(ktime_get(), now));
@@ -2115,8 +2129,10 @@ static int rga3_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
 	job->timestamp.hw_recode = now;
 	job->session->last_active = now;
 
-	if (DEBUGGER_EN(REG))
+	if (DEBUGGER_EN(REG)) {
+		rga3_dump_read_back_sys_reg(job, scheduler);
 		rga3_dump_read_back_reg(job, scheduler);
+	}
 
 	return 0;
 }
