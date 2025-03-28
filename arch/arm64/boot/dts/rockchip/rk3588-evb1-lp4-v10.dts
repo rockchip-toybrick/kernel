@@ -26,3 +26,17 @@
 &i2s2_2ch {
 	status = "okay";
 };
+
+&rockchip_suspend {
+	status = "okay";
+	rockchip,sleep-mode-config = <
+		(0
+		| RKPM_SLP_ARMOFF_LOGOFF
+		| RKPM_SLP_PMU_PMUALIVE_32K
+		| RKPM_SLP_PMU_DIS_OSC
+		| RKPM_SLP_32K_EXT
+		| RKPM_SLP_DUAL_PMIC_TC
+		| RKPM_SLP_PMIC_LP
+		)
+>;
+};
