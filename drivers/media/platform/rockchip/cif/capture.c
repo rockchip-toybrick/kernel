@@ -11154,6 +11154,7 @@ static void rkcif_update_stream(struct rkcif_device *cif_dev,
 						       mipi_id);
 		if (ret && cif_dev->chip_id < CHIP_RK3588_CIF)
 			return;
+		stream->last_frame_idx = stream->frame_idx;
 	} else {
 		ret = rkcif_update_new_buffer_wake_up_mode(stream);
 		if (ret && cif_dev->chip_id < CHIP_RK3588_CIF)
@@ -12900,6 +12901,12 @@ static void rkcif_toisp_check_stop_status(struct sditf_priv *priv,
 				stream->stopping = false;
 				wake_up(&stream->wq_stopped);
 			}
+			if (!(stream->cur_stream_mode & RKCIF_STREAM_MODE_CAPTURE)) {
+				cur_time = rkcif_time_get_ns(stream->cifdev);
+				stream->readout.total_time = cur_time - stream->readout.fe_timestamp;
+				stream->readout.readout_time = cur_time - stream->readout.fs_timestamp;
+				stream->readout.fe_timestamp = cur_time;
+			}
 
 			spin_lock_irqsave(&stream->cifdev->stream_spinlock, flags);
 			if (stream->is_wait_stop_complete) {
@@ -13046,9 +13053,6 @@ static void rkcif_toisp_check_stop_status(struct sditf_priv *priv,
 			      (priv->hdr_cfg.hdr_mode == HDR_X2 && stream->id == 1) ||
 			      (priv->hdr_cfg.hdr_mode == HDR_X3 && stream->id == 2)))
 				sditf_disable_immediately(priv);
-			cur_time = rkcif_time_get_ns(stream->cifdev);
-			stream->readout.total_time = cur_time - stream->readout.fs_timestamp;
-			stream->readout.fs_timestamp = cur_time;
 			stream->buf_wake_up_cnt++;
 			if (stream->frame_idx % 2)
 				stream->fps_stats.frm0_timestamp = rkcif_time_get_ns(stream->cifdev);
