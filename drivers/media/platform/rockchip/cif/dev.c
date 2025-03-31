@@ -2815,6 +2815,7 @@ int rkcif_plat_init(struct rkcif_device *cif_dev, struct device_node *node, int 
 	atomic_set(&cif_dev->power_cnt, 0);
 	atomic_set(&cif_dev->streamoff_cnt, 0);
 	atomic_set(&cif_dev->sensor_off, 1);
+	atomic_set(&cif_dev->sd_power_cnt, 0);
 	cif_dev->is_start_hdr = false;
 	cif_dev->pipe.open = rkcif_pipeline_open;
 	cif_dev->pipe.close = rkcif_pipeline_close;

@@ -7688,7 +7688,7 @@ int rkcif_do_start_stream(struct rkcif_stream *stream, enum rkcif_stream_mode mo
 		}
 	}
 	if (dev->chip_id >= CHIP_RK1808_CIF) {
-		if (dev->active_sensor  &&
+		if (dev->active_sensor &&
 		    (dev->active_sensor->mbus.type == V4L2_MBUS_CSI2_DPHY ||
 		    dev->active_sensor->mbus.type == V4L2_MBUS_CSI2_CPHY ||
 		    dev->active_sensor->mbus.type == V4L2_MBUS_CCP2))
@@ -8125,12 +8125,18 @@ void rkcif_stream_init(struct rkcif_device *dev, u32 id)
 	stream->is_hold_stream_off = false;
 }
 
-static int rkcif_sensor_set_power(struct rkcif_stream *stream, int on)
+int rkcif_sensor_set_power(struct rkcif_stream *stream, int on)
 {
 	struct rkcif_device *cif_dev = stream->cifdev;
 	struct sditf_priv *priv = cif_dev->sditf[0];
 	int i = 0;
 	struct rkmodule_channel_power ch_power;
+
+	if (!on && atomic_dec_if_positive(&cif_dev->sd_power_cnt))
+		return 0;
+
+	if (on && atomic_inc_return(&cif_dev->sd_power_cnt) > 1)
+		return 0;
 
 	if (cif_dev->terminal_sensor.sd)
 		v4l2_subdev_call(cif_dev->terminal_sensor.sd,
@@ -8205,11 +8211,11 @@ static int rkcif_fh_open(struct file *filp)
 		ret = v4l2_pipeline_pm_get(&vnode->vdev.entity);
 		v4l2_dbg(1, rkcif_debug, vdev, "open video, entity use_count %d\n",
 			 vnode->vdev.entity.use_count);
+		ret = rkcif_sensor_set_power(stream, on);
 		mutex_unlock(&cifdev->stream_lock);
 		if (ret < 0)
 			vb2_fop_release(filp);
 	}
-	ret = rkcif_sensor_set_power(stream, on);
 	return ret;
 }
 
@@ -8225,6 +8231,7 @@ static int rkcif_fh_release(struct file *filp)
 	ret = vb2_fop_release(filp);
 	if (!ret) {
 		mutex_lock(&cifdev->stream_lock);
+		ret = rkcif_sensor_set_power(stream, on);
 		v4l2_pipeline_pm_put(&vnode->vdev.entity);
 		v4l2_dbg(1, rkcif_debug, vdev, "close video, entity use_count %d\n",
 			 vnode->vdev.entity.use_count);
@@ -8232,7 +8239,6 @@ static int rkcif_fh_release(struct file *filp)
 	}
 
 	pm_runtime_put_sync(cifdev->dev);
-	ret = rkcif_sensor_set_power(stream, on);
 	return ret;
 }
 
@@ -10018,7 +10024,7 @@ void rkcif_irq_oneframe(struct rkcif_device *cif_dev)
 
 	/* There are two irqs enabled:
 	 *  - PST_INF_FRAME_END: cif FIFO is ready, this is prior to FRAME_END
-	 *  -         FRAME_END: cif has saved frame to memory, a frame ready
+	 *  -	      FRAME_END: cif has saved frame to memory, a frame ready
 	 */
 	stream = &cif_dev->stream[RKCIF_STREAM_CIF];
 

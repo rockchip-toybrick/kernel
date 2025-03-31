@@ -969,6 +969,7 @@ struct rkcif_device {
 	atomic_t			power_cnt;
 	atomic_t			streamoff_cnt;
 	atomic_t			sensor_off;
+	atomic_t			sd_power_cnt;
 	struct mutex			stream_lock; /* lock between streams */
 	struct mutex			scale_lock; /* lock between scale dev */
 	struct mutex			tools_lock; /* lock between tools dev */
@@ -1184,5 +1185,6 @@ void rkcif_set_sof(struct rkcif_device *cif_dev, u32 seq);
 
 void rkcif_set_sensor_streamon_in_sync_mode(struct rkcif_device *cif_dev);
 void rkcif_switch_change(struct rkcif_device *cif_dev, bool is_switch);
+int rkcif_sensor_set_power(struct rkcif_stream *stream, int on);
 
 #endif
