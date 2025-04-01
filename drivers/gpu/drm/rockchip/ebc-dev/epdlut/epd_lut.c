@@ -17,6 +17,7 @@
 #include "epd_lut.h"
 
 static int (*lut_get)(struct epd_lut_data *, enum epd_lut_type, int, int, int);
+static int (*lut_get_original)(struct epd_lut_data *, enum epd_lut_type, int, int);
 
 int epd_lut_from_mem_init(void *waveform)
 {
@@ -28,6 +29,7 @@ int epd_lut_from_mem_init(void *waveform)
 	} else {
 		printk("[lut]: RKF waveform\n");
 		lut_get = rkf_wf_get_lut;
+		lut_get_original = NULL;
 		return 0;
 	}
 
@@ -37,6 +39,7 @@ int epd_lut_from_mem_init(void *waveform)
 	} else {
 		printk("[lut]: PVI waveform\n");
 		lut_get = pvi_wf_get_lut;
+		lut_get_original = pvi_wf_get_original_lut;
 		return 0;
 	}
 
@@ -66,9 +69,17 @@ const char *epd_lut_get_wf_version(void)
 	return NULL;
 }
 
-int epd_lut_get(struct epd_lut_data *output, enum epd_lut_type lut_type, int temperture, int pic, int regal_pix)
+int epd_lut_get(struct epd_lut_data *output, enum epd_lut_type lut_type, int temperature, int pic, int regal_pix)
 {
-	return lut_get(output, lut_type, temperture, pic, regal_pix);
+	return lut_get(output, lut_type, temperature, pic, regal_pix);
+}
+
+int epd_lut_get_original(struct epd_lut_data *output, enum epd_lut_type lut_type, int temperature, int pic)
+{
+	if (lut_get_original)
+		return lut_get_original(output, lut_type, temperature, pic);
+	else
+		return 0;
 }
 
 //you can change overlay lut mode here

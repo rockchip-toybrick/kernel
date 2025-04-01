@@ -302,6 +302,11 @@ static int rk3576_tcon_enable(struct ebc_tcon *tcon, struct ebc_panel *panel)
 		height = panel->height / 2;
 		vir_width = panel->vir_width * 2;
 		vir_height = panel->vir_height / 2;
+	} else if (panel->gate_dummy_lenth > 0) {
+		width = panel->width;
+		height = panel->height + panel->gate_dummy_lenth;
+		vir_width = panel->vir_width;
+		vir_height = panel->vir_height + panel->gate_dummy_lenth;
 	} else {
 		width = panel->width;
 		height = panel->height;
@@ -447,7 +452,7 @@ static void rk3576_tcon_dsp_mode_set(struct ebc_tcon *tcon, int update_mode,
 	int ret;
 
 	if (panel && display_mode != tcon->display_mode) {
-		if (display_mode == DIRECT_MODE)
+		if (display_mode == DIRECT_MODE && panel->panel_16bit)
 			ret = clk_set_rate(tcon->dclk, panel->sdck);
 		else
 			ret = clk_set_rate(tcon->dclk,
@@ -456,7 +461,7 @@ static void rk3576_tcon_dsp_mode_set(struct ebc_tcon *tcon, int update_mode,
 			dev_err(tcon->dev, "Failed to set dclk:%d\n", ret);
 	}
 
-	if (display_mode == DIRECT_MODE)
+	if (display_mode == DIRECT_MODE && panel && panel->panel_16bit)
 		val = RK3576_DSP_SDCLK_DIV(0);
 	else
 		val = RK3576_DSP_SDCLK_DIV((panel && panel->panel_16bit) ? 7 : 3);
@@ -548,6 +553,11 @@ static int tcon_enable(struct ebc_tcon *tcon, struct ebc_panel *panel)
 		height = panel->height / 2;
 		vir_width = panel->vir_width * 2;
 		vir_height = panel->vir_height / 2;
+	} else if (panel->gate_dummy_lenth > 0) {
+		width = panel->width;
+		height = panel->height + panel->gate_dummy_lenth;
+		vir_width = panel->vir_width;
+		vir_height = panel->vir_height + panel->gate_dummy_lenth;
 	} else {
 		width = panel->width;
 		height = panel->height;
