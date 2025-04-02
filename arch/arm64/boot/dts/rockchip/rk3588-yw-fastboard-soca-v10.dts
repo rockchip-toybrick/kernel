@@ -17,7 +17,7 @@
 	compatible = "rockchip,rk3588-yw-fastboard-soca-v10", "rockchip,rk3588";
 
 	chosen: chosen {
-		bootargs = "earlycon=uart8250,mmio32,0xfeb50000 console=ttyFIQ0 irqchip.gicv3_pseudo_nmi=0 rcupdate.rcu_expedited=1 rcu_nocbs=all spidev.bufsiz=131072";
+		bootargs = "earlycon=uart8250,mmio32,0xfeb50000 console=ttyFIQ0 irqchip.gicv3_pseudo_nmi=0 rcupdate.rcu_expedited=1 rcu_nocbs=all spidev.bufsiz=131072 default_hugepagesz=32M hugepagesz=32M hugepages=16";
 	};
 
 	vcc5v0_buck: vcc5v0-buck {
@@ -137,6 +137,19 @@
 };
 */
 
+&pcie30phy {
+	rockchip,pcie30-phymode = <PHY_MODE_PCIE_AGGREGATION>;
+	status = "okay";
+};
+
+&pcie3x4 {
+	reset-gpios = <&gpio3 RK_PC6 GPIO_ACTIVE_HIGH>;
+	//vpcie3v3-supply = <&vcc3v3_pcie30>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie20x1_0_clkreqn_m1>;
+	status = "okay";
+};
+
 &pinctrl {
 	gmac0 {
 		phydisb: phydisb {
@@ -147,6 +160,12 @@
 	vcc5v0-buck {
 		vcc5v0_buck_en: vcc5v0-buck-en {
 			rockchip,pins = <0 RK_PC2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	pcie {
+		pcie20x1_0_clkreqn_m1: pcie20x1-0-clkreqn-m1 {
+			rockchip,pins = <3 RK_PC4 RK_FUNC_GPIO &pcfg_output_low>;
 		};
 	};
 };
