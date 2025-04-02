@@ -69,6 +69,17 @@
 		RGA_MODE_X_MIRROR | \
 		RGA_MODE_Y_MIRROR)
 
+enum rga_csc_mode {
+	RGA_Y2R_BT601_LIMIT			= 0x1 << 0,
+	RGA_Y2R_BT601_FULL			= 0x2 << 0,
+	RGA_Y2R_BT709_LIMIT			= 0x3 << 0,
+	RGA_Y2R_MASK				= 0x3 << 0,
+	RGA_R2Y_BT601_LIMIT			= 0x2 << 0,
+	RGA_R2Y_BT601_FULL			= 0x1 << 0,
+	RGA_R2Y_BT709_LIMIT			= 0x3 << 0,
+	RGA_R2Y_MASK				= 0x3 << 0,
+};
+
 enum rga_memory_type {
 	RGA_DMA_BUFFER = 0,
 	RGA_VIRTUAL_ADDRESS,
