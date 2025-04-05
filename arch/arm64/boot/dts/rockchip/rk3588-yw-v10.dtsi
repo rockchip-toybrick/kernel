@@ -79,11 +79,11 @@
 		>;
 		default-brightness-level = <200>;
 	};
-
+/*
 	test-power {
 		status = "okay";
 	};
-
+*/
 	vcc12v_dcin: vcc12v-dcin {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc12v_dcin";
@@ -102,7 +102,7 @@
 		regulator-max-microvolt = <5000000>;
 		vin-supply = <&vcc12v_dcin>;
 	};
-
+/*
 	vcc5v0_usbdcin: vcc5v0-usbdcin {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc5v0_usbdcin";
@@ -122,6 +122,7 @@
 		regulator-max-microvolt = <5000000>;
 		vin-supply = <&vcc5v0_usbdcin>;
 	};
+*/
 };
 
 &av1d_mmu {

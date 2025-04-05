@@ -20,6 +20,7 @@
 		bootargs = "earlycon=uart8250,mmio32,0xfeb50000 console=ttyFIQ0 irqchip.gicv3_pseudo_nmi=0 rcupdate.rcu_expedited=1 rcu_nocbs=all spidev.bufsiz=131072 default_hugepagesz=32M hugepagesz=32M hugepages=16";
 	};
 
+/*
 	vcc5v0_buck: vcc5v0-buck {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc5v0_buck";
@@ -67,6 +68,7 @@
 		off-on-delay-us = <16000>;
 		vin-supply = <&vcc5v0_buck>;
 	};
+*/
 
 };
 
@@ -157,11 +159,13 @@
 		};
 	};
 
+/*
 	vcc5v0-buck {
 		vcc5v0_buck_en: vcc5v0-buck-en {
 			rockchip,pins = <0 RK_PC2 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
+*/
 
 	pcie {
 		pcie20x1_0_clkreqn_m1: pcie20x1-0-clkreqn-m1 {
@@ -207,9 +211,11 @@
 	status = "okay";
 };
 
+/*
 &u2phy2_host {
 	phy-supply = <&vcc5v0_host_usb30>;
 };
+*/
 
 &usbdrd_dwc3_0 {
 	dr_mode = "peripheral";
