@@ -1,0 +1,196 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2024 Rockchip Electronics Co., Ltd.
+ *
+ */
+/ {
+	dummy_codec: dummy-codec {
+		compatible = "rockchip,dummy-codec";
+		#sound-dai-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&adsp_reset_h &adsp_bootroom_l>;
+		status = "okay";
+	};
+
+	sound0 {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "rockchip,car-rk2118-sound";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,bitclock-master = <&codec_master>;
+		simple-audio-card,frame-master = <&codec_master>;
+		status = "okay";
+
+		simple-audio-card,cpu {
+			sound-dai = <&i2s1_8ch>;
+		};
+		codec_master: simple-audio-card,codec {
+			sound-dai = <&dummy_codec>;
+		};
+	};
+
+    fm_codec: fm-codec {
+        status = "okay";
+        compatible = "rockchip,dummy-codec";
+        #sound-dai-cells = <0>;
+        pinctrl-names = "default";
+    };
+   
+    fm_sound: fm-sound {
+        status = "okay";
+        compatible = "simple-audio-card";
+        simple-audio-card,name = "rockchip,car-fm-sound";
+        simple-audio-card,format = "i2s";
+        simple-audio-card,mclk-fs = <256>;
+        simple-audio-card,cpu {
+            sound-dai = <&i2s2_2ch>;
+        };
+        simple-audio-card,codec {
+            sound-dai = <&fm_codec>;
+        };
+    };
+
+	rda_codec: rda-codec {
+		compatible = "rockchip,dummy-codec";
+        #sound-dai-cells = <0>;
+		status = "okay";
+	};
+
+    rda_sound: rda-sound {
+        status = "okay";
+        compatible = "simple-audio-card";
+        simple-audio-card,format = "i2s";
+        simple-audio-card,mclk-fs = <256>;
+        simple-audio-card,cpu {
+                sound-dai = <&i2s0_8ch>;
+                dai-tdm-slot-num = <8>;
+                dai-tdm-slot-width = <32>;
+        };
+        simple-audio-card,codec {
+                sound-dai = <&rda_codec>;
+        };
+    };
+};
+
+&i2s0_8ch {
+    status = "okay";
+    pinctrl-names = "default";
+    pinctrl-0 = <&i2s0_lrck
+             &i2s0_sclk
+             &i2s0_sdo0>;
+};
+
+
+&i2s1_8ch {
+	pinctrl-0 = <&i2s1m0_lrck_rx
+			&i2s1m0_lrck_tx
+			&i2s1m0_sclk_rx
+			&i2s1m0_sclk_tx
+			&i2s1m0_sdi0
+			&i2s1m0_sdi1
+			&i2s1m0_sdi2
+			&i2s1m0_sdo0
+			&i2s1m0_sdo1
+			&i2s1m0_sdo2
+			&gpio_fsxn_pins>;
+	fsxn-tx-gpio = <&gpio4 RK_PB6 GPIO_ACTIVE_HIGH>;
+	fsxn-rx-gpio = <&gpio4 RK_PB5 GPIO_ACTIVE_HIGH>;
+	rockchip,clk-trcm = <0>;
+	rockchip,tdm-multi-lanes;
+	rockchip,tdm-tx-lanes = <3>;
+	rockchip,tdm-rx-lanes = <3>;
+	/delete-property/ rockchip,trcm-sync-tx-only;
+	status = "okay";
+};
+
+&i2s2_2ch{
+    pinctrl-0 = <&i2s2m1_lrck
+             &i2s2m1_mclk
+             &i2s2m1_sclk
+             &i2s2m1_sdi>;
+    status = "okay";
+};
+
+&spi3 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi3m2_pins &spi3m2_cs0>;
+#if 1
+	spi-dev@0 {
+		compatible = "rockchip,spidev";
+		reg = <0x0>;
+		spi-max-frequency = <50000000>;
+		spi-lsb-first;
+	};
+#else
+    spi_test@0 {
+        compatible = "rockchip,spi_test_bus0_cs0";
+        id = <0>;                                       //这个属性spi-rockchip-test.c用来区分不同的spi从设备的
+        reg = <0>;                                      //chip select  0:cs0  1:cs1
+        spi-max-frequency = <24000000>;                 //spi output clock
+    };
+#endif
+};
+
+&i2c8 {
+	pinctrl-0 = <&i2c8m2_xfer>;
+	clock-frequency = <400000>;
+	status = "okay";
+    //ADC
+};
+
+&i2c4 {
+	pinctrl-0 = <&i2c4m2_xfer>;
+	status = "okay";
+    //AMP
+    //MIC
+};
+
+&pinctrl {
+	i2s1_rx_tx {
+		i2s1m0_lrck_rx: i2s1m0-lrck-rx {
+			rockchip,pins =
+			/* i2s1m0_lrck_rx */
+			<4 RK_PA4 3 &pcfg_pull_none>;
+		};
+
+		i2s1m0_lrck_tx: i2s1m0-lrck-tx {
+			rockchip,pins =
+			/* i2s1m0_lrck_tx */
+			<4 RK_PA2 3 &pcfg_pull_none>;
+		};
+
+		i2s1m0_sclk_rx: i2s1m0-sclk-rx {
+			rockchip,pins =
+			/* i2s1m0_sclk_rx */
+			<4 RK_PA3 3 &pcfg_pull_none>;
+		};
+
+		i2s1m0_sclk_tx: i2s1m0-sclk-tx {
+			rockchip,pins =
+			/* i2s1m0_sclk_tx */
+			<4 RK_PA1 3 &pcfg_pull_none>;
+		};
+	};
+
+	fsxn {
+		/omit-if-no-ref/
+		gpio_fsxn_pins: gpio-fsxn-pins {
+			rockchip,pins =
+			<4 RK_PB5 RK_FUNC_GPIO &pcfg_pull_none>,
+			<4 RK_PB6 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	adsp {
+
+        adsp_bootroom_l: adsp-bootroom-l {
+            rockchip,pins = <3 RK_PA0 RK_FUNC_GPIO &pcfg_output_low_pull_down>;
+        };
+
+		adsp_reset_h: adsp-reset-h {
+			rockchip,pins = <1 RK_PB5 RK_FUNC_GPIO &pcfg_output_high_pull_up>;
+		};
+	};
+
+};

@@ -11,6 +11,7 @@
 #include "rk3588-yw-v10.dtsi"
 #include "rk3588-rk806-dual.dtsi"
 #include "rk3588-android.dtsi"
+#include "rk3588-yw-v10-soca-audio.dtsi"
 
 / {
 	model = "Rockchip RK3588 YW FastBoard SoCA Board";
