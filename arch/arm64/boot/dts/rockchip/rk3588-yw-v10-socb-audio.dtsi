@@ -29,14 +29,13 @@
 		};
 	};
 
-    fm_codec: fm-codec {
+	fm_codec: fm-codec {
         status = "okay";
         compatible = "rockchip,dummy-codec";
         #sound-dai-cells = <0>;
         pinctrl-names = "default";
     };
-   
-    fm_sound: fm-sound {
+	fm_sound: fm-sound {
         status = "okay";
         compatible = "simple-audio-card";
         simple-audio-card,name = "rockchip,car-fm-sound";
@@ -75,6 +74,7 @@
 &i2s0_8ch {
     status = "okay";
     pinctrl-names = "default";
+	rockchip,tdm-fsync-half-frame;
     pinctrl-0 = <&i2s0_lrck
              &i2s0_sclk
              &i2s0_sdo0>;
