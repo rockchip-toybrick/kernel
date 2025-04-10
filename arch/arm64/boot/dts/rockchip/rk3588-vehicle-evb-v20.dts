@@ -175,6 +175,7 @@
 };
 
 &vdd_log_s0 {
+	regulator-max-microvolt = <800000>;
 	regulator-state-mem {
 		regulator-on-in-suspend;
 		regulator-suspend-microvolt = <800000>;
