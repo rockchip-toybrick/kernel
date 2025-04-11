@@ -36,7 +36,8 @@
 
     bt-sound {
         compatible = "simple-audio-card";
-        simple-audio-card,format = "i2s";
+        simple-audio-card,format = "dsp_a";
+        simple-audio-card,bitclock-inversion = <1>;
         simple-audio-card,mclk-fs = <256>;
         simple-audio-card,name = "rockchip,bt";
         simple-audio-card,cpu {
@@ -50,11 +51,18 @@
 
 &i2s0_8ch {
 	status = "okay";
+	assigned-clocks = <&cru CLK_I2S0_8CH_TX>, <&cru CLK_I2S0_8CH_RX>;
+	assigned-clock-parents = <&mclkin_i2s0>, <&mclkin_i2s0>;
+	rockchip,bclk-fs = <32>;
 	pinctrl-0 = <&i2s0_mclk
              &i2s0_lrck
 		     &i2s0_sclk
 		     &i2s0_sdi0
 		     &i2s0_sdo0>;
+};
+
+&mclkin_i2s0 {
+    clock-frequency = <24576000>;
 };
 
 &i2s1_8ch {
