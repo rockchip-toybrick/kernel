@@ -110,6 +110,12 @@
 			no-map;
 			status = "disabled";
 		};
+
+		secure_mem: secure-mem@40000000 {
+			compatible = "secured-dma-pool";
+			reg = <0x0 0x40000000 0x0 0x10000000>; /* size: 256 MB */
+			status = "okay";
+		};
 	};
 
 	vendor_storage: vendor-storage {
