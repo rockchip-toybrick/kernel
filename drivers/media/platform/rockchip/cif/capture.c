@@ -10680,7 +10680,9 @@ static void rkcif_buf_done_prepare(struct rkcif_stream *stream,
 		}
 		if (cif_dev->channels[0].capture_info.mode == RKMODULE_ONE_CH_TO_MULTI_ISP)
 			vb_done->sequence /= cif_dev->channels[0].capture_info.one_to_multi.isp_num;
-	} else if (cif_dev->rdbk_buf[stream->id]) {
+	} else if (((cif_dev->hdr.hdr_mode == HDR_X2 && stream->id < 2) ||
+		    (cif_dev->hdr.hdr_mode == HDR_X3 && stream->id < 3))
+		   && cif_dev->rdbk_buf[stream->id]) {
 		vb_done = &cif_dev->rdbk_buf[stream->id]->vb;
 		if (cif_dev->chip_id < CHIP_RK3588_CIF &&
 		    cif_dev->active_sensor->mbus.type == V4L2_MBUS_BT656)
@@ -10691,7 +10693,9 @@ static void rkcif_buf_done_prepare(struct rkcif_stream *stream,
 		cif_dev->rdbk_buf[stream->id]->fe_timestamp = rkcif_time_get_ns(cif_dev);
 	}
 
-	if (cif_dev->hdr.hdr_mode == NO_HDR || cif_dev->hdr.hdr_mode == HDR_COMPR) {
+	if (cif_dev->hdr.hdr_mode == NO_HDR || cif_dev->hdr.hdr_mode == HDR_COMPR ||
+	    (cif_dev->hdr.hdr_mode == HDR_X2 && stream->id > 1) ||
+	    (cif_dev->hdr.hdr_mode == HDR_X3 && stream->id > 2)) {
 		if (rkcif_get_interlace_mode(stream) == RKCIF_INTERLACE_SOFT ||
 		    rkcif_get_interlace_mode(stream) == RKCIF_INTERLACE_SOFT_AUTO) {
 			if (stream->frame_phase == CIF_CSI_FRAME1_READY && active_buf) {
