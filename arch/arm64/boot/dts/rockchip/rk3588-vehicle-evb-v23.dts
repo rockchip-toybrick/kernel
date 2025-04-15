@@ -9,8 +9,7 @@
 #include "rk3588-vehicle-evb-v21.dtsi"
 #include "rk3588-vehicle-evb-v23-nca9539-io-expander.dtsi"
 #include "rk3588-vehicle-evb-maxim-max96712-dphy3-isx021.dtsi"
-#include "rk3588-vehicle-evb-maxim-max96756-dphy0.dtsi"
-#include "rk3588-vehicle-serdes-mfd-display-maxim.dtsi"
+#include "rk3588-vehicle-evb-v23-fake-display.dtsi"
 #include "rk3588-vehicle-evb-v23-audio.dtsi"
 #include "rk3588-android.dtsi"
 
@@ -575,90 +574,11 @@
 	lock-gpios = <&gpio4 RK_PD4 GPIO_ACTIVE_HIGH>;
 };
 
-&max96756_dphy0_vcc1v2 {
-	vin-supply = <&vcc5v0_buck>;
-};
-
 &avdd1v8_ddr_pll_s0 {
 	regulator-state-mem {
 		regulator-on-in-suspend;
 		regulator-suspend-microvolt = <1800000>;
 	};
-};
-
-&i2c2 {
-	himax@45 {
-		himax,irq-gpio = <&gpio1 RK_PB0 IRQ_TYPE_EDGE_FALLING>;
-	};
-
-	himax_split@46 {
-		himax,irq-gpio = <&gpio3 RK_PB0 IRQ_TYPE_EDGE_FALLING>;
-	};
-};
-
-/*dsi0*/
-&i2c2_max96789 {
-	route-enable;
-};
-
-&i2c2_max96752 {
-	use-reg-check-work;
-	vpower-supply = <&lcd1_vcc12v_buck>;
-};
-
-&i2c2_max96752_split {
-	use-reg-check-work;
-	vpower-supply = <&lcd2_vcc12v_buck>;
-};
-
-/*dp0*/
-&i2c4 {
-	himax@45 {
-		himax,irq-gpio = <&gpio3 RK_PD5 IRQ_TYPE_EDGE_FALLING>;
-	};
-
-	s35390a: s35390a@30 {
-		compatible = "sii,s35390a";
-		reg = <0x30>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&s35390a_int>;
-		interrupt-parent = <&gpio0>;
-		interrupts = <RK_PC3 IRQ_TYPE_LEVEL_LOW>;
-		wakeup-source;
-	};
-};
-
-&i2c4_max96745 {
-	//use-delay-work;
-};
-
-&i2c4_max96752 {
-	use-reg-check-work;
-	vpower-supply = <&lcd5_vcc12v_buck>;
-
-	himax@45 {
-		himax,irq-gpio = <&gpio3 RK_PD5 IRQ_TYPE_EDGE_FALLING>;
-	};
-};
-
-/*edp0*/
-&i2c5 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c5m0_xfer>;
-
-	ilitek@41 {
-		interrupt-parent = <&gpio1>;
-		interrupts = <RK_PA5 IRQ_TYPE_LEVEL_LOW>;
-	};
-};
-
-&i2c5_max96745 {
-	//use-delay-work;
-};
-
-&i2c5_max96752 {
-	use-reg-check-work;
-	vpower-supply = <&lcd3_vcc12v_buck>;
 };
 
 &i2c6 {
