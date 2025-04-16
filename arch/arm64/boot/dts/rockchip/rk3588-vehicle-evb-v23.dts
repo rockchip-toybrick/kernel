@@ -8,7 +8,7 @@
 
 #include "rk3588-vehicle-evb-v21.dtsi"
 #include "rk3588-vehicle-evb-v23-nca9539-io-expander.dtsi"
-#include "rk3588-vehicle-evb-maxim-max96712-dphy3-isx021.dtsi"
+#include "rk3588-vehicle-evb-maxim-max96712-dphy3.dtsi"
 #include "rk3588-vehicle-evb-v23-fake-display.dtsi"
 #include "rk3588-vehicle-evb-v23-audio.dtsi"
 #include "rk3588-android.dtsi"
