@@ -1920,6 +1920,8 @@ static int rga_mm_map_channel_job_buffer(struct rga_job *job,
 		goto error_free_buffer;
 	}
 
+	buffer->session = job->session;
+
 	if (DEBUGGER_EN(MM)) {
 		rga_job_log(job, "map buffer:\n");
 		rga_mm_dump_buffer(buffer);
