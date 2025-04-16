@@ -3893,8 +3893,9 @@ static unsigned char get_csi_fmt_val(const struct cif_input_fmt	*cif_fmt_in,
 			csi_fmt_val = CSI_WRDDR_TYPE_RAW12;
 			break;
 		}
-	} else if (cif_fmt_in->csi_fmt_val == CSI_WRDDR_TYPE_RGB888 ||
-		   cif_fmt_in->csi_fmt_val == CSI_WRDDR_TYPE_RGB565) {
+	} else if (cif_fmt_in->csi_fmt_val == CSI_WRDDR_TYPE_RGB888) {
+		csi_fmt_val = CSI_WRDDR_TYPE_YUV422;
+	} else if (cif_fmt_in->csi_fmt_val == CSI_WRDDR_TYPE_RGB565) {
 		csi_fmt_val = CSI_WRDDR_TYPE_RAW8;
 	} else {
 		csi_fmt_val = cif_fmt_in->csi_fmt_val;
@@ -3924,7 +3925,7 @@ static int rkcif_csi_channel_init(struct rkcif_stream *stream,
 		channel->crop_en = 1;
 
 		if (channel->fmt_val == CSI_WRDDR_TYPE_RGB888 && dev->chip_id < CHIP_RK3576_CIF)
-			channel->crop_st_x = 3 * stream->crop[CROP_SRC_ACT].left;
+			channel->crop_st_x = 3 * stream->crop[CROP_SRC_ACT].left / 2;
 		else if (channel->fmt_val == CSI_WRDDR_TYPE_RGB565)
 			channel->crop_st_x = 2 * stream->crop[CROP_SRC_ACT].left;
 		else
@@ -3995,6 +3996,9 @@ static int rkcif_csi_channel_init(struct rkcif_stream *stream,
 	if ((channel->fmt_val == CSI_WRDDR_TYPE_RGB888 && dev->chip_id < CHIP_RK3576_CIF) ||
 	    channel->fmt_val == CSI_WRDDR_TYPE_RGB565)
 		channel->width = channel->width * fmt->bpp[0] / 8;
+
+	if (channel->fmt_val == CSI_WRDDR_TYPE_RGB888)
+		channel->width /= 2;
 	/*
 	 * rk cif don't support output yuyv fmt data
 	 * if user request yuyv fmt, the input mode must be RAW8
@@ -4292,6 +4296,8 @@ static int rkcif_csi_get_output_type_mask(struct rkcif_stream *stream)
 		break;
 	case V4L2_PIX_FMT_RGB24:
 	case V4L2_PIX_FMT_BGR24:
+		mask = CSI_WRDDR_TYPE_YUV_PACKET | CSI_YUV_OUTPUT_ORDER_UYVY;
+		break;
 	case V4L2_PIX_FMT_RGB565:
 	case V4L2_PIX_FMT_BGR666:
 		mask = CSI_WRDDR_TYPE_RAW_COMPACT;
@@ -4826,7 +4832,7 @@ static int rkcif_csi_channel_set_v1(struct rkcif_stream *stream,
 			      channel->vc << 8 | channel->data_type << 10;
 			if (dev->chip_id >= CHIP_RK3588_CIF) {
 				if (channel->csi_fmt_val == CSI_WRDDR_TYPE_RGB888)
-					val |= CSI_WRDDR_TYPE_RAW8;
+					val |= CSI_WRDDR_TYPE_YUV422;
 				else if (channel->csi_fmt_val == CSI_WRDDR_TYPE_RAW14_RK3588)
 					val |= channel->csi_fmt_val << 1;
 				else
@@ -10193,7 +10199,7 @@ static void rkcif_dynamic_crop(struct rkcif_stream *stream)
 		struct csi_channel_info *channel = &cif_dev->channels[stream->id];
 
 		if (channel->fmt_val == CSI_WRDDR_TYPE_RGB888)
-			crop_x = 3 * stream->crop[CROP_SRC_ACT].left;
+			crop_x = 3 * stream->crop[CROP_SRC_ACT].left / 2;
 		else if (channel->fmt_val == CSI_WRDDR_TYPE_RGB565)
 			crop_x = 2 * stream->crop[CROP_SRC_ACT].left;
 		else
