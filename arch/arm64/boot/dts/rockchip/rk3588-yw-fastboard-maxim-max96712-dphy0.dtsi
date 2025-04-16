@@ -696,7 +696,6 @@
 
 &rkcif {
 	status = "okay";
-	rockchip,android-usb-camerahal-enable;
 };
 
 &rkcif_mmu {
