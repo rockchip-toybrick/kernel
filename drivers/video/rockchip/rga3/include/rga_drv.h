@@ -182,8 +182,11 @@ struct rga_dma_buffer {
 	 */
 	size_t offset;
 
-	/* The scheduler of the mapping */
-	struct rga_scheduler_t *scheduler;
+	/*
+	 * The device used by dma-buf mapping, which usually corresponds to the
+	 * default domain or the current device.
+	 */
+	struct device *map_dev;
 };
 
 struct rga_virt_addr {
@@ -192,6 +195,7 @@ struct rga_virt_addr {
 	struct page **pages;
 	int pages_order;
 	int page_count;
+	/* Actual effective size */
 	unsigned long size;
 
 	/* The offset of the first page of the virtual address */
@@ -227,6 +231,9 @@ struct rga_internal_buffer {
 
 	struct kref refcount;
 	struct rga_session *session;
+
+	/* The scheduler of the mapping */
+	struct rga_scheduler_t *scheduler;
 };
 
 struct rga_scheduler_t;
