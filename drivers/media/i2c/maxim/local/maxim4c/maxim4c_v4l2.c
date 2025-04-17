@@ -1238,6 +1238,136 @@ static int maxim4c_mipi_data_lanes_parse(maxim4c_t *maxim4c)
 	return 0;
 }
 
+static int maxim4c_notify_bound(struct v4l2_async_notifier *notifier,
+                                struct v4l2_subdev      *sd,
+                                struct v4l2_async_subdev *asd)
+{
+	maxim4c_t *maxim4c = container_of(notifier, maxim4c_t, notifier);
+	struct maxim4c_async_subdev *maxim4c_asd =
+		container_of(asd, struct maxim4c_async_subdev, asd);
+	struct device *dev = &maxim4c->client->dev;
+	int ret;
+
+	/* skip source pad */
+	if (maxim4c->subdev.entity.pads[maxim4c_asd->port].flags & MEDIA_PAD_FL_SOURCE)
+		return 0;
+
+	ret = media_create_pad_link(&sd->entity,
+				    0,
+				    &maxim4c->subdev.entity,
+				    maxim4c_asd->port,
+				    MEDIA_LNK_FL_ENABLED);
+	if (ret)
+		dev_err(dev, "Failed to link %s to %s\n",
+			sd->name, maxim4c->subdev.name);
+
+	dev_info(dev, "Link %s to %s success.\n", sd->name, maxim4c->subdev.name);
+
+	return ret;
+}
+
+static int maxim4c_notify_complete(struct v4l2_async_notifier *notifier)
+{
+    return 0;
+}
+
+static void maxim4c_notify_unbind(struct v4l2_async_notifier *notifier,
+                                  struct v4l2_subdev      *sd,
+                                  struct v4l2_async_subdev *asd)
+{
+    /* 子设备移除时撤销媒体链接或清理状态 */
+    media_entity_remove_links(&sd->entity);
+}
+
+static int maxim4c_fwnode_parse(struct device *dev,
+				struct v4l2_fwnode_endpoint *vep,
+				struct v4l2_async_subdev *asd)
+{
+	struct maxim4c_async_subdev *maxim4c_asd =
+		container_of(asd, struct maxim4c_async_subdev, asd);
+
+	maxim4c_asd->port = vep->base.port;
+
+	return 0;
+}
+
+static const struct v4l2_async_notifier_operations maxim4c_notifier_ops = {
+    .bound    = maxim4c_notify_bound,
+    .complete = maxim4c_notify_complete,
+    .unbind   = maxim4c_notify_unbind,
+};
+
+static int maxim4c_subdev_media_init_bridge(maxim4c_t *maxim4c)
+{
+	struct v4l2_async_notifier *notifier = &maxim4c->notifier;
+	struct v4l2_subdev *sd = &maxim4c->subdev;
+	struct device *dev = &maxim4c->client->dev;
+	int ret, i;
+
+#if defined(CONFIG_MEDIA_CONTROLLER)
+	maxim4c->pads[0].flags = MEDIA_PAD_FL_SOURCE;
+
+	for (i = 1; i < MAXIM4C_REMOTE_PAD_MAX; i++)
+		maxim4c->pads[i].flags = MEDIA_PAD_FL_SINK;
+
+	sd->entity.function = MEDIA_ENT_F_VID_IF_BRIDGE;
+	ret = media_entity_pads_init(&sd->entity, MAXIM4C_REMOTE_PAD_MAX, maxim4c->pads);
+	if (ret < 0) {
+		dev_err(dev, "Failed to init media entity pads\n");
+		goto exit;
+	}
+#endif
+
+	/* 2. 初始化异步通知器，关联到当前 v4l2_device */
+	v4l2_async_notifier_init(notifier);
+
+	ret = v4l2_async_notifier_parse_fwnode_endpoints(sd->dev,
+			notifier, sizeof(struct maxim4c_async_subdev), maxim4c_fwnode_parse);
+	if (ret < 0) {
+		dev_err(dev, "Failed to parse fwnode endpoints\n");
+		goto exit;
+	}
+
+
+	sd->subdev_notifier = notifier;
+	notifier->ops = &maxim4c_notifier_ops;
+
+	ret = v4l2_async_subdev_notifier_register(sd, notifier);
+	if (ret) {
+		dev_err(dev,
+			"failed to register async notifier : %d\n", ret);
+		v4l2_async_notifier_cleanup(notifier);
+		return ret;
+	}
+
+	ret = v4l2_async_register_subdev(sd);
+
+exit:
+	return ret;
+}
+
+static int maxim4c_subdev_media_init_sensor(maxim4c_t *maxim4c)
+{
+	struct v4l2_subdev *sd = &maxim4c->subdev;
+	int ret;
+
+#if defined(CONFIG_MEDIA_CONTROLLER)
+	maxim4c->pads[0].flags = MEDIA_PAD_FL_SOURCE;
+	sd->entity.function = MEDIA_ENT_F_CAM_SENSOR;
+	ret = media_entity_pads_init(&sd->entity, 1, maxim4c->pads);
+	if (ret < 0)
+		goto exit;
+#endif
+
+#if KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE
+	ret = v4l2_async_register_subdev_sensor(sd);
+#else
+	ret = v4l2_async_register_subdev_sensor_common(sd);
+#endif
+exit:
+	return ret;
+}
+
 int maxim4c_v4l2_subdev_init(maxim4c_t *maxim4c)
 {
 	struct i2c_client *client = maxim4c->client;
@@ -1261,14 +1391,6 @@ int maxim4c_v4l2_subdev_init(maxim4c_t *maxim4c)
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS;
 #endif
 
-#if defined(CONFIG_MEDIA_CONTROLLER)
-	maxim4c->pad.flags = MEDIA_PAD_FL_SOURCE;
-	sd->entity.function = MEDIA_ENT_F_CAM_SENSOR;
-	ret = media_entity_pads_init(&sd->entity, 1, &maxim4c->pad);
-	if (ret < 0)
-		goto err_free_handler;
-#endif
-
 	v4l2_set_subdevdata(sd, maxim4c);
 
 	memset(facing, 0, sizeof(facing));
@@ -1277,17 +1399,24 @@ int maxim4c_v4l2_subdev_init(maxim4c_t *maxim4c)
 	else
 		facing[0] = 'f';
 
-	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
-		 maxim4c->module_index, facing, maxim4c->sensor_name,
-		 dev_name(sd->dev));
+	printk(KERN_INFO "xxxxxxxx bridge-mode = %d\n", maxim4c->bridge_mode);
+	if (maxim4c->bridge_mode) {
+		snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s-des %s",
+			maxim4c->module_index, facing, maxim4c->sensor_name,
+			dev_name(sd->dev));
 
-#if KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE
-	ret = v4l2_async_register_subdev_sensor(sd);
-#else
-	ret = v4l2_async_register_subdev_sensor_common(sd);
-#endif
+		ret = maxim4c_subdev_media_init_bridge(maxim4c);
+	} else {
+		snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+			maxim4c->module_index, facing, maxim4c->sensor_name,
+			dev_name(sd->dev));
+
+
+		ret = maxim4c_subdev_media_init_sensor(maxim4c);
+	}
+
 	if (ret) {
-		dev_err(dev, "v4l2 async register subdev failed\n");
+		dev_err(dev, "v4l2 async notifier register failed\n");
 		goto err_clean_entity;
 	}
 

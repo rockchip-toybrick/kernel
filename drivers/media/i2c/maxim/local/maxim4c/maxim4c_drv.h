@@ -34,6 +34,8 @@
 /* power supply numbers */
 #define MAXIM4C_NUM_SUPPLIES		2
 
+#define MAXIM4C_REMOTE_PAD_MAX		(4 + 1)
+
 /* Private v4l2 event */
 #define V4L2_EVENT_HOT_PLUG	\
 		(V4L2_EVENT_PRIVATE_START + 0x10)
@@ -80,6 +82,11 @@ struct maxim4c_mode {
 	struct v4l2_rect crop_rect;
 };
 
+struct maxim4c_async_subdev {
+	struct v4l2_async_subdev asd;
+	unsigned int port;
+};
+
 typedef struct maxim4c {
 	struct i2c_client *client;
 	struct maxim4c_i2c_mux i2c_mux;
@@ -91,7 +98,7 @@ typedef struct maxim4c {
 	struct mutex mutex;
 
 	struct v4l2_subdev subdev;
-	struct media_pad pad;
+	struct media_pad pads[MAXIM4C_REMOTE_PAD_MAX];
 	struct v4l2_ctrl_handler ctrl_handler;
 	struct v4l2_ctrl *exposure;
 	struct v4l2_ctrl *anal_gain;
@@ -101,10 +108,12 @@ typedef struct maxim4c {
 	struct v4l2_ctrl *pixel_rate;
 	struct v4l2_ctrl *link_freq;
 	struct v4l2_fwnode_endpoint bus_cfg;
+	struct v4l2_async_notifier notifier;
 
 	u32 chipid;
 
 	bool remote_routing_to_isp;
+	bool bridge_mode;
 
 	bool streaming;
 	bool power_on;

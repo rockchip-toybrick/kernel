@@ -760,6 +760,7 @@ static int maxim4c_probe(struct i2c_client *client,
 	struct device *dev = &client->dev;
 	struct device_node *node = dev->of_node;
 	maxim4c_t *maxim4c = NULL;
+	u32 value = 0;
 	u32 chip_id;
 	int ret = 0;
 
@@ -786,6 +787,12 @@ static int maxim4c_probe(struct i2c_client *client,
 	maxim4c->chipid = chip_id;
 
 	maxim4c->sensor_name = MAXIM4C_NAME;
+
+	ret = of_property_read_u32(node, "bridge-mode", &value);
+	if (ret == 0) {
+		dev_info(dev, "bridge-mode property: %d\n", value);
+		maxim4c->bridge_mode = value;
+	}
 
 	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
 				   &maxim4c->module_index);
