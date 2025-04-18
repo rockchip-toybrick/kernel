@@ -395,8 +395,6 @@ int rga_power_enable(struct rga_scheduler_t *scheduler)
 	return 0;
 
 err_enable_clk:
-	clk_bulk_disable_unprepare(scheduler->num_clks, scheduler->clks);
-
 	pm_relax(scheduler->dev);
 	pm_runtime_put_sync_suspend(scheduler->dev);
 
