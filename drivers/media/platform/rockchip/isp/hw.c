@@ -478,7 +478,8 @@ void rkisp_hw_reg_restore(struct rkisp_hw_dev *dev)
 		for (j = 0; j < ARRAY_SIZE(self_upd_reg); j++) {
 			reg = reg_buf + self_upd_reg[j];
 			*reg &= ~ISP21_SELF_FORCE_UPD;
-			if (self_upd_reg[j] == ISP3X_3DLUT_BASE && *reg & ISP_3DLUT_EN) {
+			if (self_upd_reg[j] == ISP3X_3DLUT_BASE &&
+			    *reg & ISP_3DLUT_EN && dev->isp_ver != ISP_V33) {
 				reg = reg_buf + ISP3X_3DLUT_UPDATE;
 				*reg = 1;
 			}
