@@ -612,8 +612,8 @@ const struct rga_hw_data rga2e_1106_data = {
 
 const struct rga_hw_data rga2e_3506_data = {
 	.version = 0,
-	.input_range = {{2, 2}, {1280, 1280}},
-	.output_range = {{2, 2}, {1280, 1280}},
+	.input_range = {{2, 2}, {1280, 8192}},
+	.output_range = {{2, 2}, {1280, 4096}},
 
 	.win = rga2e_3506_win_data,
 	.win_size = ARRAY_SIZE(rga2e_3506_win_data),
@@ -688,8 +688,8 @@ const struct rga_hw_data rga2p_iommu_data = {
 
 const struct rga_hw_data rga2p_lite_1103b_data = {
 	.version = 0,
-	.input_range = {{2, 2}, {2880, 1620}},
-	.output_range = {{2, 2}, {2880, 1620}},
+	.input_range = {{2, 2}, {2880, 8192}},
+	.output_range = {{2, 2}, {2880, 8192}},
 
 	.win = rga2p_lite_win_data,
 	.win_size = ARRAY_SIZE(rga2p_lite_win_data),
