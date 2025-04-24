@@ -4740,6 +4740,7 @@ static int rkcif_csi_channel_set_v1(struct rkcif_stream *stream,
 
 		rkcif_write_register_or(dev, CIF_REG_MIPI_LVDS_INTEN,
 					CSI_ALL_ERROR_INTEN_V1);
+		rkcif_do_soft_reset(dev);
 	}
 #if IS_ENABLED(CONFIG_CPU_RV1106)
 	if (channel->id == 1)
