@@ -3412,6 +3412,7 @@ end:
 	}
 	if (dbufs->is_first) {
 		stream->memory = 0;
+		stream->out_fmt.plane_fmt[0].bytesperline = 0;
 		if (dbufs->is_uncompact)
 			stream->memory = SW_CSI_RAW_WR_SIMG_MODE;
 		rkisp_dmarx_set_fmt(stream, stream->out_fmt);
