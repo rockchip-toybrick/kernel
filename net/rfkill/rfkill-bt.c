@@ -958,7 +958,7 @@ static void __exit rfkill_rk_exit(void)
 	rfkill_wlan_exit();
 }
 
-module_init(rfkill_rk_init);
+fs_initcall(rfkill_rk_init);
 module_exit(rfkill_rk_exit);
 
 MODULE_DESCRIPTION("rock-chips rfkill for Bluetooth v0.3");
