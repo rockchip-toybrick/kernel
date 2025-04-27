@@ -45,6 +45,8 @@
 #define RDBK_M			1
 #define RDBK_S			2
 
+#define FIX_HOT_PLUG_IOMMU		0
+
 struct rkisp_stream;
 
 /*
@@ -227,6 +229,10 @@ struct rkisp_stream {
 	struct frame_debug_info dbg;
 	int conn_id;
 	u32 memory;
+	u32 rawwr_fs_count;
+	u32 rawwr_fe_count;
+	wait_queue_head_t rawwr_start;
+	bool rawwr_starting;
 	union {
 		struct rkisp_stream_sp sp;
 		struct rkisp_stream_mp mp;
@@ -255,6 +261,7 @@ struct rkisp_capture_device {
 extern struct stream_config rkisp_mp_stream_config;
 extern struct stream_config rkisp_sp_stream_config;
 
+void rkisp_stream_vir_cpy_image(struct work_struct *work);
 void rkisp_unregister_stream_vdev(struct rkisp_stream *stream);
 int rkisp_register_stream_vdev(struct rkisp_stream *stream);
 void rkisp_unregister_stream_vdevs(struct rkisp_device *dev);
@@ -262,6 +269,7 @@ int rkisp_register_stream_vdevs(struct rkisp_device *dev);
 void rkisp_mi_isr(u32 mis_val, struct rkisp_device *dev);
 void rkisp_set_stream_def_fmt(struct rkisp_device *dev, u32 id,
 			      u32 width, u32 height, u32 pixelformat);
+void rkisp_quick_off_sensor(struct rkisp_stream *stream);
 int rkisp_fcc_xysubs(u32 fcc, u32 *xsubs, u32 *ysubs);
 int rkisp_mbus_code_xysubs(u32 code, u32 *xsubs, u32 *ysubs);
 int rkisp_fh_open(struct file *filp);

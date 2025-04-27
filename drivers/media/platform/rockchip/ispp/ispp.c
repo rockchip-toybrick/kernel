@@ -478,6 +478,7 @@ int rkispp_register_subdev(struct rkispp_device *dev,
 	ret = v4l2_device_register_subdev_nodes(v4l2_dev);
 	if (ret < 0)
 		goto free_subdev;
+	init_completion(&dev->pm_cmpl);
 	return ret;
 free_subdev:
 	v4l2_device_unregister_subdev(sd);

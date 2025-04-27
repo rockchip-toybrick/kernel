@@ -388,9 +388,50 @@ static int __maybe_unused rkispp_runtime_resume(struct device *dev)
 	return (ret > 0) ? 0 : ret;
 }
 
+static int rkispp_pm_prepare(struct device *dev)
+{
+	struct rkispp_device *ispp_dev = dev_get_drvdata(dev);
+	struct rkispp_hw_dev *hw = ispp_dev->hw_dev;
+	unsigned long lock_flags = 0;
+	int time = 200;
+
+	if (ispp_dev->ispp_sdev.state == ISPP_STOP)
+		return 0;
+
+	ispp_dev->is_suspend = true;
+	ispp_dev->suspend_sync = false;
+
+	spin_lock_irqsave(&hw->buf_lock, lock_flags);
+	if (!hw->is_idle && hw->cur_dev_id == ispp_dev->dev_id)
+		ispp_dev->suspend_sync = true;
+	spin_unlock_irqrestore(&hw->buf_lock, lock_flags);
+
+	if (ispp_dev->suspend_sync) {
+		wait_for_completion_timeout(&ispp_dev->pm_cmpl, msecs_to_jiffies(time));
+		ispp_dev->suspend_sync = false;
+	}
+
+	return 0;
+}
+
+static void rkispp_pm_complete(struct device *dev)
+{
+	struct rkispp_device *ispp_dev = dev_get_drvdata(dev);
+	struct rkispp_hw_dev *hw = ispp_dev->hw_dev;
+
+	if (ispp_dev->ispp_sdev.state == ISPP_STOP)
+		return;
+
+	ispp_dev->is_suspend = false;
+	ispp_dev->ispp_sdev.state = ISPP_START;
+
+	if (hw->cur_dev_id == ispp_dev->dev_id)
+		rkispp_event_handle(ispp_dev, CMD_QUEUE_DMABUF, NULL);
+}
+
 static const struct dev_pm_ops rkispp_plat_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
-				pm_runtime_force_resume)
+	.prepare = rkispp_pm_prepare,
+	.complete = rkispp_pm_complete,
 	SET_RUNTIME_PM_OPS(rkispp_runtime_suspend,
 			   rkispp_runtime_resume, NULL)
 };

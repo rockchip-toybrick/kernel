@@ -2653,6 +2653,19 @@ static inline void raw_wr_enable(struct rkisp_stream *stream)
 	void __iomem *addr = base + stream->config->dma.ctrl;
 	u32 val = readl(addr);
 
+	if (stream->ispdev->only_rawwr) {
+		u32 ret;
+
+		stream->rawwr_starting = true;
+
+		ret = wait_event_timeout(stream->rawwr_start,
+					 stream->rawwr_fe_count == stream->rawwr_fs_count,
+					 msecs_to_jiffies(300));
+		if (ret == 0)
+			v4l2_warn(&stream->ispdev->v4l2_dev, "%s timeout\n", __func__);
+		stream->rawwr_starting = false;
+	}
+
 	val |= ISP21_RAW_FORCE_UPD | SW_CSI_RAW_WR_EN_ORG;
 	writel(val, addr);
 }

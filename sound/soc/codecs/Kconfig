@@ -592,9 +592,6 @@ config SND_SOC_DA9055
 
 config SND_SOC_DMIC
 	tristate
-config SND_SOC_ES7210
-	tristate "Everest Semi ES7210 CODEC"
-	depends on I2C
 
 config SND_SOC_DUMMY_CODEC
 	tristate "Dummy CODEC"

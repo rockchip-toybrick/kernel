@@ -11,6 +11,7 @@ obj-$(CONFIG_VIDEO_NVP6158)	+= nvp6158_drv/
 obj-$(CONFIG_VIDEO_NVP6188)	+= nvp6188.o
 obj-$(CONFIG_VIDEO_NVP6324)	+= jaguar1_drv/
 obj-$(CONFIG_VIDEO_RN6854)	+= rn6854.o
+obj-$(CONFIG_VIDEO_MAXIM_SERDES)	+= maxim/
 
 obj-$(CONFIG_VIDEO_APTINA_PLL) += aptina-pll.o
 obj-$(CONFIG_VIDEO_TVAUDIO) += tvaudio.o
@@ -231,3 +232,4 @@ obj-$(CONFIG_VIDEO_PREISP_DUMMY_SENSOR)	+= preisp-dummy.o
 obj-$(CONFIG_SDR_MAX2175) += max2175.o
 
 obj-$(CONFIG_VIDEO_OTP_EEPROM)	+= otp_eeprom.o
+obj-$(CONFIG_VIDEO_CAM_SLEEP_WAKEUP)	+= cam-sleep-wakeup.o

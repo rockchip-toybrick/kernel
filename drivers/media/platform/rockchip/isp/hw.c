@@ -123,6 +123,32 @@ static irqreturn_t mipi_irq_hdl(int irq, void *ctx)
 		phy = readl(hw_dev->base_addr + CSI2RX_ERR_PHY);
 		packet = readl(hw_dev->base_addr + CSI2RX_ERR_PACKET);
 		overflow = readl(hw_dev->base_addr + CSI2RX_ERR_OVERFLOW);
+		if (isp->only_rawwr) {
+			struct rkisp_stream *stream;
+
+			if (state & MIPI_FRAME_ST_VC(0x1) || state & MIPI_FRAME_END_VC(0x1)) {
+				stream = &isp->cap_dev.stream[RKISP_STREAM_DMATX0];
+				if (state & MIPI_FRAME_ST_VC(0x1))
+					stream->rawwr_fs_count++;
+				if (state & MIPI_FRAME_END_VC(0x1))
+					stream->rawwr_fe_count++;
+				if (stream->rawwr_starting &&
+				    (stream->rawwr_fs_count == stream->rawwr_fe_count))
+					wake_up(&stream->rawwr_start);
+			}
+
+			if (state & MIPI_FRAME_ST_VC(0x2) || state & MIPI_FRAME_END_VC(0x2)) {
+				stream = &isp->cap_dev.stream[RKISP_STREAM_DMATX2];
+				if (state & MIPI_FRAME_ST_VC(0x2))
+					stream->rawwr_fs_count++;
+				if (state & MIPI_FRAME_END_VC(0x2))
+					stream->rawwr_fe_count++;
+				if (stream->rawwr_starting &&
+				    (stream->rawwr_fs_count == stream->rawwr_fe_count))
+					wake_up(&stream->rawwr_start);
+			}
+		}
+
 		if (phy | packet | overflow | state) {
 			if (hw_dev->isp_ver == ISP_V20)
 				rkisp_mipi_v20_isr(phy, packet, overflow, state, isp);

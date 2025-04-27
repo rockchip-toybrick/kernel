@@ -70,6 +70,8 @@ struct multicodecs_data {
 	u32 num_keys;
 	u32 last_key;
 	u32 keyup_voltage;
+	u32 pre_poweron_delayms;
+	u32 post_powerdown_delayms;
 	const struct adc_keys_button *map;
 	struct input_dev *input;
 	struct input_dev_poller *poller;
@@ -274,10 +276,14 @@ static int mc_hp_event(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
+		if (mc_data->pre_poweron_delayms)
+			msleep(mc_data->pre_poweron_delayms);
 		gpiod_set_value_cansleep(mc_data->hp_ctl_gpio, 1);
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		gpiod_set_value_cansleep(mc_data->hp_ctl_gpio, 0);
+		if (mc_data->post_powerdown_delayms)
+			msleep(mc_data->post_powerdown_delayms);
 		break;
 	default:
 		return 0;
@@ -295,10 +301,14 @@ static int mc_spk_event(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
+		if (mc_data->pre_poweron_delayms)
+			msleep(mc_data->pre_poweron_delayms);
 		gpiod_set_value_cansleep(mc_data->spk_ctl_gpio, 1);
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		gpiod_set_value_cansleep(mc_data->spk_ctl_gpio, 0);
+		if (mc_data->post_powerdown_delayms)
+			msleep(mc_data->post_powerdown_delayms);
 		break;
 	default:
 		return 0;
@@ -309,21 +319,12 @@ static int mc_spk_event(struct snd_soc_dapm_widget *w,
 }
 
 static const struct snd_soc_dapm_widget mc_dapm_widgets[] = {
-
-	SND_SOC_DAPM_HP("Headphone", NULL),
-	SND_SOC_DAPM_SPK("Speaker", NULL),
+	SND_SOC_DAPM_HP("Headphone", mc_hp_event),
+	SND_SOC_DAPM_SPK("Speaker", mc_spk_event),
 	SND_SOC_DAPM_MIC("Main Mic", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
-	SND_SOC_DAPM_SUPPLY("Speaker Power",
-			    SND_SOC_NOPM, 0, 0,
-			    mc_spk_event,
-			    SND_SOC_DAPM_POST_PMU |
-			    SND_SOC_DAPM_PRE_PMD),
-	SND_SOC_DAPM_SUPPLY("Headphone Power",
-			    SND_SOC_NOPM, 0, 0,
-			    mc_hp_event,
-			    SND_SOC_DAPM_POST_PMU |
-			    SND_SOC_DAPM_PRE_PMD),
+	SND_SOC_DAPM_SUPPLY("Speaker Power", SND_SOC_NOPM, 0, 0, NULL, 0),
+	SND_SOC_DAPM_SUPPLY("Headphone Power", SND_SOC_NOPM, 0, 0, NULL, 0),
 };
 
 static const struct snd_kcontrol_new mc_controls[] = {
@@ -576,6 +577,73 @@ static struct snd_soc_ops rk_ops = {
 	.hw_params = rk_multicodecs_hw_params,
 };
 
+static int rk_multicodecs_probe_keys(struct platform_device *pdev,
+				     struct multicodecs_data *mc_data)
+{
+	struct input_dev *input;
+	int ret = 0, i = 0, value = 0;
+
+	if (IS_ERR_OR_NULL(mc_data) || IS_ERR_OR_NULL(mc_data->adc))
+		return -EINVAL;
+
+	if (IS_ERR_OR_NULL(pdev))
+		return -EINVAL;
+
+	if (mc_data->adc->channel->type != IIO_VOLTAGE)
+		return -EINVAL;
+
+	if (device_property_read_u32(&pdev->dev, "keyup-threshold-microvolt",
+	    &mc_data->keyup_voltage)) {
+		dev_warn(&pdev->dev, "Invalid or missing keyup voltage\n");
+		return -EINVAL;
+	}
+	mc_data->keyup_voltage /= 1000;
+
+	ret = mc_keys_load_keymap(&pdev->dev, mc_data);
+	if (ret)
+		return ret;
+
+	input = devm_input_allocate_device(&pdev->dev);
+	if (IS_ERR(input)) {
+		dev_err(&pdev->dev, "Failed to allocate input device\n");
+		return PTR_ERR(input);
+	}
+
+	input_set_drvdata(input, mc_data);
+
+	input->name = "headset-keys";
+	input->phys = "headset-keys/input0";
+	input->id.bustype = BUS_HOST;
+	input->id.vendor = 0x0001;
+	input->id.product = 0x0001;
+	input->id.version = 0x0100;
+
+	__set_bit(EV_KEY, input->evbit);
+	for (i = 0; i < mc_data->num_keys; i++)
+		__set_bit(mc_data->map[i].keycode, input->keybit);
+
+	if (device_property_read_bool(&pdev->dev, "autorepeat"))
+		__set_bit(EV_REP, input->evbit);
+
+	mc_data->input = input;
+	ret = mc_keys_setup_polling(mc_data, mc_keys_poll);
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to set up polling: %d\n", ret);
+		return ret;
+	}
+
+	if (!device_property_read_u32(&pdev->dev, "poll-interval", &value))
+		mc_set_poll_interval(mc_data->poller, value);
+
+	ret = input_register_device(mc_data->input);
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to register input device: %d\n", ret);
+		return ret;
+	}
+
+	return ret;
+}
+
 static int rk_multicodecs_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card;
@@ -585,9 +653,8 @@ static int rk_multicodecs_probe(struct platform_device *pdev)
 	struct multicodecs_data *mc_data;
 	struct of_phandle_args args;
 	struct device_node *node;
-	struct input_dev *input;
 	u32 val;
-	int count, value, irq;
+	int count, irq;
 	int ret = 0, i = 0, idx = 0;
 	const char *prefix = "rockchip,";
 
@@ -679,6 +746,10 @@ static int rk_multicodecs_probe(struct platform_device *pdev)
 	mc_data->mclk_fs = DEFAULT_MCLK_FS;
 	if (!of_property_read_u32(np, "rockchip,mclk-fs", &val))
 		mc_data->mclk_fs = val;
+	if (!of_property_read_u32(np, "rockchip,pre-power-on-delay-ms", &val))
+		mc_data->pre_poweron_delayms = val;
+	if (!of_property_read_u32(np, "rockchip,post-power-down-delay-ms", &val))
+		mc_data->post_powerdown_delayms = val;
 
 	mc_data->codec_hp_det =
 		of_property_read_bool(np, "rockchip,codec-hp-det");
@@ -686,62 +757,17 @@ static int rk_multicodecs_probe(struct platform_device *pdev)
 	mc_data->adc = devm_iio_channel_get(&pdev->dev, "adc-detect");
 
 	if (IS_ERR(mc_data->adc)) {
-		if (PTR_ERR(mc_data->adc) != -EPROBE_DEFER) {
-			mc_data->adc = NULL;
-			dev_warn(&pdev->dev, "Failed to get ADC channel");
+		if (PTR_ERR(mc_data->adc) == -EPROBE_DEFER) {
+			dev_warn(&pdev->dev, "deferred by saradc not ready\n");
+			return -EPROBE_DEFER;
 		}
+
+		mc_data->adc = NULL;
+		dev_warn(&pdev->dev, "Has no ADC channel\n");
 	} else {
-		if (mc_data->adc->channel->type != IIO_VOLTAGE)
-			return -EINVAL;
-
-		if (device_property_read_u32(&pdev->dev, "keyup-threshold-microvolt",
-					&mc_data->keyup_voltage)) {
-			dev_warn(&pdev->dev, "Invalid or missing keyup voltage\n");
-			return -EINVAL;
-		}
-		mc_data->keyup_voltage /= 1000;
-
-		ret = mc_keys_load_keymap(&pdev->dev, mc_data);
+		ret = rk_multicodecs_probe_keys(pdev, mc_data);
 		if (ret)
-			return ret;
-
-		input = devm_input_allocate_device(&pdev->dev);
-		if (IS_ERR(input)) {
-			dev_err(&pdev->dev, "Failed to allocate input device\n");
-			return PTR_ERR(input);
-		}
-
-		input_set_drvdata(input, mc_data);
-
-		input->name = "headset-keys";
-		input->phys = "headset-keys/input0";
-		input->id.bustype = BUS_HOST;
-		input->id.vendor = 0x0001;
-		input->id.product = 0x0001;
-		input->id.version = 0x0100;
-
-		__set_bit(EV_KEY, input->evbit);
-		for (i = 0; i < mc_data->num_keys; i++)
-			__set_bit(mc_data->map[i].keycode, input->keybit);
-
-		if (device_property_read_bool(&pdev->dev, "autorepeat"))
-			__set_bit(EV_REP, input->evbit);
-
-		mc_data->input = input;
-		ret = mc_keys_setup_polling(mc_data, mc_keys_poll);
-		if (ret) {
-			dev_err(&pdev->dev, "Failed to set up polling: %d\n", ret);
-			return ret;
-		}
-
-		if (!device_property_read_u32(&pdev->dev, "poll-interval", &value))
-			mc_set_poll_interval(mc_data->poller, value);
-
-		ret = input_register_device(mc_data->input);
-		if (ret) {
-			dev_err(&pdev->dev, "Failed to register input device: %d\n", ret);
-			return ret;
-		}
+			dev_warn(&pdev->dev, "Has no input keys\n");
 	}
 
 	INIT_DEFERRABLE_WORK(&mc_data->handler, adc_jack_handler);

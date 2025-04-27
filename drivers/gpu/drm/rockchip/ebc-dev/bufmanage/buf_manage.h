@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2020 Rockchip Electronics Co. Ltd.
+ * Copyright (c) 2020 Rockchip Electronics Co., Ltd.
  *
  * Author: Zorro Liu <zorro.liu@rock-chips.com>
  */
@@ -30,7 +30,7 @@ struct ebc_buf_s {
 	int win_y1;
 	int win_x2;
 	int win_y2;
-	int needpic;
+	int dropable; //0: can be drop; 1: can't be drop
 };
 
 int ebc_drop_one_dsp_buf(void);

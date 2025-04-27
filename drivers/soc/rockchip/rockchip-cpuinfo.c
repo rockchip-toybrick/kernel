@@ -24,6 +24,44 @@
 unsigned long rockchip_soc_id;
 EXPORT_SYMBOL(rockchip_soc_id);
 
+static int rk3566_soc_init(struct device *dev)
+{
+	struct nvmem_cell *cell;
+	unsigned char *val;
+
+	cell = nvmem_cell_get(dev, "remark_spec_serial_number");
+	if (!IS_ERR(cell)) {
+		val = nvmem_cell_read(cell, NULL);
+		nvmem_cell_put(cell);
+		if (IS_ERR(val))
+			return PTR_ERR(val);
+
+		if (*val) {
+			if (*val == 0x1b)
+				rockchip_soc_id = ROCKCHIP_SOC_RK3566PRO;
+			kfree(val);
+			return 0;
+		}
+
+		kfree(val);
+	}
+
+	cell = nvmem_cell_get(dev, "specification_serial_number");
+	if (!IS_ERR(cell)) {
+		val = nvmem_cell_read(cell, NULL);
+		nvmem_cell_put(cell);
+		if (IS_ERR(val))
+			return PTR_ERR(val);
+
+		if (*val == 0x1b)
+			rockchip_soc_id = ROCKCHIP_SOC_RK3566PRO;
+
+		kfree(val);
+	}
+
+	return 0;
+}
+
 static int rockchip_cpuinfo_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -43,6 +81,9 @@ static int rockchip_cpuinfo_probe(struct platform_device *pdev)
 			rockchip_set_cpu((efuse_buf[0] << 8 | efuse_buf[1]));
 		kfree(efuse_buf);
 	}
+
+	if (cpu_is_rk3566())
+		rk3566_soc_init(dev);
 
 	cell = nvmem_cell_get(dev, "cpu-version");
 	if (!IS_ERR(cell)) {

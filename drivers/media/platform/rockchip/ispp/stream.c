@@ -3100,7 +3100,7 @@ static void tnr_work_event(struct rkispp_device *dev,
 	if (buf_rd)
 		rkispp_params_cfg(&dev->params_vdev[PARAM_VDEV_TNR], buf_rd->frame_id);
 
-	is_en = rkispp_read(dev, RKISPP_TNR_CORE_CTRL) & SW_TNR_EN;
+	is_en = rkispp_read_reg_cache(dev, RKISPP_TNR_CORE_CTRL) & SW_TNR_EN;
 
 	spin_lock_irqsave(&vdev->tnr.buf_lock, lock_flags);
 
@@ -3181,7 +3181,7 @@ static void tnr_work_event(struct rkispp_device *dev,
 		vdev->tnr.nxt_rd = buf_rd;
 		/* first buf for 3to1 using twice */
 		if (!is_3to1 ||
-		    (rkispp_read(dev, RKISPP_TNR_CTRL) & SW_TNR_1ST_FRM))
+		    (rkispp_read_reg_cache(dev, RKISPP_TNR_CTRL) & SW_TNR_1ST_FRM))
 			vdev->tnr.cur_rd = vdev->tnr.nxt_rd;
 	} else if (vdev->tnr.is_end && !list_empty(list)) {
 		/* tnr read buf from list
@@ -3240,7 +3240,7 @@ static void tnr_work_event(struct rkispp_device *dev,
 				val = buf->dma[GROUP_BUF_GAIN];
 				rkispp_write(dev, RKISPP_TNR_GAIN_NXT_Y_BASE, val);
 
-				if (rkispp_read(dev, RKISPP_TNR_CTRL) & SW_TNR_1ST_FRM)
+				if (rkispp_read_reg_cache(dev, RKISPP_TNR_CTRL) & SW_TNR_1ST_FRM)
 					vdev->tnr.cur_rd = NULL;
 			}
 		}
@@ -3322,6 +3322,7 @@ static void tnr_work_event(struct rkispp_device *dev,
 
 		if (!dev->hw_dev->is_shutdown)
 			writel(TNR_ST, base + RKISPP_CTRL_STRT);
+
 		vdev->tnr.is_end = false;
 	}
 

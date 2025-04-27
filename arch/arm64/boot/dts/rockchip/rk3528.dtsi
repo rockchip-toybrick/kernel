@@ -612,7 +612,7 @@
 			  0x82000000 0x0 0xfc200000 0x0 0xfc200000 0x0 0x1e00000
 			  0xc3000000 0x1 0x00000000 0x1 0x00000000 0x0 0x40000000>;
 		reg = <0x0 0xfe4f0000 0x0 0x10000>,
-		      <0x1 0x40000000 0x0 0x400000>;
+		      <0x0 0xfe000000 0x0 0x400000>;
 		reg-names = "pcie-apb", "pcie-dbi";
 		resets = <&cru SRST_RESETN_PCIE_POWER_UP>, <&cru SRST_PRESETN_PCIE>,
 			 <&cru SRST_PRESETN_CRU_PCIE>;
@@ -634,6 +634,8 @@
 			 <&cru ACLK_USB3OTG>;
 		clock-names = "ref_clk", "suspend_clk",
 			      "bus_clk";
+		resets = <&cru SRST_ARESETN_USB3OTG>;
+		reset-names = "usb3-otg";
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
@@ -647,8 +649,6 @@
 			phys = <&u2phy_otg>, <&combphy_pu PHY_TYPE_USB3>;
 			phy-names = "usb2-phy", "usb3-phy";
 			phy_type = "utmi_wide";
-			resets = <&cru SRST_ARESETN_USB3OTG>;
-			reset-names = "usb3-otg";
 			snps,dis_enblslpm_quirk;
 			snps,dis-u1u2-quirk;
 			snps,dis-u2-freeclk-exists-quirk;

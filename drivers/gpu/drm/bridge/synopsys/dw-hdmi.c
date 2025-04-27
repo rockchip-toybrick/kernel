@@ -2177,8 +2177,9 @@ static void hdmi_config_vendor_specific_infoframe(struct dw_hdmi *hdmi,
 		 */
 		return;
 
-	/* if sink support hdmi2.0, don't send vsi */
-	if ((is_hdmi2_sink(&hdmi->connector) && is_vsi_disable(&hdmi->connector)) || !frame.vic) {
+	/* Don't send vsi if not in 4k x 2k or 3d mode */
+	if ((is_hdmi2_sink(&hdmi->connector) && is_vsi_disable(&hdmi->connector)) ||
+	    (!frame.vic && frame.s3d_struct == HDMI_3D_STRUCTURE_INVALID)) {
 		hdmi_mask_writeb(hdmi, 0, HDMI_FC_DATAUTO0, HDMI_FC_DATAUTO0_VSD_OFFSET,
 				 HDMI_FC_DATAUTO0_VSD_MASK);
 		return;
@@ -2208,8 +2209,13 @@ static void hdmi_config_vendor_specific_infoframe(struct dw_hdmi *hdmi,
 	if (frame.s3d_struct >= HDMI_3D_STRUCTURE_SIDE_BY_SIDE_HALF)
 		hdmi_writeb(hdmi, buffer[9], HDMI_FC_VSDPAYLOAD2);
 
-	/* Packet frame interpolation */
-	hdmi_writeb(hdmi, 1, HDMI_FC_DATAUTO1);
+	/*
+	 * HDMI spec requires at least sending vsi once in
+	 * two frames, but it will cause some sinks like NXP
+	 * projector fail to recognize vsi and display error.
+	 * So vsi must be sent once per frame.
+	 */
+	hdmi_writeb(hdmi, 0, HDMI_FC_DATAUTO1);
 
 	/* Auto packets per frame and line spacing */
 	hdmi_writeb(hdmi, 0x11, HDMI_FC_DATAUTO2);
@@ -3030,8 +3036,11 @@ static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
 		dev_dbg(hdmi->dev, "got edid: width[%d] x height[%d]\n",
 			edid->width_cm, edid->height_cm);
 
-		hdmi->support_hdmi = drm_detect_hdmi_monitor(edid);
 		hdmi->sink_has_audio = drm_detect_monitor_audio(edid);
+		if (hdmi->sink_has_audio)
+			hdmi->support_hdmi = true;
+		else
+			hdmi->support_hdmi = drm_detect_hdmi_monitor(edid);
 		hdmi->rgb_quant_range_selectable = drm_rgb_quant_range_selectable(edid);
 		drm_connector_update_edid_property(connector, edid);
 		cec_notifier_set_phys_addr_from_edid(hdmi->cec_notifier, edid);
@@ -4726,7 +4735,13 @@ EXPORT_SYMBOL_GPL(dw_hdmi_unbind);
 
 static void dw_hdmi_reg_initial(struct dw_hdmi *hdmi)
 {
-	if (hdmi_readb(hdmi, HDMI_IH_MUTE)) {
+	/*
+	 * HDMI PD is power off when system suspend, so ih_mute register
+	 * bit0 and bit1 will be reset to 1 when system resume.
+	 * all hdmi interrupt will be mask, that would cause hdmi plugin could
+	 * not be detected.
+	 */
+	if (hdmi_readb(hdmi, HDMI_IH_MUTE) == 0x3) {
 		initialize_hdmi_ih_mutes(hdmi);
 		/* unmute cec irq */
 		hdmi_writeb(hdmi, 0x68, HDMI_IH_MUTE_CEC_STAT0);

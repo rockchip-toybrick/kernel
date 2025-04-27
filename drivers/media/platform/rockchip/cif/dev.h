@@ -31,6 +31,11 @@
 #define OF_CIF_MONITOR_PARA	"rockchip,cif-monitor"
 #define OF_CIF_WAIT_LINE	"wait-line"
 
+/*
+ * max wait time for stream stop
+ */
+#define RKCIF_STOP_MAX_WAIT_TIME_MS	(500)
+
 #define CIF_MONITOR_PARA_NUM	(5)
 
 #define RKCIF_SINGLE_STREAM	1
@@ -71,6 +76,8 @@
 #define RKCIF_DEFAULT_HEIGHT	480
 #define RKCIF_FS_DETECTED_NUM	2
 
+#define RKCIF_MAX_SDITF         4
+
 /*
  * for HDR mode sync buf
  */
@@ -101,11 +108,6 @@ enum rkcif_state {
 	RKCIF_STATE_READY,
 	RKCIF_STATE_STREAMING,
 	RKCIF_STATE_RESET_IN_STREAMING,
-};
-
-enum host_type_t {
-	RK_CSI_RXHOST,
-	RK_DSI_RXHOST
 };
 
 enum rkcif_lvds_pad {
@@ -170,6 +172,7 @@ struct rkcif_buffer {
 		u32 buff_addr[VIDEO_MAX_PLANES];
 		void *vaddr[VIDEO_MAX_PLANES];
 	};
+	int id;
 };
 
 struct rkcif_dummy_buffer {
@@ -260,6 +263,7 @@ struct csi_channel_info {
 	unsigned int crop_st_y;
 	unsigned int dsi_input;
 	struct rkmodule_lvds_cfg lvds_cfg;
+	struct rkmodule_capture_info capture_info;
 };
 
 struct rkcif_vdev_node {
@@ -325,11 +329,9 @@ struct rkcif_readout_stats {
  */
 struct rkcif_irq_stats {
 	u64 csi_overflow_cnt;
-	u64 csi_overflow_timestamp;
 	u64 csi_bwidth_lack_cnt;
 	u64 dvp_bus_err_cnt;
 	u64 dvp_overflow_cnt;
-	u64 dvp_overflow_timestamp;
 	u64 dvp_line_err_cnt;
 	u64 dvp_pix_err_cnt;
 	u64 all_frm_end_cnt;
@@ -394,6 +396,7 @@ struct rkcif_stream {
 	unsigned int			crop_mask;
 	/* lock between irq and buf_queue */
 	struct list_head		buf_head;
+	struct list_head		buf_head_multi_cache;
 	struct rkcif_buffer		*curr_buf;
 	struct rkcif_buffer		*next_buf;
 
@@ -413,7 +416,11 @@ struct rkcif_stream {
 	u64				line_int_cnt;
 	int				vc;
 	u64				streamon_timestamp;
-	struct completion		complete_out;
+	struct completion		stop_complete;
+	struct completion		start_complete;
+	struct tasklet_struct           vb_done_tasklet;
+	struct list_head                vb_done_list;
+	atomic_t			sub_stream_buf_cnt;
 	bool				stopping;
 	bool				crop_enable;
 	bool				crop_dyn_en;
@@ -425,7 +432,10 @@ struct rkcif_stream {
 	bool				is_can_stop;
 	bool				is_buf_active;
 	bool				is_high_align;
-	bool				is_wait;
+	bool				is_single_cap;
+	bool				is_wait_stop_complete;
+	bool				is_finish_single_cap;
+	bool				is_wait_single_cap;
 };
 
 struct rkcif_lvds_subdev {
@@ -477,6 +487,17 @@ static inline struct vb2_queue *to_vb2_queue(struct file *file)
 	return &vnode->buf_queue;
 }
 
+struct rkcif_sensor_work {
+	struct work_struct work;
+	int on;
+};
+
+struct rkcif_stream_info {
+	u32 id;
+	u32 frame_idx_end;
+	struct sditf_priv *priv;
+};
+
 /*
  * struct rkcif_device - ISP platform device
  * @base_addr: base register address
@@ -503,6 +524,7 @@ struct rkcif_device {
 	int				chip_id;
 	atomic_t			stream_cnt;
 	atomic_t			fh_cnt;
+	atomic_t			streamoff_cnt;
 	struct mutex			stream_lock; /* lock between streams */
 	enum rkcif_workmode		workmode;
 	bool				can_be_reset;
@@ -515,7 +537,8 @@ struct rkcif_device {
 	irqreturn_t (*isr_hdl)(int irq, struct rkcif_device *cif_dev);
 	int inf_id;
 
-	struct sditf_priv		*sditf;
+	struct sditf_priv		*sditf[RKCIF_MAX_SDITF];
+	int                             sditf_cnt;
 	struct proc_dir_entry		*proc_dir;
 	struct rkcif_irq_stats		irq_stats;
 	spinlock_t			hdr_lock; /* lock for hdr buf sync */
@@ -527,10 +550,21 @@ struct rkcif_device {
 	unsigned int			wait_line_bak;
 	unsigned int			wait_line_cache;
 	struct rkcif_dummy_buffer	dummy_buf;
+	struct rkcif_sensor_work	sensor_work;
+	int				resume_mode;
+	struct rkcif_stream_info	cur_stream;
+	struct rkcif_exp_delay		exp_delay;
+	struct work_struct		exp_work;
+	struct rkcif_dummy_buffer	*buf_user[VIDEO_MAX_FRAME];
+	struct list_head		effect_time_head;
+	struct list_head		effect_gain_head;
+	spinlock_t                      stream_spinlock;
+	int				exp_dbg;
 	bool				is_start_hdr;
 	bool				iommu_en;
 	bool				is_use_dummybuf;
-	bool				is_in_reset;
+	bool				is_alloc_buf_user;
+	bool				is_camera_over_bridge;
 };
 
 extern struct platform_driver rkcif_plat_drv;
@@ -575,5 +609,7 @@ void rkcif_config_dvp_clk_sampling_edge(struct rkcif_device *dev,
 void rkcif_enable_dvp_clk_dual_edge(struct rkcif_device *dev, bool on);
 void rkcif_reset_work(struct work_struct *work);
 void rkcif_monitor_reset_event(struct rkcif_hw *hw);
+int rkcif_stream_suspend(struct rkcif_device *cif_dev);
+int rkcif_stream_resume(struct rkcif_device *cif_dev);
 
 #endif

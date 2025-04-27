@@ -146,22 +146,26 @@
 		rockchip,pvtm-temp-prop = <(-40) 13>;
 		rockchip,pvtm-thermal-zone = "cpu-thermal";
 
+		rockchip,temp-hysteresis = <5000>;
+		rockchip,low-temp = <10000>;
+		rockchip,low-temp-min-volt = <800000>;
+
 		opp-408000000 {
 			opp-hz = /bits/ 64 <408000000>;
-			opp-microvolt = <725000 725000 1000000>;
-			opp-microvolt-L0 = <725000 725000 1000000>;
+			opp-microvolt = <750000 750000 1000000>;
+			opp-microvolt-L0 = <750000 750000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-600000000 {
 			opp-hz = /bits/ 64 <600000000>;
-			opp-microvolt = <725000 725000 1000000>;
-			opp-microvolt-L0 = <725000 725000 1000000>;
+			opp-microvolt = <750000 750000 1000000>;
+			opp-microvolt-L0 = <750000 750000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-816000000 {
 			opp-hz = /bits/ 64 <816000000>;
-			opp-microvolt = <725000 725000 1000000>;
-			opp-microvolt-L0 = <750000 750000 1000000>;
+			opp-microvolt = <750000 750000 1000000>;
+			opp-microvolt-L0 = <775000 775000 1000000>;
 			clock-latency-ns = <40000>;
 			opp-suspend;
 		};
@@ -458,6 +462,9 @@
 
 	rockchip_system_monitor: rockchip-system-monitor {
 		compatible = "rockchip,system-monitor";
+
+		rockchip,thermal-zone = "cpu-thermal";
+		rockchip,polling-delay = <200>; /* milliseconds */
 	};
 
 	thermal_zones: thermal-zones {
@@ -2239,15 +2246,19 @@
 
 		rockchip,evb-irdrop = <25000>;
 
+		rockchip,temp-hysteresis = <5000>;
+		rockchip,low-temp = <10000>;
+		rockchip,low-temp-min-volt = <800000>;
+
 		/* The source clock is CLK_VENC_CORE */
 		opp-297000000 {
 			opp-hz = /bits/ 64 <297000000>;
-			opp-microvolt = <725000 725000 1000000>;
+			opp-microvolt = <750000 750000 1000000>;
 			opp-microvolt-L0 = <750000 750000 1000000>;
 		};
 		opp-396000000 {
 			opp-hz = /bits/ 64 <396000000>;
-			opp-microvolt = <725000 725000 1000000>;
+			opp-microvolt = <750000 750000 1000000>;
 			opp-microvolt-L0 = <775000 775000 1000000>;
 		};
 		opp-500000000 {
@@ -2463,29 +2474,33 @@
 		rockchip,pvtm-temp-prop = <(-29) 0>;
 		rockchip,pvtm-thermal-zone = "npu-thermal";
 
+		rockchip,temp-hysteresis = <5000>;
+		rockchip,low-temp = <10000>;
+		rockchip,low-temp-min-volt = <800000>;
+
 		opp-200000000 {
 			opp-hz = /bits/ 64 <200000000>;
-			opp-microvolt = <750000 750000 1000000>;
+			opp-microvolt = <775000 775000 1000000>;
 			opp-microvolt-L0 = <800000 800000 1000000>;
 		};
 		opp-300000000 {
 			opp-hz = /bits/ 64 <300000000>;
-			opp-microvolt = <750000 750000 1000000>;
+			opp-microvolt = <775000 775000 1000000>;
 			opp-microvolt-L0 = <800000 800000 1000000>;
 		};
 		opp-396000000 {
 			opp-hz = /bits/ 64 <396000000>;
-			opp-microvolt = <750000 750000 1000000>;
+			opp-microvolt = <775000 775000 1000000>;
 			opp-microvolt-L0 = <800000 800000 1000000>;
 		};
 		opp-500000000 {
 			opp-hz = /bits/ 64 <500000000>;
-			opp-microvolt = <750000 750000 1000000>;
+			opp-microvolt = <775000 775000 1000000>;
 			opp-microvolt-L0 = <800000 800000 1000000>;
 		};
 		opp-600000000 {
 			opp-hz = /bits/ 64 <600000000>;
-			opp-microvolt = <750000 750000 1000000>;
+			opp-microvolt = <775000 775000 1000000>;
 			opp-microvolt-L0 = <800000 800000 1000000>;
 		};
 		opp-700000000 {
@@ -2493,7 +2508,7 @@
 			opp-microvolt = <800000 800000 1000000>;
 			opp-microvolt-L1 = <800000 800000 1000000>;
 			opp-microvolt-L2 = <775000 775000 1000000>;
-			opp-microvolt-L3 = <750000 750000 1000000>;
+			opp-microvolt-L3 = <775000 775000 1000000>;
 		};
 		opp-800000000 {
 			opp-hz = /bits/ 64 <800000000>;

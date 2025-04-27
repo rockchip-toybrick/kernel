@@ -1936,11 +1936,69 @@ static void *get_dma_ptr(struct snd_pcm_runtime *runtime,
 		channel * (runtime->dma_bytes / runtime->channels);
 }
 
+/*
+ * MSB check
+ * channel id
+ * as much as more 0/1 stress
+ */
+#define PATTERN8(x)	(0xa0 | (x))
+#define PATTERN16(x)	(0xab00 | (x))
+#define PATTERN32(x)	(0xabcabc00 | (x))
+
+static void snd_fill_pattern_frame(char *buf, int bits, int ch)
+{
+	unsigned char *ptr8 = (unsigned char *)buf;
+	unsigned short *ptr16 = (unsigned short *)buf;
+	unsigned int *ptr32 = (unsigned int *)buf;
+	int i = 0;
+
+	switch (bits) {
+	case 8:
+		for (i = 0; i < ch; i++)
+			ptr8[i] = PATTERN8(i + 1);
+		break;
+	case 16:
+		for (i = 0; i < ch; i++)
+			ptr16[i] = PATTERN16(i + 1);
+		break;
+	case 32:
+		for (i = 0; i < ch; i++)
+			ptr32[i] = PATTERN32(i + 1);
+		break;
+	default:
+		pr_err("invalid bits: %d\n", bits);
+		break;
+	}
+}
+
+static int snd_fill_pattern(struct snd_pcm_substream *substream,
+			    int channels, unsigned long hwoff,
+			    unsigned long bytes)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	snd_pcm_uframes_t frames;
+	void *buf;
+	int i = 0;
+
+	buf = get_dma_ptr(substream->runtime, channels, hwoff);
+	frames = bytes_to_frames(runtime, bytes);
+
+	for (i = 0; i < frames; i++) {
+		snd_fill_pattern_frame(buf, runtime->sample_bits, runtime->channels);
+		buf += frames_to_bytes(runtime, 1);
+	}
+
+	return 0;
+}
+
 /* default copy_user ops for write; used for both interleaved and non- modes */
 static int default_write_copy(struct snd_pcm_substream *substream,
 			      int channel, unsigned long hwoff,
 			      void *buf, unsigned long bytes)
 {
+	if (IS_ENABLED(CONFIG_SND_PCM_PATTERN_DEBUG))
+		return snd_fill_pattern(substream, channel, hwoff, bytes);
+
 	if (copy_from_user(get_dma_ptr(substream->runtime, channel, hwoff),
 			   (void __user *)buf, bytes))
 		return -EFAULT;
@@ -2184,11 +2242,16 @@ snd_pcm_sframes_t __snd_pcm_lib_xfer(struct snd_pcm_substream *substream,
 		goto _end_unlock;
 
 	if (!is_playback &&
-	    runtime->status->state == SNDRV_PCM_STATE_PREPARED &&
-	    size >= runtime->start_threshold) {
-		err = snd_pcm_start(substream);
-		if (err < 0)
+	    runtime->status->state == SNDRV_PCM_STATE_PREPARED) {
+		if (size >= runtime->start_threshold) {
+			err = snd_pcm_start(substream);
+			if (err < 0)
+				goto _end_unlock;
+		} else {
+			/* nothing to do */
+			err = 0;
 			goto _end_unlock;
+		}
 	}
 
 	runtime->twake = runtime->control->avail_min ? : 1;
@@ -2227,10 +2290,15 @@ snd_pcm_sframes_t __snd_pcm_lib_xfer(struct snd_pcm_substream *substream,
 			snd_pcm_stream_unlock_irq(substream);
 			return -EINVAL;
 		}
+		if (!atomic_inc_unless_negative(&runtime->buffer_accessing)) {
+			err = -EBUSY;
+			goto _end_unlock;
+		}
 		snd_pcm_stream_unlock_irq(substream);
 		err = writer(substream, appl_ofs, data, offset, frames,
 			     transfer);
 		snd_pcm_stream_lock_irq(substream);
+		atomic_dec(&runtime->buffer_accessing);
 		if (err < 0)
 			goto _end_unlock;
 		err = pcm_accessible_state(runtime);

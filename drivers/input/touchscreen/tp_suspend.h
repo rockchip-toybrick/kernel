@@ -13,7 +13,7 @@
 #include <linux/err.h>
 #include <linux/fb.h>
 #include <linux/notifier.h>
-#include "../../gpu/drm/rockchip/ebc-dev/ebc_dev.h"
+#include <linux/ebc.h>
 
 struct  tp_device{
 	struct notifier_block fb_notif;

@@ -39,6 +39,7 @@
 #include <linux/types.h>
 #include <linux/uaccess.h>
 #include <linux/pci-epf.h>
+#include <linux/aspm_ext.h>
 
 #include "pcie-designware.h"
 #include "../../pci.h"
@@ -404,6 +405,24 @@ static inline void rk_pcie_disable_ltssm(struct rk_pcie *rk_pcie)
 static inline void rk_pcie_enable_ltssm(struct rk_pcie *rk_pcie)
 {
 	rk_pcie_writel_apb(rk_pcie, 0x0, 0xC000C);
+}
+
+static int rk_pcie_link_up(struct dw_pcie *pci)
+{
+	struct rk_pcie *rk_pcie = to_rk_pcie(pci);
+	u32 val;
+
+	if (rk_pcie->is_rk1808) {
+		val = rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_GENERAL_DEBUG);
+		if ((val & (PCIE_PHY_LINKUP | PCIE_DATA_LINKUP)) == 0x3)
+			return 1;
+	} else {
+		val = rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_LTSSM_STATUS);
+		if ((val & (RDLH_LINKUP | SMLH_LINKUP)) == 0x30000)
+			return 1;
+	}
+
+	return 0;
 }
 
 static void rk_pcie_enable_debug(struct rk_pcie *rk_pcie)
@@ -1212,6 +1231,7 @@ MODULE_DEVICE_TABLE(of, rk_pcie_of_match);
 
 static const struct dw_pcie_ops dw_pcie_ops = {
 	.start_link = rk_pcie_establish_link,
+	.link_up = rk_pcie_link_up,
 };
 
 static int rk1808_pcie_fixup(struct rk_pcie *rk_pcie, struct device_node *np)
@@ -1938,6 +1958,45 @@ err:
 
 	return ret;
 }
+
+int rockchip_dw_pcie_pm_ctrl_for_user(struct pci_dev *dev, enum rockchip_pcie_pm_ctrl_flag flag)
+{
+	struct dw_pcie *pci;
+	struct rk_pcie *rk_pcie;
+	u32 intr_mask;
+
+	if (!dev || !dev->bus || !dev->bus->sysdata) {
+		pr_err("%s input invalid\n", __func__);
+		return -EINVAL;
+	}
+
+	pci = to_dw_pcie_from_pp((struct pcie_port *)(dev->bus->sysdata));
+	rk_pcie = to_rk_pcie(pci);
+
+	switch (flag) {
+	case ROCKCHIP_PCIE_PM_CTRL_RESET:
+		/*
+		 * suspend and resume should be called in noirq context, masking and
+		 * unmasking local irq to prevent hunging for accessing died controller
+		 * if serving irq, for instance, hot reset case.
+		 */
+		intr_mask = rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_INTR_MASK);
+		rk_pcie_writel_apb(rk_pcie, PCIE_CLIENT_INTR_MASK, 0xffffffff);
+		rockchip_dw_pcie_suspend(rk_pcie->pci->dev);
+		rockchip_dw_pcie_resume(rk_pcie->pci->dev);
+		rk_pcie_writel_apb(rk_pcie, PCIE_CLIENT_INTR_MASK, intr_mask | 0xffff0000);
+		break;
+	default:
+		dev_err(rk_pcie->pci->dev, "%s flag=%d invalid\n", __func__, flag);
+		return -EINVAL;
+	}
+
+	dev_info(rk_pcie->pci->dev, "%s ltssm=%x\n", __func__,
+		 rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_LTSSM_STATUS));
+
+	return 0;
+}
+EXPORT_SYMBOL(rockchip_dw_pcie_pm_ctrl_for_user);
 
 static const struct dev_pm_ops rockchip_dw_pcie_pm_ops = {
 	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(rockchip_dw_pcie_suspend,

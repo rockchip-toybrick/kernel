@@ -133,7 +133,6 @@
 		nvmem-cell-names = "leakage", "pvtm", "mbist-vmin", "opp-info",
 				   "specification_serial_number", "remark_spec_serial_number";
 		rockchip,supported-hw;
-		rockchip,max-volt = <1150000>;
 		rockchip,pvtm-voltage-sel = <
 			0        84000   0
 			84001    87000   1
@@ -261,8 +260,10 @@
 
 	cpuinfo {
 		compatible = "rockchip,cpuinfo";
-		nvmem-cells = <&otp_id>, <&otp_cpu_version>, <&cpu_code>;
-		nvmem-cell-names = "id", "cpu-version", "cpu-code";
+		nvmem-cells = <&otp_id>, <&otp_cpu_version>, <&cpu_code>,
+			      <&specification_serial_number>, <&remark_spec_serial_number>;
+		nvmem-cell-names = "id", "cpu-version", "cpu-code",
+				   "specification_serial_number", "remark_spec_serial_number";
 	};
 
 	display_subsystem: display-subsystem {
@@ -826,11 +827,13 @@
 					lvds1_in_vp1: endpoint@0 {
 						reg = <0>;
 						remote-endpoint = <&vp1_out_lvds1>;
+						status = "disabled";
 					};
 
 					lvds1_in_vp2: endpoint@1 {
 						reg = <1>;
 						remote-endpoint = <&vp2_out_lvds1>;
+						status = "disabled";
 					};
 				};
 			};
@@ -1851,6 +1854,24 @@
 		status = "disabled";
 	};
 
+	rkcif_mipi_lvds_sditf_vir1: rkcif_mipi_lvds_sditf_vir1 {
+		compatible = "rockchip,rkcif-sditf";
+		rockchip,cif = <&rkcif_mipi_lvds>;
+		status = "disabled";
+	};
+
+	rkcif_mipi_lvds_sditf_vir2: rkcif_mipi_lvds_sditf_vir2 {
+		compatible = "rockchip,rkcif-sditf";
+		rockchip,cif = <&rkcif_mipi_lvds>;
+		status = "disabled";
+	};
+
+	rkcif_mipi_lvds_sditf_vir3: rkcif_mipi_lvds_sditf_vir3 {
+		compatible = "rockchip,rkcif-sditf";
+		rockchip,cif = <&rkcif_mipi_lvds>;
+		status = "disabled";
+	};
+
 	rkisp: rkisp@fdff0000 {
 		compatible = "rockchip,rk3568-rkisp";
 		reg = <0x0 0xfdff0000 0x0 0x10000>;
@@ -1889,6 +1910,24 @@
 	};
 
 	rkisp_vir1: rkisp-vir1 {
+		compatible = "rockchip,rkisp-vir";
+		rockchip,hw = <&rkisp>;
+		status = "disabled";
+	};
+
+	rkisp_vir2: rkisp-vir2 {
+		compatible = "rockchip,rkisp-vir";
+		rockchip,hw = <&rkisp>;
+		status = "disabled";
+	};
+
+	rkisp_vir3: rkisp-vir3 {
+		compatible = "rockchip,rkisp-vir";
+		rockchip,hw = <&rkisp>;
+		status = "disabled";
+	};
+
+	rkisp_vir4: rkisp-vir4 {
 		compatible = "rockchip,rkisp-vir";
 		rockchip,hw = <&rkisp>;
 		status = "disabled";

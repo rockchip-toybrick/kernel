@@ -8,6 +8,8 @@
 #ifndef _PHY_ROCKCHIP_CSI2_DPHY_COMMON_H_
 #define _PHY_ROCKCHIP_CSI2_DPHY_COMMON_H_
 
+#include <linux/rk-camera-module.h>
+
 /* add new chip id in tail by time order */
 enum csi2_dphy_chip_id {
 	CHIP_ID_RK3568 = 0x0,
@@ -95,6 +97,8 @@ struct csi2_dphy_hw {
 
 	int (*stream_on)(struct csi2_dphy *dphy, struct v4l2_subdev *sd);
 	int (*stream_off)(struct csi2_dphy *dphy, struct v4l2_subdev *sd);
+	int (*quick_stream_on)(struct csi2_dphy *dphy, struct v4l2_subdev *sd);
+	int (*quick_stream_off)(struct csi2_dphy *dphy, struct v4l2_subdev *sd);
 };
 
 extern struct platform_driver rockchip_csi2_dphy_driver;

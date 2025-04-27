@@ -4,6 +4,12 @@
 
 if VIDEO_V4L2
 
+config VIDEO_CAM_SLEEP_WAKEUP
+	tristate "Enable sensor sleep wake up function"
+	depends on ARCH_ROCKCHIP
+	help
+	  Support for sensor sleep and wake up.
+
 config VIDEO_IR_I2C
 	tristate "I2C module for IR" if !MEDIA_SUBDRV_AUTOSELECT
 	depends on I2C && RC_CORE
@@ -585,6 +591,8 @@ config VIDEO_VPX3220
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called vpx3220.
+
+source "drivers/media/i2c/maxim/Kconfig"
 
 comment "Video and audio decoders"
 
@@ -2315,15 +2323,6 @@ config VIDEO_MP6507
 	help
 	  This a driver used pwm to drive motor
 
-config VIDEO_LT7911D
-        tristate "LONTIUM LT7911D  support"
-        depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
-        depends on MEDIA_CAMERA_SUPPORT
-        ---help---
-          This is a Video4Linux2 sensor driver for LONTIUM LT7911D.
-
-          To compile this driver as a module, choose M here: the
-          module will be called lt7911d.
 endmenu
 
 menu "Sensors used on soc_camera driver"

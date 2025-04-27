@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2020 Rockchip Electronics Co. Ltd.
+ * Copyright (c) 2020 Rockchip Electronics Co., Ltd.
  *
  * Author: Zorro Liu <zorro.liu@rock-chips.com>
  */
@@ -8,6 +8,7 @@
 #ifndef __EBC_DEV_H__
 #define __EBC_DEV_H__
 
+#include <linux/ebc.h>
 #include <linux/notifier.h>
 
 /*
@@ -37,14 +38,6 @@
 #define EBC_Y8 (1)
 
 /*
- * ebc status notify
- */
-#define EBC_OFF			(0)
-#define EBC_ON			(1)
-#define EBC_FB_BLANK		(2)
-#define EBC_FB_UNBLANK		(3)
-
-/*
  * ebc system ioctl command
  */
 #define EBC_GET_BUFFER				(0x7000)
@@ -66,6 +59,22 @@
 #define EBC_GET_BUF_FORMAT		(0x7010)
 #define EBC_DROP_PREV_BUFFER		(0x7011)
 #define EBC_GET_STATUS				(0x7012)
+#define EBC_SET_FB_BLANK				(0x7013)
+#define EBC_SET_FB_UNBLANK			(0x7014)
+#define EBC_ENABLE_REPAIR			(0x7015)
+#define EBC_ENABLE_HIGH_FPS			(0x7016)
+#define EBC_GET_NORMAL_REPAIR		(0x7017)
+#define EBC_SET_FULL_REFRESH_WIDTH	(0x7018)
+#define EBC_SET_FULL_REFRESH_TYPE	(0x7019)
+
+enum full_refresh_type {
+	NORMAL_FULL_REFRESH,
+	CIRCULAR_OUTWARD_REFRESH,
+	DIAMOND_OUTWARD_REFRESH,
+	RECTANGLE_OUTWARD_REFRESH,
+	CROSS_OUTWARD_REFRESH,
+	MAX_FULL_REFRESH_TYPE,
+};
 
 /*
  * IMPORTANT: Those values is corresponding to android hardware program,
@@ -86,7 +95,7 @@ enum panel_refresh_mode {
 	EPD_PART_GLD16		= 10,
 	EPD_PART_GCC16		= 11,
 	EPD_A2			= 12,
-	EPD_A2_DITHER	        = 13,
+	EPD_A2_FAST	        = 13,
 	EPD_DU			= 14,
 	EPD_DU4			= 15,
 	EPD_A2_ENTER		= 16,
@@ -114,29 +123,9 @@ struct ebc_buf_info {
 	int win_y2;
 	int width_mm;
 	int height_mm;
-	int needpic;	// 1: buf can not be drop by ebc, 0: buf can drop by ebc 2: regal buf, can not be drop by ebc
+	int dropable;	//0: canbe drop by userspace, 1: can't be drop by userspace
 	char tid_name[16];
+	int dma_buf_fd;
 };
-
-#if IS_ENABLED(CONFIG_ROCKCHIP_EBC_DEV)
-int ebc_register_notifier(struct notifier_block *nb);
-int ebc_unregister_notifier(struct notifier_block *nb);
-int ebc_notify(unsigned long event);
-#else
-static inline int ebc_register_notifier(struct notifier_block *nb)
-{
-	return 0;
-}
-
-static inline int ebc_unregister_notifier(struct notifier_block *nb)
-{
-	return 0;
-}
-
-static inline int ebc_notify(unsigned long event)
-{
-	return 0;
-}
-#endif
 
 #endif

@@ -350,24 +350,34 @@ static void csi2_dphy_config_dual_mode(struct csi2_dphy *dphy,
 			write_grf_reg(hw, GRF_DPHY_CSI2PHY_DATALANE_EN0,
 				      GENMASK(sensor->lanes - 1, 0));
 			write_grf_reg(hw, GRF_DPHY_CSI2PHY_CLKLANE_EN, 0x1);
-			if (is_cif)
+			if (is_cif) {
 				write_grf_reg(hw, GRF_DPHY_CIF_CSI2PHY_SEL,
 					      GRF_CSI2PHY_SEL_SPLIT_0_1);
-			else
+				write_grf_reg(hw, GRF_DPHY_ISP_CSI2PHY_SEL,
+					      GRF_CSI2PHY_SEL_SPLIT_2_3);
+			} else {
 				write_grf_reg(hw, GRF_DPHY_ISP_CSI2PHY_SEL,
 					      GRF_CSI2PHY_SEL_SPLIT_0_1);
+				write_grf_reg(hw, GRF_DPHY_CIF_CSI2PHY_SEL,
+					      GRF_CSI2PHY_SEL_SPLIT_2_3);
+			}
 		}
 
 		if (dphy->phy_index == DPHY2) {
 			write_grf_reg(hw, GRF_DPHY_CSI2PHY_DATALANE_EN1,
 				      GENMASK(sensor->lanes - 1, 0));
 			write_grf_reg(hw, GRF_DPHY_CSI2PHY_CLKLANE1_EN, 0x1);
-			if (is_cif)
+			if (is_cif) {
 				write_grf_reg(hw, GRF_DPHY_CIF_CSI2PHY_SEL,
 					      GRF_CSI2PHY_SEL_SPLIT_2_3);
-			else
+				write_grf_reg(hw, GRF_DPHY_ISP_CSI2PHY_SEL,
+					      GRF_CSI2PHY_SEL_SPLIT_0_1);
+			} else {
 				write_grf_reg(hw, GRF_DPHY_ISP_CSI2PHY_SEL,
 					      GRF_CSI2PHY_SEL_SPLIT_2_3);
+				write_grf_reg(hw, GRF_DPHY_CIF_CSI2PHY_SEL,
+					      GRF_CSI2PHY_SEL_SPLIT_0_1);
+			}
 		}
 	}
 }
@@ -525,6 +535,80 @@ static int csi2_dphy_hw_stream_off(struct csi2_dphy *dphy,
 	return 0;
 }
 
+static int csi2_dphy_hw_quick_stream_on(struct csi2_dphy *dphy,
+					struct v4l2_subdev *sd)
+{
+	struct v4l2_subdev *sensor_sd = get_remote_sensor(sd);
+	struct csi2_sensor *sensor;
+	struct csi2_dphy_hw *hw = dphy->dphy_hw;
+	u32 val = 0, pre_val = 0;
+
+	if (!sensor_sd)
+		return -ENODEV;
+	sensor = sd_to_sensor(dphy, sensor_sd);
+	if (!sensor)
+		return -ENODEV;
+
+	read_csi2_dphy_reg(hw, CSI2PHY_REG_CTRL_LANE_ENABLE, &pre_val);
+	if (hw->lane_mode == LANE_MODE_FULL) {
+		val |= (GENMASK(sensor->lanes - 1, 0) <<
+			CSI2_DPHY_CTRL_DATALANE_ENABLE_OFFSET_BIT) |
+			(0x1 << CSI2_DPHY_CTRL_CLKLANE_ENABLE_OFFSET_BIT);
+	} else {
+		if (!(pre_val & (0x1 << CSI2_DPHY_CTRL_CLKLANE_ENABLE_OFFSET_BIT)))
+			val |= (0x1 << CSI2_DPHY_CTRL_CLKLANE_ENABLE_OFFSET_BIT);
+
+		if (dphy->phy_index % 3 == DPHY1)
+			val |= (GENMASK(sensor->lanes - 1, 0) <<
+				CSI2_DPHY_CTRL_DATALANE_ENABLE_OFFSET_BIT);
+
+		if (dphy->phy_index % 3 == DPHY2) {
+			val |= (GENMASK(sensor->lanes - 1, 0) <<
+				CSI2_DPHY_CTRL_DATALANE_SPLIT_LANE2_3_OFFSET_BIT);
+		}
+	}
+	pre_val |= val;
+	write_csi2_dphy_reg(hw, CSI2PHY_REG_CTRL_LANE_ENABLE, pre_val);
+	return 0;
+}
+
+static int csi2_dphy_hw_quick_stream_off(struct csi2_dphy *dphy,
+					 struct v4l2_subdev *sd)
+{
+	struct v4l2_subdev *sensor_sd = get_remote_sensor(sd);
+	struct csi2_sensor *sensor;
+	struct csi2_dphy_hw *hw = dphy->dphy_hw;
+	u32 val = 0, pre_val = 0;
+
+	if (!sensor_sd)
+		return -ENODEV;
+	sensor = sd_to_sensor(dphy, sensor_sd);
+	if (!sensor)
+		return -ENODEV;
+
+	read_csi2_dphy_reg(hw, CSI2PHY_REG_CTRL_LANE_ENABLE, &pre_val);
+	if (hw->lane_mode == LANE_MODE_FULL) {
+		val |= (GENMASK(sensor->lanes - 1, 0) <<
+			CSI2_DPHY_CTRL_DATALANE_ENABLE_OFFSET_BIT) |
+			(0x1 << CSI2_DPHY_CTRL_CLKLANE_ENABLE_OFFSET_BIT);
+	} else {
+		if (!(pre_val & (0x1 << CSI2_DPHY_CTRL_CLKLANE_ENABLE_OFFSET_BIT)))
+			val |= (0x1 << CSI2_DPHY_CTRL_CLKLANE_ENABLE_OFFSET_BIT);
+
+		if (dphy->phy_index % 3 == DPHY1)
+			val |= (GENMASK(sensor->lanes - 1, 0) <<
+				CSI2_DPHY_CTRL_DATALANE_ENABLE_OFFSET_BIT);
+
+		if (dphy->phy_index % 3 == DPHY2) {
+			val |= (GENMASK(sensor->lanes - 1, 0) <<
+				CSI2_DPHY_CTRL_DATALANE_SPLIT_LANE2_3_OFFSET_BIT);
+		}
+	}
+	pre_val &= ~val;
+	write_csi2_dphy_reg(hw, CSI2PHY_REG_CTRL_LANE_ENABLE, pre_val);
+	return 0;
+}
+
 static void rk3568_csi2_dphy_hw_individual_init(struct csi2_dphy_hw *hw)
 {
 	hw->grf_regs = rk3568_grf_dphy_regs;
@@ -618,6 +702,8 @@ static int rockchip_csi2_dphy_hw_probe(struct platform_device *pdev)
 	}
 	dphy_hw->stream_on = csi2_dphy_hw_stream_on;
 	dphy_hw->stream_off = csi2_dphy_hw_stream_off;
+	dphy_hw->quick_stream_on = csi2_dphy_hw_quick_stream_on;
+	dphy_hw->quick_stream_off = csi2_dphy_hw_quick_stream_off;
 
 	atomic_set(&dphy_hw->stream_cnt, 0);
 

@@ -786,6 +786,14 @@ static int rockchip_hdmi_parse_dt(struct rockchip_hdmi *hdmi)
 	return 0;
 }
 
+static bool is_hdmi2_mode(const struct drm_display_mode *mode)
+{
+	if (mode->clock > 340000 && mode->clock <= 600000)
+		return true;
+
+	return false;
+}
+
 static enum drm_mode_status
 dw_hdmi_rockchip_mode_valid(struct drm_connector *connector,
 			    const struct drm_display_mode *mode)
@@ -821,20 +829,31 @@ dw_hdmi_rockchip_mode_valid(struct drm_connector *connector,
 
 	hdmi = to_rockchip_hdmi(encoder);
 
-	/*
-	 * If sink max TMDS clock < 340MHz, we should check the mode pixel
-	 * clock > 340MHz is YCbCr420 or not and whether the platform supports
-	 * YCbCr420.
-	 */
 	if (!hdmi->skip_check_420_mode) {
-		if (mode->clock > 340000 &&
-		    connector->display_info.max_tmds_clock < 340000 &&
+		u32 max_tmds_clock = connector->display_info.max_tmds_clock;
+
+		/* some sinks edid max_tmds_clocks are 0, we think it only support hdmi1.4 */
+		if (!connector->display_info.max_tmds_clock)
+			max_tmds_clock = 340000;
+
+		/* edid isn't support yuv420 and max_tmds_clock is less than mode pixel clk */
+		if (mode->clock < 600000 && max_tmds_clock < mode->clock &&
 		    (!drm_mode_is_420(&connector->display_info, mode) ||
 		     !connector->ycbcr_420_allowed))
 			return MODE_BAD;
 
-		if (hdmi->max_tmdsclk <= 340000 && mode->clock > 340000 &&
+		/* edid isn't support yuv420 and hdmitx only support hdmi1.4 clk */
+		if (hdmi->max_tmdsclk <= 340000 && is_hdmi2_mode(mode) &&
 		    !drm_mode_is_420(&connector->display_info, mode))
+			return MODE_BAD;
+
+		/*
+		 * hdmi cts hf1-31 required filtering yuv420 mode that frequency
+		 * exceeds the max_tmds_clock of edid.
+		 */
+		if (drm_mode_is_420(&connector->display_info, mode) &&
+		    max_tmds_clock < (mode->clock / 2) &&
+		    is_hdmi2_mode(mode))
 			return MODE_BAD;
 	};
 
@@ -1107,6 +1126,9 @@ dw_hdmi_rockchip_select_output(struct drm_connector_state *conn_state,
 		if (info->color_formats & DRM_COLOR_FORMAT_YCRCB422)
 			*color_format = DRM_HDMI_OUTPUT_YCBCR422;
 	}
+
+	if (drm_mode_is_420_only(info, mode))
+		*color_format = DRM_HDMI_OUTPUT_YCBCR420;
 
 	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
 		pixclock *= 2;

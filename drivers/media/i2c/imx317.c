@@ -10,7 +10,6 @@
  * V0.0X01.0X04 adjust exposue and gain control issues.
  * V0.0X01.0X05 add quick stream on/off
  * V0.0X01.0X06 add function g_mbus_config
- * V0.0X01.0X07 fix set hdr error
  */
 
 #include <linux/clk.h>
@@ -866,7 +865,6 @@ static void imx317_get_module_inf(struct imx317 *imx317,
 static long imx317_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct imx317 *imx317 = to_imx317(sd);
-	struct rkmodule_hdr_cfg *hdr;
 	long ret = 0;
 	u32 stream = 0;
 
@@ -884,14 +882,6 @@ static long imx317_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		else
 			imx317_write_reg(imx317->client, IMX317_REG_CTRL_MODE,
 				IMX317_REG_VALUE_08BIT, IMX317_MODE_SW_STANDBY);
-		break;
-	case RKMODULE_GET_HDR_CFG:
-		hdr = (struct rkmodule_hdr_cfg *)arg;
-		hdr->esp.mode = HDR_NORMAL_VC;
-		hdr->hdr_mode = NO_HDR;
-		break;
-	case RKMODULE_SET_HDR_CFG:
-		/* do nothing */
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -1419,7 +1409,7 @@ static int imx317_check_sensor_id(struct imx317 *imx317,
 
 	ret = imx317_read_reg(client, IMX317_REG_CHIP_ID,
 			      IMX317_REG_VALUE_08BIT, &id);
-	if (id != CHIP_ID || ret != 0) {
+	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
 		return -ENODEV;
 	}

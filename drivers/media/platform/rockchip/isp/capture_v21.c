@@ -654,12 +654,12 @@ static void update_dmatx_v2(struct rkisp_stream *stream)
 
 		if ((stream->id == RKISP_STREAM_DMATX0 ||
 		     stream->id == RKISP_STREAM_DMATX2)) {
-			buf = hdr_dqbuf(&dev->hdr.q_tx[index]);
+			buf = rkisp_hdr_dqbuf(&dev->hdr.q_tx[index]);
 			if (IS_HDR_RDBK(dev->hdr.op_mode) &&
 			    !dev->dmarx_dev.trigger)
-				hdr_qbuf(&dev->hdr.q_rx[index], buf);
+				rkisp_hdr_qbuf(&dev->hdr.q_rx[index], buf);
 			else
-				hdr_qbuf(&dev->hdr.q_tx[index], buf);
+				rkisp_hdr_qbuf(&dev->hdr.q_tx[index], buf);
 		}
 		if (!buf && dev->hw_dev->dummy_buf.mem_priv) {
 			buf = &dev->hw_dev->dummy_buf;
@@ -769,7 +769,7 @@ static struct streams_ops rkisp2_dmatx2_streams_ops = {
 	.config_mi = dmatx2_config_mi,
 	.enable_mi = dmatx_enable_mi,
 	.stop_mi = dmatx_stop_mi,
-	.is_stream_stopped = dmatx2_is_stream_stopped,
+	.is_stream_stopped = dmatx1_is_stream_stopped,
 	.update_mi = update_dmatx_v2,
 	.frame_end = mi_frame_end,
 };
@@ -905,6 +905,8 @@ static int mi_frame_end(struct rkisp_stream *stream)
 			atomic_set(&stream->sequence, i);
 			stream->curr_buf->vb.sequence = i;
 		} else {
+			if (dev->only_rawwr)
+				atomic_inc(&stream->sequence);
 			stream->curr_buf->vb.sequence =
 				atomic_read(&stream->sequence) - 1;
 		}
@@ -1015,7 +1017,8 @@ static void rkisp_stream_stop(struct rkisp_stream *stream)
 	int ret = 0;
 
 	if (!dev->dmarx_dev.trigger &&
-	    (is_rdbk_stream(stream) || is_hdr_stream(stream))) {
+	    (is_rdbk_stream(stream) || is_hdr_stream(stream)) &&
+	    !dev->only_rawwr) {
 		stream->streaming = false;
 		return;
 	}
@@ -1026,7 +1029,7 @@ static void rkisp_stream_stop(struct rkisp_stream *stream)
 		stream->ops->stop_mi(stream);
 
 	if (stream->id == RKISP_STREAM_MP || stream->id == RKISP_STREAM_SP)
-		hdr_stop_dmatx(dev);
+		rkisp_hdr_stop_dmatx(dev);
 
 	if (dev->isp_state & ISP_START &&
 	    !stream->ops->is_stream_stopped(dev->base_addr)) {
@@ -1055,97 +1058,6 @@ static void rkisp_stream_stop(struct rkisp_stream *stream)
 	stream->interlaced = false;
 }
 
-static void vir_cpy_image(struct work_struct *work)
-{
-	struct rkisp_vir_cpy *cpy =
-	container_of(work, struct rkisp_vir_cpy, work);
-	struct rkisp_stream *vir = cpy->stream;
-	struct rkisp_buffer *src_buf = NULL;
-	unsigned long lock_flags = 0;
-	u32 i;
-
-	v4l2_dbg(1, rkisp_debug, &vir->ispdev->v4l2_dev,
-		 "%s enter\n", __func__);
-
-	vir->streaming = true;
-	spin_lock_irqsave(&vir->vbq_lock, lock_flags);
-	if (!list_empty(&cpy->queue)) {
-		src_buf = list_first_entry(&cpy->queue,
-				struct rkisp_buffer, queue);
-		list_del(&src_buf->queue);
-	}
-	spin_unlock_irqrestore(&vir->vbq_lock, lock_flags);
-
-	while (src_buf || vir->streaming) {
-		if (vir->stopping || !vir->streaming)
-			goto end;
-
-		if (!src_buf)
-			wait_for_completion(&cpy->cmpl);
-
-		vir->frame_end = false;
-		spin_lock_irqsave(&vir->vbq_lock, lock_flags);
-
-		if (!src_buf && !list_empty(&cpy->queue)) {
-			src_buf = list_first_entry(&cpy->queue,
-					struct rkisp_buffer, queue);
-			list_del(&src_buf->queue);
-		}
-
-		if (src_buf && !vir->curr_buf && !list_empty(&vir->buf_queue)) {
-			vir->curr_buf = list_first_entry(&vir->buf_queue,
-					struct rkisp_buffer, queue);
-			list_del(&vir->curr_buf->queue);
-		}
-		spin_unlock_irqrestore(&vir->vbq_lock, lock_flags);
-
-		if (!vir->curr_buf || !src_buf)
-			goto end;
-
-		for (i = 0; i < vir->out_isp_fmt.mplanes; i++) {
-			u32 payload_size = vir->out_fmt.plane_fmt[i].sizeimage;
-			void *src = vb2_plane_vaddr(&src_buf->vb.vb2_buf, i);
-			void *dst = vb2_plane_vaddr(&vir->curr_buf->vb.vb2_buf, i);
-
-			if (!src || !dst)
-				break;
-			vb2_set_plane_payload(&vir->curr_buf->vb.vb2_buf, i, payload_size);
-			memcpy(dst, src, payload_size);
-		}
-
-		vir->curr_buf->vb.sequence = src_buf->vb.sequence;
-		vir->curr_buf->vb.vb2_buf.timestamp = src_buf->vb.vb2_buf.timestamp;
-		vb2_buffer_done(&vir->curr_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
-		vir->curr_buf = NULL;
-end:
-		if (src_buf)
-			vb2_buffer_done(&src_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
-		src_buf = NULL;
-		spin_lock_irqsave(&vir->vbq_lock, lock_flags);
-
-		if (!list_empty(&cpy->queue)) {
-			src_buf = list_first_entry(&cpy->queue,
-					struct rkisp_buffer, queue);
-			list_del(&src_buf->queue);
-		} else if (vir->stopping) {
-			vir->streaming = false;
-		}
-
-		spin_unlock_irqrestore(&vir->vbq_lock, lock_flags);
-	}
-
-	vir->frame_end = true;
-
-	if (vir->stopping) {
-		vir->stopping = false;
-		vir->streaming = false;
-		wake_up(&vir->done);
-	}
-
-	v4l2_dbg(1, rkisp_debug, &vir->ispdev->v4l2_dev,
-		 "%s exit\n", __func__);
-}
-
 /*
  * Most of registers inside rockchip isp1 have shadow register since
  * they must be not changed during processing a frame.
@@ -1166,7 +1078,7 @@ static int rkisp_start(struct rkisp_stream *stream)
 
 	stream->ops->enable_mi(stream);
 	if (stream->id == RKISP_STREAM_MP || stream->id == RKISP_STREAM_SP)
-		hdr_config_dmatx(dev);
+		rkisp_hdr_config_dmatx(dev);
 	stream->streaming = true;
 
 	return 0;
@@ -1267,7 +1179,7 @@ static void rkisp_destroy_dummy_buf(struct rkisp_stream *stream)
 {
 	struct rkisp_device *dev = stream->ispdev;
 
-	hdr_destroy_buf(dev);
+	rkisp_hdr_destroy_buf(dev);
 	rkisp_free_common_dummy_buf(dev);
 }
 
@@ -1321,15 +1233,22 @@ static void rkisp_stop_streaming_tx(struct rkisp_stream *stream)
 {
 	struct rkisp_device *dev = stream->ispdev;
 
-	stream->stopping = true;
-	if (dev->isp_state & ISP_START &&
-	    !stream->ops->is_stream_stopped(dev->base_addr)) {
+	if (IS_HDR_RDBK(dev->hdr.op_mode) && stream->id == RKISP_STREAM_DMATX2) {
+		rkisp_quick_off_sensor(stream);
 		stream->ops->stop_mi(stream);
-		wait_event_timeout(stream->done, !stream->streaming,
-				   msecs_to_jiffies(300));
+	} else {
+		stream->stopping = true;
+		if (dev->isp_state & ISP_START && dev->csi_start &&
+		    !stream->ops->is_stream_stopped(dev->base_addr)) {
+			stream->ops->stop_mi(stream);
+			wait_event_timeout(stream->done, !stream->streaming,
+					   msecs_to_jiffies(300));
+		}
+		stream->stopping = false;
 	}
-	stream->stopping = false;
+
 	stream->streaming = false;
+	stream->start_stream = false;
 	destroy_buf_queue(stream, VB2_BUF_STATE_ERROR);
 }
 
@@ -1343,7 +1262,7 @@ static void rkisp_stop_streaming(struct vb2_queue *queue)
 
 	v4l2_dbg(1, rkisp_debug, &dev->v4l2_dev,
 		 "%s %d\n", __func__, stream->id);
-	if (!stream->streaming)
+	if (!stream->start_stream)
 		return;
 
 	if (stream->id == RKISP_STREAM_VIR) {
@@ -1361,8 +1280,10 @@ static void rkisp_stop_streaming(struct vb2_queue *queue)
 		goto end;
 	}
 
-	if (stream->id != RKISP_STREAM_MP && stream->id != RKISP_STREAM_SP)
-		return rkisp_stop_streaming_tx(stream);
+	if (!dev->only_rawwr) {
+		if (stream->id != RKISP_STREAM_MP && stream->id != RKISP_STREAM_SP)
+			return rkisp_stop_streaming_tx(stream);
+	}
 
 	mutex_lock(&dev->hw_dev->dev_lock);
 
@@ -1382,7 +1303,7 @@ static void rkisp_stop_streaming(struct vb2_queue *queue)
 		v4l2_err(v4l2_dev, "pipeline close failed error:%d\n", ret);
 	rkisp_destroy_dummy_buf(stream);
 	atomic_dec(&dev->cap_dev.refcnt);
-
+	stream->start_stream = false;
 end:
 	mutex_unlock(&dev->hw_dev->dev_lock);
 }
@@ -1434,13 +1355,19 @@ rkisp_start_streaming_tx(struct rkisp_stream *stream)
 	if (!dev->isp_inp || !stream->linked)
 		goto buffer_done;
 
+	if (!(dev->isp_state & ISP_START)) {
+		stream->start_stream = true;
+		return 0;
+	}
 	ret = rkisp_stream_start(stream);
 	if (ret < 0)
 		goto buffer_done;
+	stream->start_stream = true;
 	return 0;
 buffer_done:
 	destroy_buf_queue(stream, VB2_BUF_STATE_QUEUED);
 	stream->streaming = false;
+	stream->start_stream = false;
 	return ret;
 }
 
@@ -1455,14 +1382,14 @@ rkisp_start_streaming(struct vb2_queue *queue, unsigned int count)
 
 	v4l2_dbg(1, rkisp_debug, &dev->v4l2_dev,
 		 "%s %d\n", __func__, stream->id);
-	if (WARN_ON(stream->streaming))
+	if (WARN_ON(stream->start_stream))
 		return -EBUSY;
 
 	if (stream->id == RKISP_STREAM_VIR) {
 		struct rkisp_stream *t = &dev->cap_dev.stream[stream->conn_id];
 
 		if (t->streaming) {
-			INIT_WORK(&dev->cap_dev.vir_cpy.work, vir_cpy_image);
+			INIT_WORK(&dev->cap_dev.vir_cpy.work, rkisp_stream_vir_cpy_image);
 			init_completion(&dev->cap_dev.vir_cpy.cmpl);
 			INIT_LIST_HEAD(&dev->cap_dev.vir_cpy.queue);
 			dev->cap_dev.vir_cpy.stream = stream;
@@ -1479,8 +1406,10 @@ rkisp_start_streaming(struct vb2_queue *queue, unsigned int count)
 
 	memset(&stream->dbg, 0, sizeof(stream->dbg));
 
-	if (stream->id != RKISP_STREAM_MP && stream->id != RKISP_STREAM_SP)
-		return rkisp_start_streaming_tx(stream);
+	if (!dev->only_rawwr) {
+		if (stream->id != RKISP_STREAM_MP && stream->id != RKISP_STREAM_SP)
+			return rkisp_start_streaming_tx(stream);
+	}
 
 	mutex_lock(&dev->hw_dev->dev_lock);
 	atomic_inc(&dev->cap_dev.refcnt);
@@ -1543,6 +1472,8 @@ rkisp_start_streaming(struct vb2_queue *queue, unsigned int count)
 			 "start pipeline failed %d\n", ret);
 		goto pipe_stream_off;
 	}
+
+	stream->start_stream = true;
 
 	mutex_unlock(&dev->hw_dev->dev_lock);
 	return 0;
@@ -1672,12 +1603,14 @@ int rkisp_register_stream_v21(struct rkisp_device *dev)
 	struct rkisp_capture_device *cap_dev = &dev->cap_dev;
 	int ret;
 
-	ret = rkisp_stream_init(dev, RKISP_STREAM_MP);
-	if (ret < 0)
-		goto err;
-	ret = rkisp_stream_init(dev, RKISP_STREAM_SP);
-	if (ret < 0)
-		goto err_free_mp;
+	if (!dev->only_rawwr) {
+		ret = rkisp_stream_init(dev, RKISP_STREAM_MP);
+		if (ret < 0)
+			goto err;
+		ret = rkisp_stream_init(dev, RKISP_STREAM_SP);
+		if (ret < 0)
+			goto err_free_mp;
+	}
 	ret = rkisp_stream_init(dev, RKISP_STREAM_DMATX0);
 	if (ret < 0)
 		goto err_free_sp;
@@ -1687,9 +1620,12 @@ int rkisp_register_stream_v21(struct rkisp_device *dev)
 	ret = rkisp_stream_init(dev, RKISP_STREAM_DMATX3);
 	if (ret < 0)
 		goto err_free_tx2;
-	ret = rkisp_stream_init(dev, RKISP_STREAM_VIR);
-	if (ret < 0)
-		goto err_free_tx3;
+
+	if (!dev->only_rawwr) {
+		ret = rkisp_stream_init(dev, RKISP_STREAM_VIR);
+		if (ret < 0)
+			goto err_free_tx3;
+	}
 
 	return 0;
 err_free_tx3:
@@ -1767,7 +1703,8 @@ void rkisp_mi_v21_isr(u32 mis_val, struct rkisp_device *dev)
 				stream->streaming = false;
 				stream->ops->disable_mi(stream);
 				wake_up(&stream->done);
-			} else if (stream->ops->is_stream_stopped(dev->base_addr)) {
+			} else if (is_rdbk_stream(stream) ||
+				   stream->ops->is_stream_stopped(dev->base_addr)) {
 				stream->stopping = false;
 				stream->streaming = false;
 				wake_up(&stream->done);
@@ -1778,7 +1715,7 @@ void rkisp_mi_v21_isr(u32 mis_val, struct rkisp_device *dev)
 			}
 		} else {
 			mi_frame_end(stream);
-			if (dev->dmarx_dev.trigger == T_AUTO &&
+			if (!dev->only_rawwr && dev->dmarx_dev.trigger == T_AUTO &&
 			    ((dev->hdr.op_mode == HDR_RDBK_FRAME1 && end_tx2) ||
 			     (dev->hdr.op_mode == HDR_RDBK_FRAME2 && end_tx2 && end_tx0))) {
 				end_tx0 = false;

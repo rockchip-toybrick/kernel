@@ -1456,7 +1456,8 @@ static void rkvenc_shutdown(struct platform_device *pdev)
 
 static int rkvenc_runtime_suspend(struct device *dev)
 {
-	struct mpp_dev *mpp = dev_get_drvdata(dev);
+	struct rkvenc_dev *enc = dev_get_drvdata(dev);
+	struct mpp_dev *mpp = &enc->mpp;
 	struct mpp_grf_info *info = mpp->grf_info;
 
 	if (cpu_is_rk3528() && info && info->mem_offset)
@@ -1469,7 +1470,8 @@ static int rkvenc_runtime_suspend(struct device *dev)
 
 static int rkvenc_runtime_resume(struct device *dev)
 {
-	struct mpp_dev *mpp = dev_get_drvdata(dev);
+	struct rkvenc_dev *enc = dev_get_drvdata(dev);
+	struct mpp_dev *mpp = &enc->mpp;
 	struct mpp_grf_info *info = mpp->grf_info;
 
 	if (cpu_is_rk3528() && info && info->mem_offset)

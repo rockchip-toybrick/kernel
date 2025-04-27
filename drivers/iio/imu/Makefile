@@ -17,6 +17,7 @@ obj-$(CONFIG_IIO_ADIS_LIB) += adis_lib.o
 obj-y += bmi160/
 obj-y += inv_icm40605/
 obj-y += inv_icm42600/
+obj-y += inv_icm42680/
 obj-y += inv_mpu6050/
 
 obj-$(CONFIG_KMX61) += kmx61.o

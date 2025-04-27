@@ -463,6 +463,18 @@ u32 rkisp_mbus_pixelcode_to_v4l2(u32 pixelcode)
 	case MEDIA_BUS_FMT_SPD_2X8:
 		pixelformat = V4l2_PIX_FMT_SPD16;
 		break;
+	case MEDIA_BUS_FMT_UYVY8_2X8:
+		pixelformat = V4L2_PIX_FMT_UYVY;
+		break;
+	case MEDIA_BUS_FMT_VYUY8_2X8:
+		pixelformat = V4L2_PIX_FMT_VYUY;
+		break;
+	case MEDIA_BUS_FMT_YUYV8_2X8:
+		pixelformat = V4L2_PIX_FMT_YUYV;
+		break;
+	case MEDIA_BUS_FMT_YVYU8_2X8:
+		pixelformat = V4L2_PIX_FMT_YVYU;
+		break;
 	default:
 		pixelformat = V4L2_PIX_FMT_SRGGB10;
 	}
@@ -470,6 +482,15 @@ u32 rkisp_mbus_pixelcode_to_v4l2(u32 pixelcode)
 	return pixelformat;
 }
 
+static void rkisp_set_state(u32 *state, u32 val)
+{
+	u32 mask = 0xff;
+
+	if (val < ISP_STOP)
+		mask = 0xff00;
+	*state &= mask;
+	*state |= val;
+}
 
 /*
  * for hdr read back mode, rawrd read back data
@@ -634,6 +655,16 @@ void rkisp_trigger_read_back(struct rkisp_device *dev, u8 dma2frm, u32 mode, boo
 		rkisp_bridge_update_mi(dev, 0);
 	if (!hw->is_shutdown)
 		rkisp_write(dev, CSI2RX_CTRL0, val, true);
+
+	if (dev->hw_dev->monitor.is_en &&
+	    (cur_frame_id % dev->hw_dev->monitor.quota) == 0) {
+		rkisp_set_state(&dev->hw_dev->monitor.state, ISP_FRAME_VS);
+		if (!completion_done(&dev->hw_dev->monitor.cmpl)) {
+			v4l2_dbg(4, rkisp_debug, &dev->v4l2_dev,
+				 "%s send vs to monitor\n", __func__);
+			complete(&dev->hw_dev->monitor.cmpl);
+		}
+	}
 }
 
 static void rkisp_rdbk_trigger_handle(struct rkisp_device *dev, u32 cmd)
@@ -740,21 +771,42 @@ int rkisp_rdbk_trigger_event(struct rkisp_device *dev, u32 cmd, void *arg)
 
 void rkisp_check_idle(struct rkisp_device *dev, u32 irq)
 {
+	unsigned long lock_flags = 0;
 	u32 val = 0;
+	u32 id = 0;
 
+	spin_lock_irqsave(&dev->hw_dev->rdbk_lock, lock_flags);
 	dev->irq_ends |= (irq & dev->irq_ends_mask);
 	v4l2_dbg(3, rkisp_debug, &dev->v4l2_dev,
 		 "%s irq:0x%x ends:0x%x mask:0x%x\n",
 		 __func__, irq, dev->irq_ends, dev->irq_ends_mask);
-	if (dev->irq_ends == dev->irq_ends_mask && dev->hw_dev->monitor.is_en) {
+	rkisp_dmarx_get_frame(dev, &id, NULL, NULL, true);
+	/* set monitor state ISP_FRAME_END */
+	if ((dev->irq_ends & dev->irq_ends_mask) == dev->irq_ends_mask &&
+	    dev->hw_dev->monitor.is_en &&
+	    (id % dev->hw_dev->monitor.quota == 0)) {
 		dev->hw_dev->monitor.retry = 0;
 		dev->hw_dev->monitor.state |= ISP_FRAME_END;
-		if (!completion_done(&dev->hw_dev->monitor.cmpl))
+		if (!completion_done(&dev->hw_dev->monitor.cmpl)) {
+			v4l2_dbg(4, rkisp_debug, &dev->v4l2_dev,
+				 "%s send frame end to monitor\n", __func__);
 			complete(&dev->hw_dev->monitor.cmpl);
+		}
 	}
-	if ((dev->irq_ends & dev->irq_ends_mask) != dev->irq_ends_mask ||
-	    !IS_HDR_RDBK(dev->rd_mode))
+
+	if ((dev->irq_ends & dev->irq_ends_mask) != dev->irq_ends_mask) {
+		spin_unlock_irqrestore(&dev->hw_dev->rdbk_lock, lock_flags);
 		return;
+	}
+
+	if (!IS_HDR_RDBK(dev->hdr.op_mode)) {
+		if ((dev->irq_ends & dev->irq_ends_mask) == dev->irq_ends_mask)
+			dev->irq_ends = 0;
+		spin_unlock_irqrestore(&dev->hw_dev->rdbk_lock, lock_flags);
+		return;
+	}
+
+	spin_unlock_irqrestore(&dev->hw_dev->rdbk_lock, lock_flags);
 
 	/* check output stream is off */
 	val = ISP_FRAME_MP | ISP_FRAME_SP | ISP_FRAME_MPFBC;
@@ -790,16 +842,6 @@ void rkisp_check_idle(struct rkisp_device *dev, u32 irq)
 		rkisp_rdbk_trigger_event(dev, T_CMD_END, NULL);
 	if (dev->isp_state == ISP_STOP)
 		wake_up(&dev->sync_onoff);
-}
-
-static void rkisp_set_state(u32 *state, u32 val)
-{
-	u32 mask = 0xff;
-
-	if (val < ISP_STOP)
-		mask = 0xff00;
-	*state &= mask;
-	*state |= val;
 }
 
 /*
@@ -873,12 +915,15 @@ static void rkisp_restart_monitor(struct work_struct *work)
 	struct rkisp_hw_dev *hw = monitor->dev;
 	struct rkisp_device *isp;
 	struct rkisp_pipeline *p;
-	int ret, i, j, timeout = 5, mipi_irq_cnt = 0;
+	int ret, i, j, timeout = monitor->times, mipi_irq_cnt = 0;
 
 	dev_info(hw->dev, "%s enter\n", __func__);
 	while (!(monitor->state & ISP_STOP) && monitor->is_en) {
 		ret = wait_for_completion_timeout(&monitor->cmpl,
-						  msecs_to_jiffies(100));
+						  msecs_to_jiffies(100 * monitor->quota));
+		v4l2_dbg(4, rkisp_debug, &hw->isp[0]->v4l2_dev,
+			 "monitor after wait monitor state:0x%x ret:%d\n",
+			 monitor->state, ret);
 		/* isp stop to exit
 		 * isp err to reset
 		 * mipi err wait isp idle, then reset
@@ -892,11 +937,13 @@ static void rkisp_restart_monitor(struct work_struct *work)
 				isp = hw->isp[i];
 				if (!(isp->isp_inp & INP_CSI))
 					continue;
-				if (!(isp->isp_state & ISP_START))
+				if (!isp->csi_start) {
+					mipi_irq_cnt = 0;
 					break;
+				}
 				if (isp->csi_dev.irq_cnt != mipi_irq_cnt) {
 					mipi_irq_cnt = isp->csi_dev.irq_cnt;
-					timeout = 5;
+					timeout = monitor->times;
 				} else if (mipi_irq_cnt && timeout-- == 0) {
 					/* mipi no input */
 					monitor->state |= ISP_MIPI_ERROR;
@@ -904,8 +951,9 @@ static void rkisp_restart_monitor(struct work_struct *work)
 			}
 			continue;
 		}
-		dev_info(hw->dev, "isp%d to restart state:0x%x try:%d mipi_irq_cnt:%d\n",
-			 hw->cur_dev_id, monitor->state, monitor->retry, mipi_irq_cnt);
+		dev_info(hw->dev, "isp%d to restart state:0x%x try:%d mipi_irq_cnt:%d ret:%d\n",
+			 hw->cur_dev_id, monitor->state, monitor->retry, mipi_irq_cnt, ret);
+		mipi_irq_cnt = 0;
 		if (monitor->retry++ > RKISP_MAX_RETRY_CNT || hw->is_shutdown) {
 			monitor->is_en = false;
 			break;
@@ -957,7 +1005,7 @@ static void rkisp_restart_monitor(struct work_struct *work)
 			}
 		}
 	}
-	dev_dbg(hw->dev, "%s exit\n", __func__);
+	dev_info(hw->dev, "%s exit\n", __func__);
 }
 
 static void rkisp_monitor_init(struct rkisp_device *dev)
@@ -1495,7 +1543,8 @@ static int rkisp_isp_stop(struct rkisp_device *dev)
 		writel(0, base + CIF_ISP_CSI0_MASK2);
 		writel(0, base + CIF_ISP_CSI0_MASK3);
 	} else if (dev->isp_ver == ISP_V20 || dev->isp_ver == ISP_V21) {
-		writel(0, base + CSI2RX_CSI2_RESETN);
+		if (!dev->only_rawwr)
+			writel(0, base + CSI2RX_CSI2_RESETN);
 	}
 
 	dev->hw_dev->is_idle = true;
@@ -1554,7 +1603,8 @@ static int rkisp_isp_start(struct rkisp_device *dev)
 		val |= NOC_HURRY_PRIORITY(2) | NOC_HURRY_W_MODE(2) | NOC_HURRY_R_MODE(1);
 	if (atomic_read(&dev->hw_dev->refcnt) > 1)
 		is_direct = false;
-	rkisp_write(dev, CIF_ISP_CTRL, val, is_direct);
+	if (!dev->only_rawwr)
+		rkisp_write(dev, CIF_ISP_CTRL, val, is_direct);
 
 	dev->isp_err_cnt = 0;
 	dev->isp_isr_cnt = 0;
@@ -1573,12 +1623,6 @@ static int rkisp_isp_start(struct rkisp_device *dev)
 		 "%s MI_CTRL 0x%08x ISP_CTRL 0x%08x\n", __func__,
 		 readl(base + CIF_MI_CTRL), readl(base + CIF_ISP_CTRL));
 
-	if (dev->hw_dev->monitor.is_en &&
-	    atomic_read(&dev->hw_dev->refcnt) < 2) {
-		dev->hw_dev->monitor.retry = 0;
-		dev->hw_dev->monitor.state = ISP_FRAME_END;
-		schedule_work(&dev->hw_dev->monitor.work);
-	}
 	return 0;
 }
 
@@ -2152,12 +2196,14 @@ static void rkisp_global_update_mi(struct rkisp_device *dev)
 	if (dev->hw_dev->is_mi_update)
 		return;
 
-	rkisp_stats_first_ddr_config(&dev->stats_vdev);
+	if (!dev->only_rawwr)
+		rkisp_stats_first_ddr_config(&dev->stats_vdev);
+
 	rkisp_config_dmatx_valid_buf(dev);
 
 	force_cfg_update(dev);
 
-	hdr_update_dmatx_buf(dev);
+	rkisp_hdr_update_dmatx_buf(dev);
 	if (dev->br_dev.en && dev->isp_ver == ISP_V20) {
 		stream = &dev->cap_dev.stream[RKISP_STREAM_SP];
 		rkisp_update_spstream_buf(stream);
@@ -2180,14 +2226,19 @@ static int rkisp_isp_sd_s_stream(struct v4l2_subdev *sd, int on)
 			isp_dev->irq_ends_mask == (ISP_FRAME_END | ISP_FRAME_IN) &&
 			(!IS_HDR_RDBK(isp_dev->rd_mode) ||
 			 isp_dev->isp_state & ISP_STOP), msecs_to_jiffies(5));
+
 		rkisp_isp_stop(isp_dev);
 		atomic_dec(&isp_dev->hw_dev->refcnt);
-		rkisp_params_stream_stop(&isp_dev->params_vdev);
-		rkisp_stop_3a_run(isp_dev);
+
+		if (!isp_dev->only_rawwr) {
+			rkisp_params_stream_stop(&isp_dev->params_vdev);
+			rkisp_stop_3a_run(isp_dev);
+		}
 		return 0;
 	}
 
-	rkisp_start_3a_run(isp_dev);
+	if (!isp_dev->only_rawwr)
+		rkisp_start_3a_run(isp_dev);
 	memset(&isp_dev->isp_sdev.dbg, 0, sizeof(isp_dev->isp_sdev.dbg));
 	atomic_inc(&isp_dev->hw_dev->refcnt);
 	atomic_set(&isp_dev->isp_sdev.frm_sync_seq, 0);
@@ -2409,8 +2460,11 @@ static long rkisp_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	struct rkisp_thunderboot_resmem_head *head;
 	struct rkisp_thunderboot_shmem *shmem;
 	struct isp2x_buf_idxfd *idxfd;
+	struct rkisp_quick_stream_param *stream_param;
+	struct rkisp_pipeline *p = &isp_dev->pipe;
 	void *resmem_va;
 	long ret = 0;
+	int i = 0, on;
 
 	if (!arg && cmd != RKISP_CMD_FREE_SHARED_BUF)
 		return -EINVAL;
@@ -2477,6 +2531,54 @@ static long rkisp_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		idxfd = (struct isp2x_buf_idxfd *)arg;
 		ret = rkisp_bridge_get_fbcbuf_fd(isp_dev, idxfd);
 		break;
+	case RKISP_CMD_SET_QUICK_STREAM:
+		stream_param = (struct rkisp_quick_stream_param *)arg;
+
+		if (!rkisp_link_sensor(isp_dev->isp_inp)) {
+			v4l2_err(sd, "sensor not link isp, no support for RKISP_CMD_SET_QUICK_STREAM\n");
+			ret = -EPERM;
+			break;
+		}
+		if (stream_param->on) {
+			mutex_lock(&isp_dev->pm_work.oneframe_lock);
+			isp_dev->pm_work.already_on = 1;
+			for (i = 0; i < p->num_subdevs; i++) {
+				if (p->subdevs[i]->entity.function == MEDIA_ENT_F_VID_IF_BRIDGE ||
+				    p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR)
+					v4l2_subdev_call(p->subdevs[i], core, ioctl,
+							 RKMODULE_SET_QUICK_STREAM, &stream_param->on);
+			}
+			mutex_unlock(&isp_dev->pm_work.oneframe_lock);
+		} else {
+			if (!(isp_dev->isp_state & ISP_STOP)) {
+				isp_dev->wait_stop = true;
+				wait_for_completion_timeout(&isp_dev->stop_cmpl, msecs_to_jiffies(200));
+			}
+			for (i = p->num_subdevs - 1; i >= 0; i--) {
+				if (p->subdevs[i]->entity.function == MEDIA_ENT_F_VID_IF_BRIDGE ||
+				    p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR)
+					v4l2_subdev_call(p->subdevs[i], core, ioctl,
+							 RKMODULE_SET_QUICK_STREAM, &stream_param->on);
+			}
+			isp_dev->resume_mode = stream_param->resume_mode;
+			rkisp_dmarx_get_frame(isp_dev, &stream_param->frame_num, NULL, NULL, true);
+		}
+		break;
+	case RKISP_CMD_START_CAPTURE_ONE_FRAME_AOV:
+		if (!rkisp_link_sensor(isp_dev->isp_inp)) {
+			v4l2_err(sd, "sensor not link isp, no support for RKISP_CMD_START_CAPTURE_ONE_FRAME_AOV\n");
+			ret = -EPERM;
+			break;
+		}
+		on = 1;
+		for (i = 0; i < p->num_subdevs; i++) {
+			if (p->subdevs[i]->entity.function == MEDIA_ENT_F_VID_IF_BRIDGE ||
+			    p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR)
+				v4l2_subdev_call(p->subdevs[i], core, ioctl,
+						 RKMODULE_SET_QUICK_STREAM, &on);
+		}
+		isp_dev->add_oneframe = true;
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 	}
@@ -2497,6 +2599,7 @@ static long rkisp_compat_ioctl32(struct v4l2_subdev *sd,
 	struct rkisp_meshbuf_size meshsize;
 	struct rkisp_thunderboot_shmem shmem;
 	struct isp2x_buf_idxfd idxfd;
+	struct rkisp_quick_stream_param stream_param;
 	long ret = 0;
 
 	if (!up && cmd != RKISP_CMD_FREE_SHARED_BUF)
@@ -2549,6 +2652,16 @@ static long rkisp_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = rkisp_ioctl(sd, cmd, &idxfd);
 		if (!ret && copy_to_user(up, &idxfd, sizeof(idxfd)))
 			ret = -EFAULT;
+		break;
+	case RKISP_CMD_SET_QUICK_STREAM:
+		if (copy_from_user(&stream_param, up, sizeof(stream_param)))
+			return -EFAULT;
+		ret = rkisp_ioctl(sd, cmd, &stream_param);
+		if (!ret && copy_to_user(up, &stream_param, sizeof(stream_param)))
+			ret = -EFAULT;
+		break;
+	case RKISP_CMD_START_CAPTURE_ONE_FRAME_AOV:
+		ret = rkisp_ioctl(sd, cmd, NULL);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -2874,6 +2987,7 @@ void rkisp_isp_isr(unsigned int isp_mis,
 		ISP2X_3A_RAWAF_SUM | ISP2X_3A_RAWAF_LUM |
 		ISP2X_3A_RAWAF | ISP2X_3A_RAWAWB;
 	bool sof_event_later = false;
+	u32 id = 0;
 
 	/*
 	 * The last time that rx perform 'back read' don't clear done flag
@@ -2896,10 +3010,16 @@ void rkisp_isp_isr(unsigned int isp_mis,
 			dev->isp_sdev.dbg.delay = dev->isp_sdev.dbg.timestamp - tmp;
 		}
 		rkisp_set_state(&dev->isp_state, ISP_FRAME_VS);
-		if (dev->hw_dev->monitor.is_en) {
+		rkisp_dmarx_get_frame(dev, &id, NULL, NULL, true);
+		if (dev->hw_dev->monitor.is_en &&
+		    !IS_HDR_RDBK(dev->hdr.op_mode) &&
+		    ((id + 1) % dev->hw_dev->monitor.quota == 0)) {
 			rkisp_set_state(&dev->hw_dev->monitor.state, ISP_FRAME_VS);
-			if (!completion_done(&dev->hw_dev->monitor.cmpl))
+			if (!completion_done(&dev->hw_dev->monitor.cmpl)) {
+				v4l2_dbg(4, rkisp_debug, &dev->v4l2_dev,
+					 "%s send vs to monitor\n", __func__);
 				complete(&dev->hw_dev->monitor.cmpl);
+			}
 		}
 		/* last vsync to config next buf */
 		if (!dev->filt_state[RDBK_F_VS])
@@ -3052,8 +3172,29 @@ vs_skip:
 
 	if (isp_mis & CIF_ISP_FRAME_IN)
 		rkisp_check_idle(dev, ISP_FRAME_IN);
-	if (isp_mis & CIF_ISP_FRAME)
+	if (isp_mis & CIF_ISP_FRAME) {
 		rkisp_check_idle(dev, ISP_FRAME_END);
+
+		/* pm single mode stop need wait here*/
+		if (dev->wait_stop) {
+			dev->wait_stop = false;
+			complete(&dev->stop_cmpl);
+		}
+
+		/* pm resume single mode only capture oneframe */
+		if (dev->single_cap) {
+			dev->single_cap = false;
+			dev->pm_work.on = 0;
+			schedule_work(&dev->pm_work.work);
+		}
+
+		/* aov single mode add one frame */
+		if (dev->add_oneframe) {
+			dev->add_oneframe = false;
+			dev->pm_work.on = 0;
+			schedule_work(&dev->pm_work.work);
+		}
+	}
 }
 
 irqreturn_t rkisp_vs_isr_handler(int irq, void *ctx)

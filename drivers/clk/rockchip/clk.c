@@ -540,12 +540,13 @@ void __init rockchip_clk_register_branches(
 				      struct rockchip_clk_branch *list,
 				      unsigned int nr_clk)
 {
-	struct clk *clk = NULL;
+	struct clk *clk;
 	unsigned int idx;
 	unsigned long flags;
 
 	for (idx = 0; idx < nr_clk; idx++, list++) {
 		flags = list->flags;
+		clk = NULL;
 
 		/* catch simple muxes */
 		switch (list->branch_type) {
@@ -802,3 +803,54 @@ rockchip_register_restart_notifier(struct rockchip_clk_provider *ctx,
 	atomic_notifier_chain_register(&panic_notifier_list,
 				       &rk_clk_panic_block);
 }
+
+static struct clk **protect_clocks;
+static unsigned int protect_nclocks;
+
+int rockchip_clk_protect(struct rockchip_clk_provider *ctx,
+			 unsigned int *clocks, unsigned int nclocks)
+{
+	struct clk *clk = NULL;
+	int i = 0;
+
+	if (protect_clocks || !ctx || !clocks || !ctx->clk_data.clks)
+		return 0;
+
+	protect_clocks = kcalloc(nclocks, sizeof(void *), GFP_KERNEL);
+	if (!protect_clocks)
+		return -ENOMEM;
+
+	for (i = 0; i < nclocks; i++) {
+		if (clocks[i] >= ctx->clk_data.clk_num) {
+			pr_err("%s: invalid clock id %u\n", __func__, clocks[i]);
+			continue;
+		}
+		clk = ctx->clk_data.clks[clocks[i]];
+		if (clk) {
+			clk_prepare_enable(clk);
+			protect_clocks[i] = clk;
+		}
+	}
+	protect_nclocks = nclocks;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rockchip_clk_protect);
+
+void rockchip_clk_unprotect(void)
+{
+	int i = 0;
+
+	if (!protect_clocks || !protect_nclocks)
+		return;
+
+	for (i = 0; i < protect_nclocks; i++) {
+		if (protect_clocks[i])
+			clk_disable_unprepare(protect_clocks[i]);
+	}
+	protect_nclocks = 0;
+	kfree(protect_clocks);
+	protect_clocks = NULL;
+
+}
+EXPORT_SYMBOL_GPL(rockchip_clk_unprotect);

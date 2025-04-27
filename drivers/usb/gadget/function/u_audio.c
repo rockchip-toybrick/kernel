@@ -1049,9 +1049,11 @@ void g_audio_cleanup(struct g_audio *g_audio)
 	g_audio->device = NULL;
 
 	uac = g_audio->uac;
+	g_audio->uac = NULL;
+
 	card = uac->card;
 	if (card)
-		snd_card_free(card);
+		snd_card_free_when_closed(card);
 
 	free_ep(&uac->c_prm, g_audio->out_ep);
 	free_ep(&uac->p_prm, g_audio->in_ep);

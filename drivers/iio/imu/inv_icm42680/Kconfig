@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (C) 2024 Rockchip Electronics Co., Ltd
+#
+# ICM42680 IMU driver
+#
+
+config ICM42680
+	tristate
+	select IIO_BUFFER
+	select IIO_TRIGGERED_BUFFER
+
+config ICM42680_I2C
+	tristate "Invensense ICM42680 I2C driver"
+	depends on I2C
+	select ICM42680
+	select REGMAP_I2C
+	help
+	  If you say yes here you get support for ICM42680 IMU on I2C with
+	  accelerometer, gyroscope.
+
+	  This driver can also be built as a module. If so, the module will be
+	  called ICM42680_i2c.

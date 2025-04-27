@@ -118,7 +118,6 @@ GTAGS
 # id-utils files
 ID
 
-*.orig
 *~
 \#*#
 

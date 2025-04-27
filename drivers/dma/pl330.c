@@ -417,6 +417,12 @@ enum desc_status {
 	 */
 	BUSY,
 	/*
+	 * Pause was called while descriptor was BUSY. Due to hardware
+	 * limitations, only termination is possible for descriptors
+	 * that have been paused.
+	 */
+	PAUSED,
+	/*
 	 * Sitting on the channel work_list but xfer done
 	 * by PL330 core
 	 */
@@ -1080,7 +1086,7 @@ static bool _trigger(struct pl330_thread *thrd)
 	return true;
 }
 
-static bool _start(struct pl330_thread *thrd)
+static bool pl330_start_thread(struct pl330_thread *thrd)
 {
 	switch (_state(thrd)) {
 	case PL330_STATE_FAULT_COMPLETING:
@@ -1900,7 +1906,7 @@ static int pl330_update(struct pl330_dmac *pl330)
 					thrd->req[active].desc = NULL;
 					thrd->req_running = -1;
 					/* Get going again ASAP */
-					_start(thrd);
+					pl330_start_thread(thrd);
 				}
 
 				/* For now, just make a list of callbacks to be done */
@@ -2240,7 +2246,7 @@ static inline void fill_queue(struct dma_pl330_chan *pch)
 	list_for_each_entry(desc, &pch->work_list, node) {
 
 		/* If already submitted */
-		if (desc->status == BUSY)
+		if (desc->status == BUSY || desc->status == PAUSED)
 			continue;
 
 		ret = pl330_submit_req(pch->thread, desc);
@@ -2301,7 +2307,7 @@ static void pl330_tasklet(unsigned long data)
 	} else {
 		/* Make sure the PL330 Channel thread is active */
 		spin_lock(&pch->thread->dmac->lock);
-		_start(pch->thread);
+		pl330_start_thread(pch->thread);
 		spin_unlock(&pch->thread->dmac->lock);
 	}
 
@@ -2314,7 +2320,10 @@ static void pl330_tasklet(unsigned long data)
 		dmaengine_desc_get_callback(&desc->txd, &cb);
 
 		desc->status = FREE;
+
+		spin_lock(&pch->dmac->pool_lock);
 		list_move_tail(&desc->node, &pch->dmac->desc_pool);
+		spin_unlock(&pch->dmac->pool_lock);
 
 		dma_descriptor_unmap(&desc->txd);
 
@@ -2492,9 +2501,12 @@ static int pl330_terminate_all(struct dma_chan *chan)
 		dma_cookie_complete(&desc->txd);
 	}
 
+	spin_lock(&pl330->pool_lock);
 	list_splice_tail_init(&pch->submitted_list, &pl330->desc_pool);
 	list_splice_tail_init(&pch->work_list, &pl330->desc_pool);
 	list_splice_tail_init(&pch->completed_list, &pl330->desc_pool);
+	spin_unlock(&pl330->pool_lock);
+
 	spin_unlock_irqrestore(&pch->lock, flags);
 	pm_runtime_mark_last_busy(pl330->ddma.dev);
 	if (power_down)
@@ -2515,6 +2527,7 @@ static int pl330_pause(struct dma_chan *chan)
 {
 	struct dma_pl330_chan *pch = to_pchan(chan);
 	struct pl330_dmac *pl330 = pch->dmac;
+	struct dma_pl330_desc *desc;
 	unsigned long flags;
 
 	pm_runtime_get_sync(pl330->ddma.dev);
@@ -2524,6 +2537,10 @@ static int pl330_pause(struct dma_chan *chan)
 	_stop(pch->thread);
 	spin_unlock(&pl330->lock);
 
+	list_for_each_entry(desc, &pch->work_list, node) {
+		if (desc->status == BUSY)
+			desc->status = PAUSED;
+	}
 	spin_unlock_irqrestore(&pch->lock, flags);
 	pm_runtime_mark_last_busy(pl330->ddma.dev);
 	pm_runtime_put_autosuspend(pl330->ddma.dev);
@@ -2545,7 +2562,9 @@ static void pl330_free_chan_resources(struct dma_chan *chan)
 	pl330_release_channel(pch->thread);
 	pch->thread = NULL;
 
+	spin_lock(&pl330->pool_lock);
 	list_splice_tail_init(&pch->work_list, &pch->dmac->desc_pool);
+	spin_unlock(&pl330->pool_lock);
 
 	spin_unlock_irqrestore(&pl330->lock, flags);
 	pm_runtime_mark_last_busy(pch->dmac->ddma.dev);
@@ -2613,7 +2632,7 @@ pl330_tx_status(struct dma_chan *chan, dma_cookie_t cookie,
 		else if (running && desc == running)
 			transferred =
 				pl330_get_current_xferred_count(pch, desc);
-		else if (desc->status == BUSY)
+		else if (desc->status == BUSY || desc->status == PAUSED)
 			/*
 			 * Busy but not running means either just enqueued,
 			 * or finished and not yet marked done
@@ -2630,6 +2649,9 @@ pl330_tx_status(struct dma_chan *chan, dma_cookie_t cookie,
 			case DONE:
 				ret = DMA_COMPLETE;
 				break;
+			case PAUSED:
+				ret = DMA_PAUSED;
+				break;
 			case PREP:
 			case BUSY:
 				ret = DMA_IN_PROGRESS;
@@ -2637,6 +2659,13 @@ pl330_tx_status(struct dma_chan *chan, dma_cookie_t cookie,
 			default:
 				WARN_ON(1);
 			}
+			/*
+			 * The infinitely cyclic without CPU intervention
+			 * use the single desc, so, should always return
+			 * DMA_IN_PROGRESS to match its status.
+			 */
+			if (desc->cyclic)
+				ret = DMA_IN_PROGRESS;
 			break;
 		}
 		if (desc->last)
@@ -2774,7 +2803,7 @@ static struct dma_pl330_desc *pl330_get_desc(struct dma_pl330_chan *pch)
 
 	/* If the DMAC pool is empty, alloc new */
 	if (!desc) {
-		DEFINE_SPINLOCK(lock);
+		static DEFINE_SPINLOCK(lock);
 		LIST_HEAD(pool);
 
 		if (!add_desc(&pool, &lock, GFP_ATOMIC, 1))

@@ -1075,12 +1075,12 @@ static int bridge_stop(struct rkisp_bridge_device *dev)
 	dev->stopping = true;
 	dev->ops->disable(dev);
 	rkisp_stop_spstream(sp_stream);
-	hdr_stop_dmatx(dev->ispdev);
 	ret = wait_event_timeout(dev->done, !dev->en,
 				 msecs_to_jiffies(1000));
 	if (!ret)
 		v4l2_warn(&dev->sd,
 			  "%s timeout ret:%d\n", __func__, ret);
+	rkisp_hdr_stop_dmatx(dev->ispdev);
 	crop_off(dev);
 	dev->stopping = false;
 	dev->en = false;
@@ -1128,7 +1128,7 @@ static int bridge_start_stream(struct v4l2_subdev *sd)
 	if (ret < 0)
 		goto free_buf;
 
-	hdr_config_dmatx(dev->ispdev);
+	rkisp_hdr_config_dmatx(dev->ispdev);
 	ret = bridge_start(dev);
 	if (ret)
 		goto close_pipe;
@@ -1149,7 +1149,7 @@ stop_bridge:
 	bridge_stop(dev);
 close_pipe:
 	dev->ispdev->pipe.close(&dev->ispdev->pipe);
-	hdr_destroy_buf(dev->ispdev);
+	rkisp_hdr_destroy_buf(dev->ispdev);
 free_buf:
 	free_bridge_buf(dev);
 	v4l2_err(&dev->sd, "%s fail:%d\n", __func__, ret);
@@ -1159,7 +1159,7 @@ free_buf:
 static void bridge_destroy_buf(struct rkisp_bridge_device *dev)
 {
 	free_bridge_buf(dev);
-	hdr_destroy_buf(dev->ispdev);
+	rkisp_hdr_destroy_buf(dev->ispdev);
 }
 
 static int bridge_stop_stream(struct v4l2_subdev *sd)
@@ -1268,7 +1268,7 @@ static int bridge_s_stream(struct v4l2_subdev *sd, int on)
 	struct rkisp_hw_dev *hw = dev->ispdev->hw_dev;
 	int ret = 0;
 
-	v4l2_dbg(1, rkisp_debug, sd,
+	v4l2_dbg(1, rkisp_debug, &dev->ispdev->v4l2_dev,
 		 "%s %d\n", __func__, on);
 
 	mutex_lock(&hw->dev_lock);

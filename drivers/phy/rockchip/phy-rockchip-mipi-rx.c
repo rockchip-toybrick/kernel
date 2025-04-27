@@ -49,6 +49,7 @@
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-device.h>
 #include <linux/rockchip/cpu.h>
+#include <linux/rk-camera-module.h>
 
 /* GRF */
 #define RK1808_GRF_PD_VI_CON_OFFSET	0x0430
@@ -556,6 +557,8 @@ struct dphy_drv_data {
 	enum mipi_dphy_ctl_type ctl_type;
 	void (*individual_init)(struct mipidphy_priv *priv);
 	enum mipi_dphy_chip_id chip_id;
+	int (*quick_stream_on)(struct mipidphy_priv *priv, struct v4l2_subdev *sd);
+	int (*quick_stream_off)(struct mipidphy_priv *priv, struct v4l2_subdev *sd);
 };
 
 struct sensor_async_subdev {
@@ -993,6 +996,49 @@ static int mipidphy_get_selection(struct v4l2_subdev *sd,
 	return v4l2_subdev_call(sensor, pad, get_selection, NULL, sel);
 }
 
+static long mipidphy_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct mipidphy_priv *priv = to_dphy_priv(sd);
+	long ret = 0;
+	int on = 0;
+
+	switch (cmd) {
+	case RKMODULE_SET_QUICK_STREAM:
+		if (!priv->drv_data->quick_stream_off ||
+		    !priv->drv_data->quick_stream_on) {
+			ret = -EINVAL;
+			break;
+		}
+		on = *(int *)arg;
+		if (on)
+			priv->drv_data->quick_stream_on(priv, sd);
+		else
+			priv->drv_data->quick_stream_off(priv, sd);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long mipidphy_compat_ioctl32(struct v4l2_subdev *sd,
+				      unsigned int cmd, unsigned long arg)
+{
+	long ret;
+
+	switch (cmd) {
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static const struct v4l2_subdev_pad_ops mipidphy_subdev_pad_ops = {
 	.set_fmt = mipidphy_get_set_fmt,
 	.get_fmt = mipidphy_get_set_fmt,
@@ -1001,6 +1047,10 @@ static const struct v4l2_subdev_pad_ops mipidphy_subdev_pad_ops = {
 
 static const struct v4l2_subdev_core_ops mipidphy_core_ops = {
 	.s_power = mipidphy_s_power,
+	.ioctl = mipidphy_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = mipidphy_compat_ioctl32,
+#endif
 };
 
 static const struct v4l2_subdev_video_ops mipidphy_video_ops = {
@@ -1476,6 +1526,35 @@ static int csi_mipidphy_stream_off(struct mipidphy_priv *priv,
 	return 0;
 }
 
+static int csi_mipidphy_quick_stream_on(struct mipidphy_priv *priv,
+					 struct v4l2_subdev *sd)
+{
+	struct v4l2_subdev *sensor_sd = get_remote_sensor(sd);
+	struct mipidphy_sensor *sensor = sd_to_sensor(priv, sensor_sd);
+
+	/* phy start */
+	write_csiphy_reg(priv, CSIPHY_CTRL_PWRCTL, 0xe4);
+
+	/* set data lane num and enable clock lane */
+	write_csiphy_reg(priv, CSIPHY_CTRL_LANE_ENABLE,
+		((GENMASK(sensor->lanes - 1, 0) << MIPI_CSI_DPHY_CTRL_DATALANE_ENABLE_OFFSET_BIT) |
+		(0x1 << MIPI_CSI_DPHY_CTRL_CLKLANE_ENABLE_OFFSET_BIT) | 0x1));
+
+	/* Reset dphy analog part */
+	write_csiphy_reg(priv, CSIPHY_CTRL_PWRCTL, 0xe0);
+	return 0;
+}
+
+static int csi_mipidphy_quick_stream_off(struct mipidphy_priv *priv,
+					 struct v4l2_subdev *sd)
+{
+	/* disable all lanes */
+	write_csiphy_reg(priv, CSIPHY_CTRL_LANE_ENABLE, 0x01);
+	/* disable pll and ldo */
+	write_csiphy_reg(priv, CSIPHY_CTRL_PWRCTL, 0xe3);
+	return 0;
+}
+
 static const struct dphy_drv_data rk1808_mipidphy_drv_data = {
 	.clks = rk1808_mipidphy_clks,
 	.num_clks = ARRAY_SIZE(rk1808_mipidphy_clks),
@@ -1557,6 +1636,8 @@ static const struct dphy_drv_data rv1126_mipidphy_drv_data = {
 	.ctl_type = MIPI_DPHY_CTL_CSI_HOST,
 	.individual_init = rv1126_mipidphy_individual_init,
 	.chip_id = CHIP_ID_RK1126,
+	.quick_stream_on = csi_mipidphy_quick_stream_on,
+	.quick_stream_off = csi_mipidphy_quick_stream_off,
 };
 
 static const struct of_device_id rockchip_mipidphy_match_id[] = {

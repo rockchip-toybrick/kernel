@@ -31,6 +31,8 @@ struct rkisp_monitor {
 	u32 state;
 	u8 retry;
 	bool is_en;
+	int quota;
+	int times;
 };
 
 struct rkisp_size_info {
