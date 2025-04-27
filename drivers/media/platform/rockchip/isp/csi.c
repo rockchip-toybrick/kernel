@@ -516,6 +516,7 @@ int rkisp_csi_get_hdr_cfg(struct rkisp_device *dev, void *arg)
 	struct rkmodule_hdr_cfg *cfg = arg;
 	struct v4l2_subdev *sd = NULL;
 	u32 type;
+	int ret;
 
 	if (dev->isp_inp & INP_CSI) {
 		type = MEDIA_ENT_F_CAM_SENSOR;
@@ -540,7 +541,13 @@ int rkisp_csi_get_hdr_cfg(struct rkisp_device *dev, void *arg)
 		return -EINVAL;
 	}
 
-	return v4l2_subdev_call(sd, core, ioctl, RKMODULE_GET_HDR_CFG, cfg);
+	ret = v4l2_subdev_call(sd, core, ioctl, RKMODULE_GET_HDR_CFG, cfg);
+	if (ret == -ENOIOCTLCMD) {
+		cfg->esp.mode = HDR_NORMAL_VC;
+		cfg->hdr_mode = NO_HDR;
+		ret = 0;
+	}
+	return ret;
 }
 
 int rkisp_csi_config_patch(struct rkisp_device *dev, bool is_pre_cfg)
