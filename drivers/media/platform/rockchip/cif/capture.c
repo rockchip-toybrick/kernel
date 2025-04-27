@@ -12665,6 +12665,7 @@ static void rkcif_toisp_check_stop_status(struct sditf_priv *priv,
 				} else {
 					stream->is_single_cap = false;
 					stream->is_wait_single_cap = false;
+					stream->cifdev->resume_mode = RKISP_RTT_MODE_MULTI_FRAME;
 					complete(&stream->start_complete);
 					spin_unlock_irqrestore(&stream->cifdev->stream_spinlock, flags);
 				}
@@ -14144,6 +14145,7 @@ void rkcif_irq_pingpong_v1(struct rkcif_device *cif_dev)
 					}
 				} else {
 					last_stream->is_wait_single_cap = false;
+					cif_dev->resume_mode = RKISP_RTT_MODE_MULTI_FRAME;
 					complete(&stream->start_complete);
 					spin_unlock_irqrestore(&stream->cifdev->stream_spinlock, flags);
 					if (cif_dev->switch_info.is_use_switch)
