@@ -211,6 +211,12 @@
 #define RKMODULE_GET_SPD_RATIO	\
 	_IOR('V', BASE_VIDIOC_PRIVATE + 49, struct rkmodule_dcg_ratio)
 
+#define RKMODULE_GET_EXP_MODE       \
+	_IOR('V', BASE_VIDIOC_PRIVATE + 50, __u32)
+
+#define RKMODULE_SET_EXP_MODE       \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 51, __u32)
+
 struct rkmodule_i2cdev_info {
 	__u8 slave_addr;
 } __attribute__ ((packed));
@@ -507,6 +513,15 @@ struct rkmodule_hdr_esp {
 			__u32 obpix;
 		} idcd;
 	} val;
+};
+
+enum exp_mode_e {
+	EXP_NORMAL = 0,
+	EXP_HDR2_STA,
+	EXP_HDR2_DCG,
+	EXP_HDR3_DCG_VS,
+	EXP_HDR3_DCG_SPD,
+	EXP_HDR3_STA,
 };
 
 struct rkmodule_hdr_cfg {
