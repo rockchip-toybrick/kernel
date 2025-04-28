@@ -208,6 +208,9 @@
 #define RKMODULE_SET_BLC  \
 	_IOW('V', BASE_VIDIOC_PRIVATE + 48, struct rkmodule_blc_group)
 
+#define RKMODULE_GET_SPD_RATIO	\
+	_IOR('V', BASE_VIDIOC_PRIVATE + 49, struct rkmodule_dcg_ratio)
+
 struct rkmodule_i2cdev_info {
 	__u8 slave_addr;
 } __attribute__ ((packed));
