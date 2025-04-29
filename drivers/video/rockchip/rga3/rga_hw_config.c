@@ -14,6 +14,8 @@
 const uint32_t rga3_input_raster_format[] = {
 	RGA_FORMAT_RGBA_8888,
 	RGA_FORMAT_BGRA_8888,
+	RGA_FORMAT_RGBX_8888,
+	RGA_FORMAT_BGRX_8888,
 	RGA_FORMAT_RGB_888,
 	RGA_FORMAT_BGR_888,
 	RGA_FORMAT_RGB_565,
@@ -37,6 +39,8 @@ const uint32_t rga3_input_raster_format[] = {
 const uint32_t rga3_output_raster_format[] = {
 	RGA_FORMAT_RGBA_8888,
 	RGA_FORMAT_BGRA_8888,
+	RGA_FORMAT_RGBX_8888,
+	RGA_FORMAT_BGRX_8888,
 	RGA_FORMAT_RGB_888,
 	RGA_FORMAT_BGR_888,
 	RGA_FORMAT_RGB_565,
@@ -58,6 +62,8 @@ const uint32_t rga3_output_raster_format[] = {
 const uint32_t rga3_fbcd_format[] = {
 	RGA_FORMAT_RGBA_8888,
 	RGA_FORMAT_BGRA_8888,
+	RGA_FORMAT_RGBX_8888,
+	RGA_FORMAT_BGRX_8888,
 	RGA_FORMAT_RGB_888,
 	RGA_FORMAT_BGR_888,
 	RGA_FORMAT_RGB_565,

@@ -923,7 +923,8 @@ struct rga3_req {
 	struct rga_alpha_config alpha_config;
 
 	/* for abb mode presever alpha. */
-	bool abb_alpha_pass;
+	bool bg_alpha_pass;
+	bool fg_alpha_pass;
 
 	u8 scale_bicu_mode;
 
@@ -940,11 +941,6 @@ struct rga3_req {
 	u8 fading_r_value;
 	u8 fading_g_value;
 	u8 fading_b_value;
-
-	/* win0 global alpha value		*/
-	u8 win0_a_global_val;
-	/* win1 global alpha value		*/
-	u8 win1_a_global_val;
 
 	u8 rop_mode;
 	u16 rop_code;
