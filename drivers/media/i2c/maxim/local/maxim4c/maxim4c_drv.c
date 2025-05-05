@@ -521,14 +521,12 @@ static int maxim4c_runtime_suspend(struct device *dev)
 
 static int __maybe_unused maxim4c_resume(struct device *dev)
 {
+#if (MAXIM4C_LOCAL_DES_ON_OFF_EN == 0)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	maxim4c_t *maxim4c = v4l2_get_subdevdata(sd);
 	int ret = 0;
 
-	dev_info(dev, "maxim4c resume\n");
-
-#if (MAXIM4C_LOCAL_DES_ON_OFF_EN == 0)
 #if MAXIM4C_TEST_PATTERN
 	ret = maxim4c_pattern_hw_init(maxim4c);
 	if (ret) {
@@ -543,6 +541,8 @@ static int __maybe_unused maxim4c_resume(struct device *dev)
 	}
 #endif /* MAXIM4C_TEST_PATTERN */
 #endif /* MAXIM4C_LOCAL_DES_ON_OFF_EN */
+
+	dev_info(dev, "maxim4c resume\n");
 
 	return 0;
 }
