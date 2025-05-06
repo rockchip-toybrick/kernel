@@ -104,11 +104,17 @@
 };
 
 &i2s2_2ch{
+    assigned-clocks = <&cru CLK_I2S2_2CH>;
+    assigned-clock-parents = <&mclkin_i2s2>;
     pinctrl-0 = <&i2s2m1_lrck
              &i2s2m1_mclk
              &i2s2m1_sclk
              &i2s2m1_sdi>;
     status = "okay";
+};
+
+&mclkin_i2s2 {
+    clock-frequency = <24576000>;
 };
 
 &spi3 {
