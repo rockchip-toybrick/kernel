@@ -1012,6 +1012,32 @@ void rkisp_vicap_hw_link(struct rkisp_device *dev, int on)
 	v4l2_subdev_call(sd, core, ioctl, RKISP_VICAP_CMD_HW_LINK, &on);
 }
 
+static struct rkisp_device *find_next_isp(struct rkisp_device *dev)
+{
+	struct rkisp_hw_dev *hw = dev->hw_dev;
+	struct rkisp_device *isp = NULL;
+	int i, id = dev->dev_id;
+
+	for (i = id + 1; i < hw->dev_num; i++) {
+		isp = hw->isp[i];
+		if (!isp || (isp && !(isp->isp_state & ISP_START)))
+			continue;
+		break;
+	}
+	if (i == hw->dev_num) {
+		isp = NULL;
+		for (i = 0; i < id; i++) {
+			isp = hw->isp[i];
+			if (!isp || (isp && !(isp->isp_state & ISP_START)))
+				continue;
+			break;
+		}
+		if (i == id)
+			isp = NULL;
+	}
+	return isp;
+}
+
 static void rkisp_rdbk_trigger_handle(struct rkisp_device *dev, u32 cmd)
 {
 	struct rkisp_hw_dev *hw = dev->hw_dev;
@@ -1050,7 +1076,7 @@ static void rkisp_rdbk_trigger_handle(struct rkisp_device *dev, u32 cmd)
 		    (dev->unite_div > ISP_UNITE_DIV1 || atomic_read(&hw->refcnt) == 1))
 			isp = dev;
 		else
-			isp = hw->isp[!dev->dev_id];
+			isp = find_next_isp(dev);
 		if (isp &&
 		    isp->isp_state & ISP_START &&
 		    !IS_HDR_RDBK(isp->rd_mode)) {
@@ -1205,7 +1231,7 @@ static void rkisp_multi_online_switch(struct rkisp_device *dev)
 {
 	struct rkisp_hw_dev *hw = dev->hw_dev;
 	struct rkisp_device *isp = NULL;
-	int val = 0, id = dev->dev_id;
+	int val = 0;
 	unsigned long lock_flags = 0;
 	bool is_switch = false;
 	bool to_online = false;
@@ -1226,7 +1252,7 @@ static void rkisp_multi_online_switch(struct rkisp_device *dev)
 		dev->params_vdev.rdbk_times = 2;
 	}
 
-	isp = hw->isp[!id];
+	isp = find_next_isp(dev);
 	if (isp && isp->isp_state & ISP_START) {
 		if (!IS_HDR_RDBK(isp->rd_mode)) {
 			is_switch = true;
@@ -1288,7 +1314,7 @@ void rkisp_check_idle(struct rkisp_device *dev, u32 irq)
 	}
 	spin_unlock_irqrestore(&dev->hw_dev->rdbk_lock, lock_flags);
 
-	/* two virtual isp online frame end switch to other isp */
+	/* multi virtual isp online frame end switch to other isp */
 	if (!hw->is_single && !IS_HDR_RDBK(dev->rd_mode))
 		rkisp_multi_online_switch(dev);
 
