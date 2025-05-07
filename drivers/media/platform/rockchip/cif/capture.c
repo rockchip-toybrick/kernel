@@ -4921,6 +4921,7 @@ static int rkcif_csi_stream_start(struct rkcif_stream *stream, unsigned int mode
 		stream->is_finish_single_cap = true;
 		stream->is_wait_single_cap = false;
 		stream->last_frame_idx = 0;
+		stream->frame_phase_cache = CIF_CSI_FRAME1_READY;
 	}
 	stream->interlaced_bad_frame = false;
 	stream->last_fs_interlaced_phase = 0;
@@ -5215,8 +5216,6 @@ static void rkcif_check_buffer_update_pingpong(struct rkcif_stream *stream,
 	    stream->curr_buf == NULL ||
 	    stream->next_buf == NULL) {
 		frame_phase = stream->frame_phase_cache;
-		if (dev->irq_stats.frm_end_cnt[stream->id] == 0)
-			frame_phase = CIF_CSI_FRAME1_READY;
 		if (!stream->is_line_wake_up ||
 		    (stream->is_line_wake_up && stream->frame_idx < 2)) {
 			if (mbus_cfg->type == V4L2_MBUS_CSI2_DPHY ||
@@ -6904,6 +6903,7 @@ static int rkcif_stream_start(struct rkcif_stream *stream, unsigned int mode)
 		stream->is_in_vblank = false;
 		stream->is_change_toisp = false;
 		stream->last_frame_idx = 0;
+		stream->frame_phase_cache = CIF_CSI_FRAME1_READY;
 	}
 
 	sensor_info = dev->active_sensor;
