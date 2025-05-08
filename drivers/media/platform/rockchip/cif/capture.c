@@ -12752,7 +12752,8 @@ static void rkcif_toisp_check_stop_status(struct sditf_priv *priv,
 					rkcif_scale_start(stream->scale_vdev);
 				}
 			}
-			if (priv->mode.rdbk_mode == RKISP_VICAP_ONLINE_MULTI &&
+			if ((priv->mode_src.rdbk_mode == RKISP_VICAP_ONLINE_MULTI ||
+			     priv->mode_src.rdbk_mode == RKISP_VICAP_ONLINE_UNITE) &&
 			    ((priv->hdr_cfg.hdr_mode == NO_HDR && stream->id == 0) ||
 			      (priv->hdr_cfg.hdr_mode == HDR_X2 && stream->id == 1) ||
 			      (priv->hdr_cfg.hdr_mode == HDR_X3 && stream->id == 2)))

@@ -666,7 +666,8 @@ static long sditf_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		if (*on) {
 			sditf_enable_immediately(priv);
 		} else {
-			if (priv->mode.rdbk_mode != RKISP_VICAP_ONLINE_MULTI)
+			if (priv->mode.rdbk_mode != RKISP_VICAP_ONLINE_MULTI &&
+			    priv->mode.rdbk_mode != RKISP_VICAP_ONLINE_UNITE)
 				sditf_disable_immediately(priv);
 		}
 		return 0;
