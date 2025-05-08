@@ -5391,7 +5391,8 @@ static void rkcif_check_buffer_update_pingpong(struct rkcif_stream *stream,
 				stream->to_stop_dma = 0;
 				wake_up(&stream->wq_stopped);
 			} else {
-				if (stream->cifdev->resume_mode != RKISP_RTT_MODE_ONE_FRAME)
+				if (stream->cifdev->resume_mode != RKISP_RTT_MODE_ONE_FRAME ||
+				    stream->is_single_cap)
 					stream->to_en_dma = RKCIF_DMAEN_BY_VICAP;
 				v4l2_dbg(3, rkcif_debug, &stream->cifdev->v4l2_dev,
 					 "%s stream[%d] start dma capture, frame cnt %d\n",
