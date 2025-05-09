@@ -1050,9 +1050,10 @@ static void isp_config_clk(struct rkisp_hw_dev *dev, int on)
 	u32 val = !on ? 0 :
 		CIF_ICCL_ISP_CLK | CIF_ICCL_CP_CLK | CIF_ICCL_MRSZ_CLK |
 		CIF_ICCL_SRSZ_CLK | CIF_ICCL_JPEG_CLK | CIF_ICCL_MI_CLK |
-		CIF_ICCL_IE_CLK | CIF_ICCL_MIPI_CLK | CIF_ICCL_DCROP_CLK |
-		CIF_ICCL_SIMP_CLK | CIF_ICCL_SMIA_CLK;
+		CIF_ICCL_IE_CLK | CIF_ICCL_MIPI_CLK | CIF_ICCL_DCROP_CLK;
 
+	if (dev->isp_ver >= ISP_V33)
+		val |= CIF_ICCL_SIMP_CLK | CIF_ICCL_SMIA_CLK;
 	if ((dev->isp_ver == ISP_V20 || dev->isp_ver >= ISP_V30) && on)
 		val |= ICCL_MPFBC_CLK;
 	if (dev->isp_ver >= ISP_V32) {
