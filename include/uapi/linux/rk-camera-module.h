@@ -217,6 +217,9 @@
 #define RKMODULE_SET_EXP_MODE       \
 	_IOW('V', BASE_VIDIOC_PRIVATE + 51, __u32)
 
+#define RKMODULE_GET_BAYER_MODE       \
+	_IOR('V', BASE_VIDIOC_PRIVATE + 52, __u32)
+
 struct rkmodule_i2cdev_info {
 	__u8 slave_addr;
 } __attribute__ ((packed));
@@ -952,6 +955,11 @@ struct rkmodule_blc_group {
 	__u32 group_num;
 	enum rkmodule_blc_type blc_type[RKMODULE_MAX_BLC_GROUP];
 	__u32 blc[RKMODULE_MAX_BLC_GROUP];
+};
+
+enum rkmodule_bayer_mode {
+	RKMODULE_NORMAL_BAYER,
+	RKMODULE_QUARD_BAYER,
 };
 
 #endif /* _UAPI_RKMODULE_CAMERA_H */
