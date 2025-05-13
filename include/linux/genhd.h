@@ -200,6 +200,7 @@ struct gendisk {
 	void *private_data;
 
 	int flags;
+	int disk_insert;              /*  removable disk insert flag: 1 insert; 0 not insert */
 	unsigned long state;
 #define GD_NEED_PART_SCAN		0
 	struct rw_semaphore lookup_sem;

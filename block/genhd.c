@@ -1927,7 +1927,7 @@ static unsigned long disk_events_poll_jiffies(struct gendisk *disk)
 	if (ev->poll_msecs >= 0)
 		intv_msecs = ev->poll_msecs;
 	else if (disk->event_flags & DISK_EVENT_FLAG_POLL)
-		intv_msecs = disk_events_dfl_poll_msecs;
+		intv_msecs = 2000;//disk_events_dfl_poll_msecs;
 
 	return msecs_to_jiffies(intv_msecs);
 }
@@ -2137,6 +2137,20 @@ static void disk_check_events(struct disk_events *ev,
 	unsigned int events;
 	unsigned long intv;
 	int nr_events = 0, i;
+	struct disk_part_iter piter;
+	struct hd_struct *part;
+
+	if(disk->disk_insert == 1){
+		printk("%s: send KOBJ_ADD 1 \n",__func__);
+		kobject_uevent(&disk_to_dev(disk)->kobj, KOBJ_ADD);
+		disk_part_iter_init(&piter, disk, 0);
+		while ((part = disk_part_iter_next(&piter))){
+			kobject_uevent(&part_to_dev(part)->kobj, KOBJ_ADD);
+			printk("%s: send KOBJ_ADD 2\n",__func__);
+		}
+		disk->disk_insert = 0;
+		disk_part_iter_exit(&piter);//need to Cleans up @piter
+	}
 
 	/* check events */
 	events = disk->fops->check_events(disk, clearing);
@@ -2145,6 +2159,8 @@ static void disk_check_events(struct disk_events *ev,
 	spin_lock_irq(&ev->lock);
 
 	events &= ~ev->pending;
+	printk("%s: ev->pending = %d\n", __func__, ev->pending);
+
 	ev->pending |= events;
 	*clearing_ptr &= ~clearing;
 
@@ -2166,8 +2182,18 @@ static void disk_check_events(struct disk_events *ev,
 		    (disk->event_flags & DISK_EVENT_FLAG_UEVENT))
 			envp[nr_events++] = disk_uevents[i];
 
-	if (nr_events)
-		kobject_uevent_env(&disk_to_dev(disk)->kobj, KOBJ_CHANGE, envp);
+	if (nr_events){
+		if( disk->disk_insert == 0 ){
+			kobject_uevent(&disk_to_dev(disk)->kobj, KOBJ_REMOVE);
+			printk("%s: send KOBJ_REMOVE 1\n",__func__);
+			disk_part_iter_init(&piter, disk, 0);
+			while ((part = disk_part_iter_next(&piter))){
+				printk("%s: send KOBJ_REMOVE 2\n",__func__);
+				kobject_uevent(&part_to_dev(part)->kobj, KOBJ_REMOVE);
+			}
+			disk_part_iter_exit(&piter);//need to Cleans up @piter
+		}
+	}
 }
 
 /*

@@ -1687,8 +1687,14 @@ static unsigned int sd_check_events(struct gendisk *disk, unsigned int clearing)
 	 * For removable scsi disk we have to recognise the presence
 	 * of a disk in the drive.
 	 */
-	if (!sdkp->media_present)
+	if (!sdkp->media_present) {
 		sdp->changed = 1;
+
+		if (retval == 0)
+			disk->disk_insert = 1;
+		else
+			disk->disk_insert = 0;
+	}
 	sdkp->media_present = 1;
 out:
 	/*
