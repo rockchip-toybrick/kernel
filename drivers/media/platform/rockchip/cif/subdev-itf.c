@@ -204,6 +204,11 @@ static int sditf_get_set_fmt(struct v4l2_subdev *sd,
 		if (!ret) {
 			fmt->format.width = input_sel.r.width;
 			fmt->format.height = input_sel.r.height;
+			priv->cap_info.offset_x = input_sel.r.left;
+			priv->cap_info.offset_y = input_sel.r.top;
+		} else {
+			priv->cap_info.offset_x = 0;
+			priv->cap_info .offset_y = 0;
 		}
 		priv->cap_info.width = fmt->format.width;
 		priv->cap_info.height = fmt->format.height;
@@ -807,8 +812,8 @@ static int sditf_channel_enable_rv1103b(struct sditf_priv *priv, int user)
 	unsigned int ctrl_ch1 = 0;
 	unsigned int ctrl_ch2 = 0;
 	unsigned int int_en = 0;
-	unsigned int offset_x = 0;
-	unsigned int offset_y = 0;
+	unsigned int offset_x = priv->cap_info.offset_x;
+	unsigned int offset_y = priv->cap_info.offset_y;
 	unsigned int width = priv->cap_info.width;
 	unsigned int height = priv->cap_info.height;
 	int csi_idx = cif_dev->csi_host_idx;
