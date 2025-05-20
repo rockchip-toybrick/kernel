@@ -168,12 +168,14 @@ static void rkisp_stats_vb2_buf_queue(struct vb2_buffer *vb)
 	if (dev->isp_ver == ISP_V32 && dev->is_pre_on) {
 		struct rkisp32_isp_stat_buffer *buf = stats_dev->stats_buf[0].vaddr;
 
+		if (dev->unite_div > ISP_UNITE_DIV1)
+			buf = stats_dev->stats_buf[0].vaddr + size / 2;
 		if (dev->isp_state & ISP_START && stats_buf->vaddr[0] &&
 		    buf && !buf->frame_id && buf->meas_type) {
 			dev_info(dev->dev,
 				 "tb stat seq:%d meas_type:0x%x\n",
 				 buf->frame_id, buf->meas_type);
-			memcpy(stats_buf->vaddr[0], buf, size);
+			memcpy(stats_buf->vaddr[0], stats_dev->stats_buf[0].vaddr, size);
 			buf->meas_type = 0;
 			vb2_set_plane_payload(vb, 0, size);
 			vbuf->sequence = buf->frame_id;
@@ -184,12 +186,14 @@ static void rkisp_stats_vb2_buf_queue(struct vb2_buffer *vb)
 	} else if (dev->isp_ver == ISP_V33 && dev->is_pre_on) {
 		struct rkisp33_stat_buffer *buf = stats_dev->stats_buf[0].vaddr;
 
+		if (dev->unite_div > ISP_UNITE_DIV1)
+			buf = stats_dev->stats_buf[0].vaddr + size / 2;
 		if (dev->isp_state & ISP_START && stats_buf->vaddr[0] &&
 		    buf && !buf->frame_id && buf->meas_type) {
 			dev_info(dev->dev,
 				 "tb stat seq:%d meas_type:0x%x\n",
 				 buf->frame_id, buf->meas_type);
-			memcpy(stats_buf->vaddr[0], buf, size);
+			memcpy(stats_buf->vaddr[0], stats_dev->stats_buf[0].vaddr, size);
 			buf->meas_type = 0;
 			vb2_set_plane_payload(vb, 0, size);
 			vbuf->sequence = buf->frame_id;
