@@ -1624,8 +1624,8 @@ static int sditf_fwnode_parse(struct device *dev,
 	struct v4l2_mbus_config *config = &s_asd->mbus;
 
 	if (vep->base.port != 0) {
-		dev_err(dev, "sditf has only port 0\n");
-		return -EINVAL;
+		dev_info(dev, "sditf has only parse port 0\n");
+		return 0;
 	}
 
 	if (vep->bus_type == V4L2_MBUS_CSI2_DPHY ||
