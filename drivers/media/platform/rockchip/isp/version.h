@@ -594,6 +594,28 @@
  * 19.add sensor exposure for isp30 and isp39
  * 20.support frame information attach to image tail
  * 21.fix isp30 stream buf size if enable attach information
+ *
+ * v2.9.1
+ * 1.fix multi online for fast mode
+ * 2.fix fast multi online
+ * 3.max hardware size change to 2880x3240 for isp33
+ * 4.fix CTRL_SWS_CFG config error
+ * 5.fix drc and dhaz two readback for isp32
+ * 6.fix bilinear scale no output if unite mode
+ * 7.multi-sensor online info to vicap
+ * 8.max unite resolution 4736x3240 for isp33
+ * 9.support to adjust sof_cnt according to vicap sof
+ * 10.fix isp33 sharp/gic noise curve if resume
+ * 11.fix stats error when fast switch to online for single sensor
+ * 12.fix hsv resume error for isp33
+ * 13.fix rawrd bytesperline
+ * 14.default to NO_HDR if sensor Unimplemented RKMODULE_GET_HDR_CFG
+ * 15.fix bls2
+ * 16.fix mipi overflow for isp21
+ * 17.unite no support wrap
+ * 18.support more online for isp33
+ * 19.fix 4k unite fast stats error
+ * 20.fix only isp_vir1 index error
  */
 
 #define RKISP_DRIVER_VERSION RKISP_API_VERSION
