@@ -2208,7 +2208,7 @@
 		soc_thermal: soc-thermal {
 			polling-delay-passive = <20>; /* milliseconds */
 			polling-delay = <1000>; /* milliseconds */
-			sustainable-power = <2100>; /* milliwatts */
+			sustainable-power = <2315>; /* milliwatts */
 
 			thermal-sensors = <&tsadc 0>;
 			trips {
@@ -2249,6 +2249,11 @@
 				map3 {
 					trip = <&target>;
 					cooling-device = <&gpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					contribution = <1024>;
+				};
+				map4 {
+					trip = <&target>;
+					cooling-device = <&rknpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 					contribution = <1024>;
 				};
 			};
@@ -3425,6 +3430,8 @@
 				<&power RK3588_PD_NPU2>;
 		power-domain-names = "npu0", "npu1", "npu2";
 		operating-points-v2 = <&npu_opp_table>;
+		#cooling-cells = <2>;
+		dynamic-power-coefficient = <2500>;
 		iommus = <&rknpu_mmu>;
 		status = "disabled";
 	};
