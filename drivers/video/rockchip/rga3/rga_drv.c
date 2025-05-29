@@ -1497,7 +1497,11 @@ pm_disable:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
 static int rga_drv_remove(struct platform_device *pdev)
+#else
+static void rga_drv_remove(struct platform_device *pdev)
+#endif
 {
 	struct rga_scheduler_t *scheduler = NULL;
 
@@ -1515,7 +1519,9 @@ static int rga_drv_remove(struct platform_device *pdev)
 
 	up_write(&rga_drvdata->rwsem);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
 	return 0;
+#endif
 }
 
 static void rga_drv_shutdown(struct platform_device *pdev)
