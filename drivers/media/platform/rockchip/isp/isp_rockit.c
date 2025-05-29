@@ -322,6 +322,32 @@ int rkisp_rockit_buf_done(struct rkisp_stream *stream, int cmd, struct rkisp_buf
 				ISP33_ISP2ENC_FRM_CNT(rkisp_read(dev, ISP3X_ISP_DEBUG1, true));
 	}
 
+	if (stream->is_attach_info) {
+		struct sensor_exposure_cfg *exp = &dev->params_vdev.exposure;
+
+		if (!IS_HDR_RDBK(dev->rd_mode))
+			rockit_cfg->frame.u64PTS = dev->vicap_sof.timestamp;
+		rockit_cfg->frame.hdr = dev->params_vdev.is_hdr;
+		rockit_cfg->frame.rolling_shutter_skew = exp->linear_exp.rolling_shutter_skew;
+		rockit_cfg->frame.sensor_exposure_time = exp->linear_exp.coarse_integration_time;
+		rockit_cfg->frame.sensor_analog_gain = exp->linear_exp.analog_gain_code_global;
+		rockit_cfg->frame.sensor_digital_gain = exp->linear_exp.digital_gain_global;
+		rockit_cfg->frame.isp_digital_gain = exp->linear_exp.isp_digital_gain;
+		if (rockit_cfg->frame.hdr) {
+			rockit_cfg->frame.rolling_shutter_skew = exp->hdr_exp[0].rolling_shutter_skew;
+
+			rockit_cfg->frame.sensor_exposure_time = exp->hdr_exp[0].coarse_integration_time;
+			rockit_cfg->frame.sensor_analog_gain = exp->hdr_exp[0].analog_gain_code_global;
+			rockit_cfg->frame.sensor_digital_gain = exp->hdr_exp[0].digital_gain_global;
+			rockit_cfg->frame.isp_digital_gain = exp->hdr_exp[0].isp_digital_gain;
+
+			rockit_cfg->frame.sensor_exposure_time_l = exp->hdr_exp[1].coarse_integration_time;
+			rockit_cfg->frame.sensor_analog_gain_l = exp->hdr_exp[1].analog_gain_code_global;
+			rockit_cfg->frame.sensor_digital_gain_l = exp->hdr_exp[1].digital_gain_global;
+			rockit_cfg->frame.isp_digital_gain_l = exp->hdr_exp[1].isp_digital_gain;
+		}
+	}
+
 	rockit_cfg->is_color = !rkisp_read(dev, ISP3X_IMG_EFF_CTRL, true);
 
 	rockit_cfg->frame.u32Height = stream->out_fmt.height;

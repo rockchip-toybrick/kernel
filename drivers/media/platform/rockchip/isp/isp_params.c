@@ -482,7 +482,9 @@ void rkisp_params_first_cfg(struct rkisp_isp_params_vdev *params_vdev,
 			    enum v4l2_quantization quantization)
 {
 	struct rkisp_device *dev = params_vdev->dev;
+	u32 val = rkisp_read(dev, ISP_HDRMGE_CTRL, false);
 
+	params_vdev->is_hdr = !!(val & SW_HDRMGE_EN);
 	if (!params_vdev->is_first_cfg)
 		return;
 	params_vdev->is_first_cfg = false;

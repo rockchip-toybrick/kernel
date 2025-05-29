@@ -56,6 +56,24 @@ struct ISP_VIDEO_FRAMES {
 	u64	u64PrivateData;
 	u32	u32FrameFlag;     /* FRAME_FLAG_E, can be OR operation. */
 	u8	ispEncCnt;
+
+	u32	hdr;
+	u32	rolling_shutter_skew;
+	/* linear or hdr short frame */
+	u32	sensor_exposure_time;
+	u32	sensor_analog_gain;
+	u32	sensor_digital_gain;
+	u32	isp_digital_gain;
+	/* hdr mid-frame */
+	u32	sensor_exposure_time_m;
+	u32	sensor_analog_gain_m;
+	u32	sensor_digital_gain_m;
+	u32	isp_digital_gain_m;
+	/* hdr long frame */
+	u32	sensor_exposure_time_l;
+	u32	sensor_analog_gain_l;
+	u32	sensor_digital_gain_l;
+	u32	isp_digital_gain_l;
 };
 
 struct rkisp_dev_cfg {

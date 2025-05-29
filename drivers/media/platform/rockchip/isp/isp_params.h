@@ -94,6 +94,7 @@ struct rkisp_isp_params_vdev {
 
 	bool is_subs_evt;
 	bool is_first_cfg;
+	bool is_hdr;
 };
 
 static inline void
