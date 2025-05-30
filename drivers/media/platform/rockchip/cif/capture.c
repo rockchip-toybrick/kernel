@@ -5054,6 +5054,7 @@ static void rkcif_stream_stop(struct rkcif_stream *stream)
 	int i = 0;
 	int ret = 0;
 
+	atomic_dec_if_positive(&stream->cifdev->id_use_cnt);
 	if (cif_dev->switch_info.is_use_switch) {
 		ret = atomic_dec_if_positive(&cif_dev->hw_dev->switch_stream_cnt[cif_dev->switch_info.host_idx]);
 		if (ret) {
@@ -5062,8 +5063,6 @@ static void rkcif_stream_stop(struct rkcif_stream *stream)
 			return;
 		}
 	}
-
-	atomic_dec_if_positive(&stream->cifdev->id_use_cnt);
 
 	if (mbus_cfg->type == V4L2_MBUS_CSI2_DPHY ||
 	    mbus_cfg->type == V4L2_MBUS_CSI2_CPHY ||
