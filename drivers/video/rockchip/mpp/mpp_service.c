@@ -46,7 +46,7 @@
 		mpp_add_driver(srv, MPP_DRIVER_##X, &rockchip_##x##_driver, "grf_"#x);\
 	}
 
-unsigned int mpp_dev_debug;
+unsigned int mpp_dev_debug = DEBUG_TIMING;
 module_param(mpp_dev_debug, uint, 0644);
 MODULE_PARM_DESC(mpp_dev_debug, "bit switch for mpp debug information");
 

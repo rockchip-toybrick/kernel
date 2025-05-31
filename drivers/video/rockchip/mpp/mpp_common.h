@@ -402,6 +402,11 @@ enum mpp_task_state {
 	TASK_TIMING_FINISH	= 24,
 };
 
+struct hw_stats {
+	u32  hw_cycles;
+	u32  hw_time;
+};
+
 /* The context for the a task */
 struct mpp_task {
 	/* context belong to */
@@ -672,7 +677,7 @@ bool mpp_grf_is_changed(struct mpp_grf_info *grf_info);
 int mpp_set_grf(struct mpp_grf_info *grf_info);
 
 int mpp_time_record(struct mpp_task *task);
-int mpp_time_diff(struct mpp_task *task);
+s64 mpp_time_diff(struct mpp_task *task);
 int mpp_time_diff_with_hw_time(struct mpp_task *task, u32 clk_hz);
 int mpp_time_part_diff(struct mpp_task *task);
 

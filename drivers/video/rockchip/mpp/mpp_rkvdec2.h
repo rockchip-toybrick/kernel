@@ -141,6 +141,8 @@ struct rkvdec2_task {
 	struct mpp_request w_reqs[MPP_MAX_MSG_NUM];
 	u32 r_req_cnt;
 	struct mpp_request r_reqs[MPP_MAX_MSG_NUM];
+	u32 r_stats_req_en;
+	struct mpp_request r_stats_req;
 	/* image info */
 	u32 width;
 	u32 height;
