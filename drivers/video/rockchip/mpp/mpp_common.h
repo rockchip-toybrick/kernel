@@ -402,6 +402,11 @@ enum mpp_task_state {
 	TASK_TIMING_FINISH	= 24,
 };
 
+struct hw_stats {
+	u32  hw_cycles;
+	u32  hw_time;
+};
+
 /* The context for the a task */
 struct mpp_task {
 	/* context belong to */
@@ -455,6 +460,10 @@ struct mpp_task {
 	/* hw cycles */
 	u32 hw_cycles;
 	u32 hw_time;
+
+	/* req for current task */
+	u32 r_stats_req_en;
+	struct mpp_request r_stats_req;
 };
 
 struct mpp_taskqueue {

@@ -1358,7 +1358,8 @@ static int mpp_process_request(struct mpp_session *session,
 	case MPP_CMD_SET_REG_WRITE:
 	case MPP_CMD_SET_REG_READ:
 	case MPP_CMD_SET_REG_ADDR_OFFSET:
-	case MPP_CMD_SET_RCB_INFO: {
+	case MPP_CMD_SET_RCB_INFO:
+	case MPP_CMD_SET_HW_STATS_READ: {
 		msgs->flags |= req->flags;
 		msgs->set_cnt++;
 	} break;
@@ -2391,8 +2392,11 @@ int mpp_set_grf(struct mpp_grf_info *grf_info)
 
 int mpp_time_record(struct mpp_task *task)
 {
+	if (!mpp_debug_unlikely(DEBUG_TIMING) && !task->r_stats_req_en)
+		return 0;
+
+	task->start = ktime_get();
 	if (mpp_debug_unlikely(DEBUG_TIMING) && task) {
-		task->start = ktime_get();
 		task->part = task->start;
 	}
 
@@ -2417,36 +2421,54 @@ int mpp_time_part_diff(struct mpp_task *task)
 
 int mpp_time_diff(struct mpp_task *task)
 {
+	s64 delt_t = 0;
+	ktime_t end;
+
+	if (!mpp_debug_unlikely(DEBUG_TIMING) && !task->r_stats_req_en)
+		return 0;
+
+	end = ktime_get();
+	delt_t = ktime_us_delta(end, task->start);
 	if (mpp_debug_unlikely(DEBUG_TIMING)) {
-		ktime_t end;
 		struct mpp_dev *mpp = mpp_get_task_used_device(task, task->session);
 
-		end = ktime_get();
 		mpp_debug(DEBUG_TIMING, "%s:%d session %d:%d time: %lld us\n",
-			dev_name(mpp->dev), task->core_id, task->session->pid,
-			task->session->index, ktime_us_delta(end, task->start));
+				dev_name(mpp->dev), task->core_id, task->session->pid,
+				task->session->index, delt_t);
 	}
+	if (task->r_stats_req_en)
+		task->hw_time = delt_t;
 
 	return 0;
 }
 
 int mpp_time_diff_with_hw_time(struct mpp_task *task, u32 clk_hz)
 {
-	if (mpp_debug_unlikely(DEBUG_TIMING)) {
-		ktime_t end;
-		struct mpp_dev *mpp = mpp_get_task_used_device(task, task->session);
+	ktime_t end;
 
-		end = ktime_get();
+	if (!mpp_debug_unlikely(DEBUG_TIMING) && !task->r_stats_req_en)
+		return 0;
+
+	end = ktime_get();
+	if (mpp_debug_unlikely(DEBUG_TIMING)) {
+		struct mpp_dev *mpp = mpp_get_task_used_device(task, task->session);
 
 		if (clk_hz)
 			mpp_debug(DEBUG_TIMING, "%s:%d session %d:%d time: %lld us hw %d us\n",
-				dev_name(mpp->dev), task->core_id, task->session->pid,
-				task->session->index, ktime_us_delta(end, task->start),
-				task->hw_cycles / (clk_hz / 1000000));
+					dev_name(mpp->dev), task->core_id, task->session->pid,
+					task->session->index, ktime_us_delta(end, task->start),
+					task->hw_cycles / (clk_hz / 1000000));
 		else
 			mpp_debug(DEBUG_TIMING, "%s:%d session %d:%d time: %lld us\n",
-				dev_name(mpp->dev), task->core_id, task->session->pid,
-				task->session->index, ktime_us_delta(end, task->start));
+					dev_name(mpp->dev), task->core_id, task->session->pid,
+					task->session->index, ktime_us_delta(end, task->start));
+	}
+
+	if (task->r_stats_req_en) {
+		if (clk_hz)
+			task->hw_time = task->hw_cycles / (clk_hz / 1000000);
+		else
+			task->hw_time = ktime_us_delta(end, task->start);
 	}
 
 	return 0;

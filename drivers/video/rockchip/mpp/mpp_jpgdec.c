@@ -147,6 +147,7 @@ static int jpgdec_extract_task_msg(struct jpgdec_task *task,
 	int ret;
 	struct mpp_request *req;
 	struct mpp_hw_info *hw_info = task->mpp_task.hw_info;
+	struct mpp_task *mpp_task = &task->mpp_task;
 
 	for (i = 0; i < msgs->req_cnt; i++) {
 		u32 off_s, off_e;
@@ -183,6 +184,10 @@ static int jpgdec_extract_task_msg(struct jpgdec_task *task,
 		} break;
 		case MPP_CMD_SET_REG_ADDR_OFFSET: {
 			mpp_extract_reg_offset_info(&task->off_inf, req);
+		} break;
+		case MPP_CMD_SET_HW_STATS_READ: {
+			mpp_task->r_stats_req_en = 1;
+			memcpy(&mpp_task->r_stats_req, req, sizeof(*req));
 		} break;
 		default:
 			break;
@@ -341,6 +346,22 @@ static int jpgdec_result(struct mpp_dev *mpp,
 		if (copy_to_user(req->data,
 				 (u8 *)task->reg + req->offset,
 				 req->size)) {
+			mpp_err("copy_to_user reg fail\n");
+			return -EIO;
+		}
+	}
+
+	if (mpp_task->r_stats_req_en) {
+		struct hw_stats hw_s;
+		req = &mpp_task->r_stats_req;
+
+		hw_s.hw_cycles = mpp_task->hw_cycles;
+		hw_s.hw_time = mpp_task->hw_time;
+
+		if (sizeof(hw_s) != req->size)
+			return 0;
+
+		if (copy_to_user(req->data, (u8 *)&hw_s, req->size)) {
 			mpp_err("copy_to_user reg fail\n");
 			return -EIO;
 		}
