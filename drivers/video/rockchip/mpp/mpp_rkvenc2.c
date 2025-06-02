@@ -231,8 +231,9 @@ struct rkvenc_task {
 	u32 r_req_cnt;
 	struct mpp_request r_reqs[MPP_MAX_MSG_NUM];
 	struct mpp_dma_buffer *table;
-
 	union rkvenc2_dual_core_handshake_id dchs_id;
+	u32 r_stats_req_en;
+	struct mpp_request r_stats_req;
 
 	/* split output / slice mode info */
 	u32 task_split;
@@ -768,6 +769,10 @@ static int rkvenc_extract_task_msg(struct mpp_session *session,
 
 			if (priv)
 				rkvenc2_extract_rcb_info(&priv->rcb_inf, req);
+		} break;
+		case MPP_CMD_SET_HW_STATS_READ: {
+			task->r_stats_req_en = 1;
+			memcpy(&task->r_stats_req, req, sizeof(*req));
 		} break;
 		default:
 			break;
@@ -1438,7 +1443,8 @@ static int rkvenc_isr(struct mpp_dev *mpp)
 	}
 
 	mpp_task = mpp->cur_task;
-	mpp_time_diff(mpp_task);
+	mpp_task->hw_time = (u32)mpp_time_diff(mpp_task);
+	// mpp_task->hw_time = enc->core_current_rate_hz;
 	mpp->cur_task = NULL;
 
 	if (mpp_task->mpp && mpp_task->mpp != mpp)
@@ -1530,6 +1536,20 @@ static int rkvenc_result(struct mpp_dev *mpp,
 		if (copy_to_user(req->data, reg, req->size)) {
 			mpp_err("copy_to_user reg fail\n");
 			return -EIO;
+		}
+		if (task->r_stats_req_en) {
+			struct hw_stats hw_s;
+			req = &task->r_stats_req;
+	
+			hw_s.hw_cycles = mpp_task->hw_cycles;
+			hw_s.hw_time = mpp_task->hw_time;
+			if (sizeof(hw_s) != req->size)
+				return 0;
+	
+			if (copy_to_user(req->data, (u8 *)&hw_s, req->size)) {
+				mpp_err("copy_to_user reg fail\n");
+				return -EIO;
+			}
 		}
 	}
 
