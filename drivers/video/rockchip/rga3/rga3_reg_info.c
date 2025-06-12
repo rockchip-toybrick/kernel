@@ -1569,9 +1569,6 @@ static void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 			addr_copy(&req->win0, &req_rga->dst);
 			req->win0.format = req_rga->dst.format;
 
-			/* only win1 && wr support fbcd, win0 default raster */
-			req->win0.rd_mode = 0;
-
 			/* set win0 dst size */
 			req->win0.dst_act_w = req_rga->dst.act_w;
 			req->win0.dst_act_h = req_rga->dst.act_h;
