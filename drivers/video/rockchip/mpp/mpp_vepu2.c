@@ -102,8 +102,6 @@ struct vepu_task {
 	u32 pixels;
 	struct mpp_dma_buffer *bs_buf;
 	u32 offset_bs;
-	u32 r_stats_req_en;
-	struct mpp_request r_stats_req;
 };
 
 struct vepu_session_priv {
@@ -257,10 +255,6 @@ static int vepu_extract_task_msg(struct vepu_task *task,
 		} break;
 		case MPP_CMD_SET_REG_ADDR_OFFSET: {
 			mpp_extract_reg_offset_info(&task->off_inf, req);
-		} break;
-		case MPP_CMD_SET_HW_STATS_READ: {
-			task->r_stats_req_en = 1;
-			memcpy(&task->r_stats_req, req, sizeof(*req));
 		} break;
 		default:
 			break;
@@ -438,7 +432,7 @@ static int vepu_isr(struct mpp_dev *mpp)
 		dev_err(mpp->dev, "no current task\n");
 		return IRQ_HANDLED;
 	}
-	mpp_task->hw_time = (u32)mpp_time_diff(mpp_task);
+	mpp_time_diff(mpp_task);
 	mpp->cur_task = NULL;
 	task = to_vepu_task(mpp_task);
 	task->irq_status = mpp->irq_status;
@@ -512,20 +506,6 @@ static int vepu_result(struct mpp_dev *mpp,
 		if (copy_to_user(req->data,
 				 (u8 *)task->reg + req->offset,
 				 req->size)) {
-			mpp_err("copy_to_user reg fail\n");
-			return -EIO;
-		}
-	}
-	if (task->r_stats_req_en) {
-		struct hw_stats hw_s;
-		req = &task->r_stats_req;
-
-		hw_s.hw_cycles = mpp_task->hw_cycles;
-		hw_s.hw_time = mpp_task->hw_time;
-		if (sizeof(hw_s) != req->size)
-			return 0;
-
-		if (copy_to_user(req->data, (u8 *)&hw_s, req->size)) {
 			mpp_err("copy_to_user reg fail\n");
 			return -EIO;
 		}
