@@ -134,8 +134,6 @@ struct av1dec_task {
 	struct mpp_request w_reqs[MPP_MAX_MSG_NUM];
 	u32 r_req_cnt;
 	struct mpp_request r_reqs[MPP_MAX_MSG_NUM];
-	u32 r_stats_req_en;
-	struct mpp_request r_stats_req;
 };
 
 struct av1dec_dev {
@@ -363,10 +361,6 @@ static int av1dec_extract_task_msg(struct av1dec_task *task,
 		} break;
 		case MPP_CMD_SET_REG_ADDR_OFFSET: {
 			mpp_extract_reg_offset_info(&task->off_inf, req);
-		} break;
-		case MPP_CMD_SET_HW_STATS_READ: {
-			task->r_stats_req_en = 1;
-			memcpy(&task->r_stats_req, req, sizeof(*req));
 		} break;
 		default:
 			break;
@@ -659,7 +653,7 @@ static int av1dec_isr(struct mpp_dev *mpp)
 		return IRQ_HANDLED;
 	}
 
-	mpp_task->hw_time = (u32)mpp_time_diff(mpp_task);
+	mpp_time_diff(mpp_task);
 	mpp->cur_task = NULL;
 
 	/* clear l2 cache status */
@@ -747,13 +741,12 @@ static int av1dec_result(struct mpp_dev *mpp,
 	struct av1dec_task *task = to_av1dec_task(mpp_task);
 	struct av1dec_dev *dec = to_av1dec_dev(mpp);
 	struct av1dec_hw_info *hw = dec->hw_info;
-	struct mpp_request *req = NULL;
 
 	mpp_debug_enter();
 
 	for (i = 0; i < task->r_req_cnt; i++) {
 		int class;
-		req = &task->r_reqs[i];
+		struct mpp_request *req = &task->r_reqs[i];
 
 		for (class = 0; class < hw->reg_class_num; class++) {
 			u32 base, *regs;
@@ -770,23 +763,6 @@ static int av1dec_result(struct mpp_dev *mpp,
 			}
 		}
 	}
-
-	if (task->r_stats_req_en) {
-		struct hw_stats hw_s;
-		req = &task->r_stats_req;
-
-		hw_s.hw_cycles = mpp_task->hw_cycles;
-		hw_s.hw_time = mpp_task->hw_time;
-
-		if (sizeof(hw_s) != req->size)
-			return 0;
-
-		if (copy_to_user(req->data, (u8 *)&hw_s, req->size)) {
-			mpp_err("copy_to_user reg fail\n");
-			return -EIO;
-		}
-	}
-
 	mpp_debug_leave();
 
 	return 0;

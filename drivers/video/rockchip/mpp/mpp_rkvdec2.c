@@ -183,10 +183,6 @@ static int rkvdec2_extract_task_msg(struct mpp_session *session,
 			if (priv)
 				mpp_extract_rcb_info(&priv->rcb_inf, req);
 		} break;
-		case MPP_CMD_SET_HW_STATS_READ: {
-			task->r_stats_req_en = 1;
-			memcpy(&task->r_stats_req, req, sizeof(*req));
-		} break;
 		default:
 			break;
 		}
@@ -556,22 +552,6 @@ int rkvdec2_result(struct mpp_dev *mpp, struct mpp_task *mpp_task,
 				mpp_err("copy_to_user reg fail\n");
 				return -EIO;
 			}
-		}
-	}
-
-	if (task->r_stats_req_en) {
-		struct hw_stats hw_s;
-		req = &task->r_stats_req;
-
-		hw_s.hw_cycles = mpp_task->hw_cycles;
-		hw_s.hw_time = mpp_task->hw_time;
-
-		if (sizeof(hw_s) != req->size)
-			return 0;
-
-		if (copy_to_user(req->data, (u8 *)&hw_s, req->size)) {
-			mpp_err("copy_to_user reg fail\n");
-			return -EIO;
 		}
 	}
 

@@ -1358,8 +1358,7 @@ static int mpp_process_request(struct mpp_session *session,
 	case MPP_CMD_SET_REG_WRITE:
 	case MPP_CMD_SET_REG_READ:
 	case MPP_CMD_SET_REG_ADDR_OFFSET:
-	case MPP_CMD_SET_RCB_INFO:
-	case MPP_CMD_SET_HW_STATS_READ: {
+	case MPP_CMD_SET_RCB_INFO: {
 		msgs->flags |= req->flags;
 		msgs->set_cnt++;
 	} break;
@@ -2416,19 +2415,16 @@ int mpp_time_part_diff(struct mpp_task *task)
 	return 0;
 }
 
-s64 mpp_time_diff(struct mpp_task *task)
+int mpp_time_diff(struct mpp_task *task)
 {
 	if (mpp_debug_unlikely(DEBUG_TIMING)) {
 		ktime_t end;
-		s64 delt_t = 0;
 		struct mpp_dev *mpp = mpp_get_task_used_device(task, task->session);
 
 		end = ktime_get();
-		delt_t = ktime_us_delta(end, task->start);
 		mpp_debug(DEBUG_TIMING, "%s:%d session %d:%d time: %lld us\n",
 			dev_name(mpp->dev), task->core_id, task->session->pid,
-			task->session->index, delt_t);
-		return delt_t;
+			task->session->index, ktime_us_delta(end, task->start));
 	}
 
 	return 0;

@@ -87,8 +87,6 @@ struct jpgdec_task {
 	struct mpp_request w_reqs[MPP_MAX_MSG_NUM];
 	u32 r_req_cnt;
 	struct mpp_request r_reqs[MPP_MAX_MSG_NUM];
-	u32 r_stats_req_en;
-	struct mpp_request r_stats_req;
 };
 
 struct jpgdec_dev {
@@ -185,10 +183,6 @@ static int jpgdec_extract_task_msg(struct jpgdec_task *task,
 		} break;
 		case MPP_CMD_SET_REG_ADDR_OFFSET: {
 			mpp_extract_reg_offset_info(&task->off_inf, req);
-		} break;
-		case MPP_CMD_SET_HW_STATS_READ: {
-			task->r_stats_req_en = 1;
-			memcpy(&task->r_stats_req, req, sizeof(*req));
 		} break;
 		default:
 			break;
@@ -352,22 +346,6 @@ static int jpgdec_result(struct mpp_dev *mpp,
 		}
 	}
 
-	if (task->r_stats_req_en) {
-		struct hw_stats hw_s;
-		req = &task->r_stats_req;
-
-		hw_s.hw_cycles = mpp_task->hw_cycles;
-		hw_s.hw_time = mpp_task->hw_time;
-
-		if (sizeof(hw_s) != req->size)
-			return 0;
-
-		if (copy_to_user(req->data, (u8 *)&hw_s, req->size)) {
-			mpp_err("copy_to_user reg fail\n");
-			return -EIO;
-		}
-	}
-
 	return 0;
 }
 
@@ -517,7 +495,7 @@ static int jpgdec_isr(struct mpp_dev *mpp)
 		dev_err(mpp->dev, "no current task\n");
 		return IRQ_HANDLED;
 	}
-	mpp_task->hw_time = mpp_time_diff(mpp_task);
+	mpp_time_diff(mpp_task);
 	mpp->cur_task = NULL;
 	task = to_jpgdec_task(mpp_task);
 	task->irq_status = mpp->irq_status;
