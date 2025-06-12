@@ -646,6 +646,8 @@ int rkisp_csi_config_patch(struct rkisp_device *dev, bool is_pre_cfg)
 			if (dev->is_pre_on && !is_pre_cfg) {
 				if (dev->isp_ver == ISP_V33 && dev->cap_dev.wrap_line) {
 					val = ISP33_SW_ISP2ENC_PATH_EN | ISP33_PP_ENC_PIPE_EN;
+					if (rkisp_wrap_no_dvbm)
+						val |= ISP32L_ISP2ENC_CNT_MUX;
 					rkisp_unite_set_bits(dev, CTRL_SWS_CFG, 0, val, false);
 				}
 				return 0;
@@ -700,6 +702,8 @@ int rkisp_csi_config_patch(struct rkisp_device *dev, bool is_pre_cfg)
 		val |= ISP33_SW_ISP2ENC_PATH_EN;
 		if (IS_HDR_RDBK(dev->hdr.op_mode))
 			val |= ISP33_PP_ENC_PIPE_EN;
+		if (rkisp_wrap_no_dvbm)
+			val |= ISP32L_ISP2ENC_CNT_MUX;
 	}
 	if (dev->isp_ver >= ISP_V30)
 		val |= ISP3X_SW_ACK_FRM_PRO_DIS;
