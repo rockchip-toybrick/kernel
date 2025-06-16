@@ -1378,7 +1378,8 @@ static int rknpu_probe(struct platform_device *pdev)
 	mutex_init(&rknpu_dev->reset_lock);
 	mutex_init(&rknpu_dev->domain_lock);
 	for (i = 0; i < config->num_irqs; i++) {
-		INIT_LIST_HEAD(&rknpu_dev->subcore_datas[i].todo_list);
+		INIT_LIST_HEAD(&rknpu_dev->subcore_datas[i].normal_todo_list);
+		INIT_LIST_HEAD(&rknpu_dev->subcore_datas[i].priority_todo_list);
 		init_waitqueue_head(&rknpu_dev->subcore_datas[i].job_done_wq);
 		rknpu_dev->subcore_datas[i].task_num = 0;
 		res = platform_get_resource(pdev, IORESOURCE_MEM, i);
@@ -1574,7 +1575,8 @@ static int rknpu_remove(struct platform_device *pdev)
 
 	for (i = 0; i < rknpu_dev->config->num_irqs; i++) {
 		WARN_ON(rknpu_dev->subcore_datas[i].job);
-		WARN_ON(!list_empty(&rknpu_dev->subcore_datas[i].todo_list));
+		WARN_ON(!list_empty(&rknpu_dev->subcore_datas[i].normal_todo_list));
+		WARN_ON(!list_empty(&rknpu_dev->subcore_datas[i].priority_todo_list));
 	}
 
 	if (IS_ENABLED(CONFIG_ROCKCHIP_RKNPU_SRAM) && rknpu_dev->sram_mm)

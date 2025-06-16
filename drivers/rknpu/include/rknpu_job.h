@@ -26,6 +26,11 @@
 #define RKNPU_CORE1_MASK 0x02
 #define RKNPU_CORE2_MASK 0x04
 
+typedef enum {
+	NORMAL = 0,
+	PRIORITY = 1,
+} rknpu_job_priority;
+
 struct rknpu_job {
 	struct rknpu_device *rknpu_dev;
 	struct list_head head[RKNPU_MAX_CORES];

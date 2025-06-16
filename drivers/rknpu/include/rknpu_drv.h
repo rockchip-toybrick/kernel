@@ -96,6 +96,9 @@ struct rknpu_timer {
 
 struct rknpu_subcore_data {
 	struct list_head todo_list;
+	struct list_head normal_todo_list;
+	struct list_head priority_todo_list;
+	int priority_sched_count;
 	wait_queue_head_t job_done_wq;
 	struct rknpu_job *job;
 	int64_t task_num;

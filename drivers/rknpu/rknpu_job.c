@@ -24,6 +24,8 @@
 #define REG_READ(offset) _REG_READ(rknpu_core_base, offset)
 #define REG_WRITE(value, offset) _REG_WRITE(rknpu_core_base, value, offset)
 
+#define RKNPU_PRIORITY_HIGH_QUOTA 5
+
 static int rknpu_wait_core_index(int core_mask)
 {
 	int index = 0;
@@ -226,7 +228,14 @@ static inline int rknpu_job_wait(struct rknpu_job *job)
 		for (i = 0; i < job->use_core_num; i++) {
 			subcore_data = &rknpu_dev->subcore_datas[i];
 			list_for_each_entry_safe(
-				entry, q, &subcore_data->todo_list, head[i]) {
+				entry, q, &subcore_data->normal_todo_list, head[i]) {
+				if (entry == job) {
+					list_del(&job->head[i]);
+					break;
+				}
+			}
+			list_for_each_entry_safe(
+				entry, q, &subcore_data->priority_todo_list, head[i]) {
 				if (entry == job) {
 					list_del(&job->head[i]);
 					break;
@@ -439,13 +448,25 @@ static void rknpu_job_next(struct rknpu_device *rknpu_dev, int core_index)
 
 	spin_lock_irqsave(&rknpu_dev->irq_lock, flags);
 
-	if (subcore_data->job || list_empty(&subcore_data->todo_list)) {
+	if (subcore_data->job ||
+	    (list_empty(&subcore_data->normal_todo_list) &&
+	     list_empty(&subcore_data->priority_todo_list))) {
 		spin_unlock_irqrestore(&rknpu_dev->irq_lock, flags);
 		return;
 	}
 
-	job = list_first_entry(&subcore_data->todo_list, struct rknpu_job,
-			       head[core_index]);
+	if (!list_empty(&subcore_data->priority_todo_list) &&
+	    (subcore_data->priority_sched_count < RKNPU_PRIORITY_HIGH_QUOTA ||
+	     list_empty(&subcore_data->normal_todo_list))) {
+				job = list_first_entry(&subcore_data->priority_todo_list,
+				       struct rknpu_job, head[core_index]);
+		subcore_data->priority_sched_count++;
+
+	} else if (!list_empty(&subcore_data->normal_todo_list)) {
+		job = list_first_entry(&subcore_data->normal_todo_list,
+				       struct rknpu_job, head[core_index]);
+		subcore_data->priority_sched_count = 0;
+	}
 
 	list_del_init(&job->head[core_index]);
 	subcore_data->job = job;
@@ -528,6 +549,8 @@ static void rknpu_job_schedule(struct rknpu_job *job)
 	struct rknpu_subcore_data *subcore_data = NULL;
 	int i = 0, core_index = 0;
 	unsigned long flags;
+	rknpu_job_priority priority_type =
+		(rknpu_job_priority)job->args->priority;
 
 	if (job->args->core_mask == RKNPU_CORE_AUTO_MASK) {
 		core_index = rknpu_schedule_core_index(rknpu_dev);
@@ -546,7 +569,14 @@ static void rknpu_job_schedule(struct rknpu_job *job)
 	for (i = 0; i < rknpu_dev->config->num_irqs; i++) {
 		if (job->args->core_mask & rknpu_core_mask(i)) {
 			subcore_data = &rknpu_dev->subcore_datas[i];
-			list_add_tail(&job->head[i], &subcore_data->todo_list);
+			if (priority_type == NORMAL) {
+				list_add_tail(&job->head[i],
+					      &subcore_data->normal_todo_list);
+			} else if (priority_type == PRIORITY) {
+				list_add_tail(
+					&job->head[i],
+					&subcore_data->priority_todo_list);
+			}
 			subcore_data->task_num += rknpu_get_task_number(job, i);
 		}
 	}
@@ -696,6 +726,32 @@ irqreturn_t rknpu_core2_irq_handler(int irq, void *data)
 	return rknpu_irq_handler(irq, data, 2);
 }
 
+static void rknpu_flush_todo_list(struct rknpu_device *rknpu_dev,
+				  struct rknpu_subcore_data *subcore_data,
+				  struct list_head *todo_list, int i)
+{
+	struct rknpu_job *job = NULL;
+	unsigned long flags;
+
+	do {
+		spin_lock_irqsave(&rknpu_dev->irq_lock, flags);
+
+		if (!list_empty(todo_list)) {
+			job = list_first_entry(todo_list, struct rknpu_job,
+					       head[i]);
+			list_del_init(&job->head[i]);
+		} else {
+			job = NULL;
+		}
+
+		spin_unlock_irqrestore(&rknpu_dev->irq_lock, flags);
+
+		if (job)
+			schedule_work(&job->cleanup_work);
+
+	} while (job);
+}
+
 static void rknpu_job_timeout_clean(struct rknpu_device *rknpu_dev,
 				    int core_mask)
 {
@@ -718,26 +774,13 @@ static void rknpu_job_timeout_clean(struct rknpu_device *rknpu_dev,
 				spin_unlock_irqrestore(&rknpu_dev->irq_lock,
 						       flags);
 
-				do {
-					schedule_work(&job->cleanup_work);
+				rknpu_flush_todo_list(
+					rknpu_dev, subcore_data,
+					&subcore_data->normal_todo_list, i);
 
-					spin_lock_irqsave(&rknpu_dev->irq_lock,
-							  flags);
-
-					if (!list_empty(
-						    &subcore_data->todo_list)) {
-						job = list_first_entry(
-							&subcore_data->todo_list,
-							struct rknpu_job,
-							head[i]);
-						list_del_init(&job->head[i]);
-					} else {
-						job = NULL;
-					}
-
-					spin_unlock_irqrestore(
-						&rknpu_dev->irq_lock, flags);
-				} while (job);
+				rknpu_flush_todo_list(
+					rknpu_dev, subcore_data,
+					&subcore_data->priority_todo_list, i);
 			}
 		}
 	}
