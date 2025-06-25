@@ -294,8 +294,10 @@ static void rkisp_params_vb2_stop_streaming(struct vb2_queue *vq)
 	/* clean module params */
 	params_vdev->ops->clear_first_param(params_vdev);
 	params_vdev->rdbk_times = 0;
-	if (!(dev->isp_state & ISP_START))
+	if (params_vdev->is_first_cfg) {
 		rkisp_params_stream_stop(params_vdev);
+		params_vdev->is_first_cfg = false;
+	}
 	dev->fpn_cfg.en = 0;
 	if (dev->fpn_cfg.buf) {
 		vfree(dev->fpn_cfg.buf);
