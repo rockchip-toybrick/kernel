@@ -290,7 +290,6 @@ static void rkisp_params_vb2_stop_streaming(struct vb2_queue *vq)
 		params_vdev->first_cfg_params = true;
 		return;
 	}
-	rkisp_params_disable_isp(params_vdev);
 	/* clean module params */
 	params_vdev->ops->clear_first_param(params_vdev);
 	params_vdev->rdbk_times = 0;
@@ -543,10 +542,13 @@ void rkisp_params_meshbuf_free(struct rkisp_isp_params_vdev *params_vdev, u64 id
 
 void rkisp_params_stream_stop(struct rkisp_isp_params_vdev *params_vdev)
 {
+	rkisp_params_disable_isp(params_vdev);
 	/* isp stop to free buf */
 	if (params_vdev->ops->stream_stop)
 		params_vdev->ops->stream_stop(params_vdev);
 	params_vdev->first_cfg_params = false;
+	if (!atomic_read(&params_vdev->open_cnt) && params_vdev->ops->fop_release)
+		params_vdev->ops->fop_release(params_vdev);
 }
 
 bool rkisp_params_check_bigmode(struct rkisp_isp_params_vdev *params_vdev)

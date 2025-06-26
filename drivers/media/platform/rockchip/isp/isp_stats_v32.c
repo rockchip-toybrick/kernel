@@ -1086,11 +1086,27 @@ rkisp_get_stat_size_v32(struct rkisp_isp_stats_vdev *stats_vdev,
 	stats_vdev->vdev_fmt.fmt.meta.buffersize = sizes[0];
 }
 
+static void rkisp_stats_stop_v32(struct rkisp_isp_stats_vdev *stats_vdev)
+{
+	struct rkisp_device *dev = stats_vdev->dev;
+	u32 val, addr;
+
+	/* aiq crash or exit first */
+	if (dev->isp_state & ISP_START &&
+	    stats_vdev->stats_buf[0].mem_priv) {
+		rkisp_stats_update_buf(stats_vdev);
+		addr = stats_vdev->stats_buf[0].dma_addr;
+		readl_poll_timeout(dev->hw_dev->base_addr + ISP3X_MI_3A_WR_BASE,
+				   val, val == addr, 5000, 50000);
+	}
+}
+
 static struct rkisp_isp_stats_ops rkisp_isp_stats_ops_tbl = {
 	.isr_hdl = rkisp_stats_isr_v32,
 	.send_meas = rkisp_stats_send_meas_v32,
 	.rdbk_enable = rkisp_stats_rdbk_enable_v32,
 	.get_stat_size = rkisp_get_stat_size_v32,
+	.stats_stop = rkisp_stats_stop_v32,
 };
 
 void rkisp_stats_first_ddr_config_v32(struct rkisp_isp_stats_vdev *stats_vdev)
@@ -1136,6 +1152,7 @@ void rkisp_init_stats_vdev_v32(struct rkisp_isp_stats_vdev *stats_vdev)
 	} else {
 		stats_vdev->priv_ops = NULL;
 		stats_vdev->rd_stats_from_ddr = false;
+		rkisp_isp_stats_ops_tbl.stats_stop = NULL;
 	}
 	stats_vdev->ops = &rkisp_isp_stats_ops_tbl;
 }

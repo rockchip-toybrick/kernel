@@ -35,6 +35,7 @@ struct rkisp_isp_stats_ops {
 			  struct rkisp_isp_readout_work *meas_work);
 	void (*rdbk_enable)(struct rkisp_isp_stats_vdev *stats_vdev, bool en);
 	void (*get_stat_size)(struct rkisp_isp_stats_vdev *stats_vdev, unsigned int sizes[]);
+	void (*stats_stop)(struct rkisp_isp_stats_vdev *stats_vdev);
 };
 
 /*
