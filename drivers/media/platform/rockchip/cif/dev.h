@@ -231,6 +231,7 @@ struct rkcif_tools_buffer {
 };
 
 extern int rkcif_debug;
+extern bool rkcif_frm_toisp_protect;
 
 /*
  * struct rkcif_sensor_info - Sensor infomations
