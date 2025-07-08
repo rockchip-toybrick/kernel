@@ -29,6 +29,8 @@ DTBS['RK3308-EVB'] = OrderedDict([('rk3308-evb-dmic-i2s-v10', '#_saradc_ch3=288'
 DTBS['RK3588-YW'] = OrderedDict([
                   ('rk3588-yw-fastboard-soca-v10', '#_saradc_ch2=0#_saradc_ch3=0#_saradc_ch4=0'),
 				  ('rk3588-yw-fastboard-socb-v10', '#_saradc_ch2=4095#_saradc_ch3=0#_saradc_ch4=0'),
+                  ('rk3588-yw-productboard-soca-v10', '#_saradc_ch2=0#_saradc_ch3=4095#_saradc_ch4=4095'),
+				  ('rk3588-yw-productboard-socb-v10', '#_saradc_ch2=4095#_saradc_ch3=4095#_saradc_ch4=4095'),
 				  ('rk3588-evb7-v11', '#_saradc_ch5=2047'),
 				  ('rk3588-evb1-lp4-v10', '#_saradc_ch5=368'),
 				  ('rk3588-vehicle-evb-v23', '#_saradc_ch5=2730')])
