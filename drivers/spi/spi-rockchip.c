@@ -245,7 +245,7 @@ static inline void wait_for_tx_idle(struct rockchip_spi *rs, bool slave_mode)
 	u32 idle_val = 0;
 	uint32_t speed, us;
 
-	if (rs->tx_idle_type == 1) {
+	if (slave_mode && rs->tx_idle_type == 1) {
 		bit_field = SR_SLAVE_TX_BUSY;
 		idle_val = 0;
 	} else if (slave_mode) {
