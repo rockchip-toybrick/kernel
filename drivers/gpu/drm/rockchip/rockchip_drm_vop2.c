@@ -4653,12 +4653,6 @@ static void vop2_disable(struct drm_crtc *crtc)
 	if (--vop2->enable_count > 0)
 		return;
 
-	/*
-	 * Reset AXI to get a clean state, which is conducive to recovering
-	 * from exceptions when enable at next time(such as iommu page fault)
-	 */
-	vop2_clk_reset(vop2->axi_rst);
-
 	if (vop2->is_iommu_enabled) {
 		/*
 		 * vop2 standby complete, so iommu detach is safe.
@@ -4677,6 +4671,12 @@ static void vop2_disable(struct drm_crtc *crtc)
 	}
 	if (vop2->version == VOP_VERSION_RK3588)
 		vop2_power_off_all_pd(vop2);
+
+	/*
+	 * Reset AXI to get a clean state, which is conducive to recovering
+	 * from exceptions when enable at next time(such as iommu page fault)
+	 */
+	vop2_clk_reset(vop2->axi_rst);
 
 	vop2->is_enabled = false;
 	pm_runtime_put_sync(vop2->dev);
