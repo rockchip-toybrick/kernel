@@ -844,7 +844,7 @@ static void get_remote_terminal_sensor(struct rkcif_stream *stream,
 	struct media_entity *entity = &stream->vnode.vdev.entity;
 	struct media_device *mdev = entity->graph_obj.mdev;
 	struct media_entity *entity_sensor = NULL;
-	struct media_entity *entity_bridge = NULL;
+	struct media_entity *entity_des = NULL;
 	int ret;
 
 	/* Walk the graph to locate sensor nodes. */
@@ -860,15 +860,16 @@ static void get_remote_terminal_sensor(struct rkcif_stream *stream,
 	while ((entity = media_graph_walk_next(&graph))) {
 		if (entity->function == MEDIA_ENT_F_CAM_SENSOR) {
 			entity_sensor = entity;
-		} else if (entity->function == MEDIA_ENT_F_VID_IF_BRIDGE) {
-			entity_bridge = entity;
+		} else if (entity->function == MEDIA_ENT_F_VID_IF_BRIDGE &&
+			   strstr(entity->name, "-des ")) {
+			entity_des = entity;
 			break;
 		}
 	}
 	mutex_unlock(&mdev->graph_mutex);
 	media_graph_walk_cleanup(&graph);
 
-	entity = entity_bridge ? entity_bridge : entity_sensor;
+	entity = entity_des ? entity_des : entity_sensor;
 	if (entity)
 		*sensor_sd = media_entity_to_v4l2_subdev(entity);
 	else
