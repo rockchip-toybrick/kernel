@@ -24,6 +24,7 @@ int maxim4c_remote_devices_power(maxim4c_t *maxim4c, u8 link_mask, int on)
 	struct device_node *remote_cam_node = NULL;
 	struct i2c_client *remote_cam_client = NULL;
 	struct v4l2_subdev *remote_cam_sd = NULL;
+	struct rkmodule_channel_power chn_power;
 	int ret = 0, error = 0, i = 0;
 
 	dev_dbg(dev, "%s: link mask = 0x%02x, on = %d\n", __func__, link_mask, on);
@@ -57,7 +58,12 @@ int maxim4c_remote_devices_power(maxim4c_t *maxim4c, u8 link_mask, int on)
 		}
 
 		dev_info(dev, "link id = %d remote camera power = %d\n", i, on);
-		error = v4l2_subdev_call(remote_cam_sd, core, s_power, on);
+
+		memset(&chn_power, 0, sizeof(chn_power));
+		chn_power.channel = 0;
+		chn_power.enable = on;
+		error = v4l2_subdev_call(remote_cam_sd, core, ioctl,
+					 RKMODULE_SET_CHANNEL_POWER, &chn_power);
 		if (error < 0) {
 			ret |= error;
 			dev_err(dev, "link id = %d remote camera power error = %d\n", i, error);
@@ -76,6 +82,7 @@ int maxim4c_remote_devices_s_stream(maxim4c_t *maxim4c, u8 link_mask, int enable
 	struct device_node *remote_cam_node = NULL;
 	struct i2c_client *remote_cam_client = NULL;
 	struct v4l2_subdev *remote_cam_sd = NULL;
+	struct rkmodule_channel_stream chn_stream;
 	int ret = 0, error = 0, i = 0;
 
 	dev_dbg(dev, "%s: link mask = 0x%02x, enable = %d\n", __func__, link_mask, enable);
@@ -109,7 +116,11 @@ int maxim4c_remote_devices_s_stream(maxim4c_t *maxim4c, u8 link_mask, int enable
 		}
 
 		dev_info(dev, "link id = %d remote camera s_stream = %d\n", i, enable);
-		error = v4l2_subdev_call(remote_cam_sd, video, s_stream, enable);
+		memset(&chn_stream, 0, sizeof(chn_stream));
+		chn_stream.channel = 0;
+		chn_stream.enable = enable;
+		error = v4l2_subdev_call(remote_cam_sd, core, ioctl,
+					 RKMODULE_SET_CHANNEL_STREAM, &chn_stream);
 		if (error < 0) {
 			ret |= error;
 			dev_err(dev, "link id = %d remote camera s_stream error = %d\n", i, error);

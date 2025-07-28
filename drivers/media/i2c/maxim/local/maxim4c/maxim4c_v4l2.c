@@ -430,6 +430,51 @@ static int maxim4c_get_channel_info(maxim4c_t *maxim4c, struct rkmodule_channel_
 	return 0;
 }
 
+static int maxim4c_set_channel_power(maxim4c_t *maxim4c, struct rkmodule_channel_power *chn_power)
+{
+	int ret;
+	uint8_t link_mask = 0;
+	struct device *dev = &maxim4c->client->dev;
+	uint32_t chn = chn_power->channel;
+	int enable = chn_power->enable;
+
+	if (chn > PAD_MAX) {
+		dev_err(dev, "power channel %d is invalid\n", chn);
+		return -EINVAL;
+	}
+
+	link_mask = BIT(chn);
+
+	ret = maxim4c_remote_devices_power(maxim4c, link_mask, enable);
+
+	dev_info(dev, "set channel[%u] power = %d: ret = %d\n", chn, enable, ret);
+
+	return ret;
+}
+
+static int maxim4c_set_channel_stream(maxim4c_t *maxim4c,
+				      struct rkmodule_channel_stream *chn_stream)
+{
+	int ret;
+	u8 link_mask = 0;
+	struct device *dev = &maxim4c->client->dev;
+	uint32_t chn = chn_stream->channel;
+	int enable = chn_stream->enable;
+
+	if (chn > PAD_MAX) {
+		dev_err(dev, "stream channel %d is invalid\n", chn);
+		return -EINVAL;
+	}
+
+	link_mask = BIT(chn_stream->channel);
+
+	ret = maxim4c_remote_devices_s_stream(maxim4c, link_mask, enable);
+
+	dev_info(dev, "set channel[%u] stream = %d: ret = %d\n", chn, enable, ret);
+
+	return ret;
+}
+
 static long maxim4c_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	maxim4c_t *maxim4c = v4l2_get_subdevdata(sd);
@@ -485,6 +530,12 @@ static long maxim4c_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		dev_info(&maxim4c->client->dev,
 			"set quick stream = %d: mipi csi output ret = %ld\n", stream, ret);
 		break;
+	case RKMODULE_SET_CHANNEL_POWER:
+		ret = maxim4c_set_channel_power(maxim4c, (struct rkmodule_channel_power *)arg);
+		break;
+	case RKMODULE_SET_CHANNEL_STREAM:
+		ret = maxim4c_set_channel_stream(maxim4c, (struct rkmodule_channel_stream *)arg);
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -503,6 +554,8 @@ static long maxim4c_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 	struct rkmodule_csi_dphy_param *dphy_param;
 	struct rkmodule_capture_info  *capture_info;
 	struct rkmodule_channel_info *ch_info;
+	struct rkmodule_channel_power *chn_power;
+	struct rkmodule_channel_stream *chn_stream;
 	u32 stream = 0;
 	long ret = 0;
 
@@ -618,6 +671,34 @@ static long maxim4c_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 		else
 			ret = -EFAULT;
 		break;
+	case RKMODULE_SET_CHANNEL_POWER:
+		chn_power = kzalloc(sizeof(*chn_power), GFP_KERNEL);
+		if (!chn_power) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(chn_power, up, sizeof(*chn_power));
+		if (!ret)
+			ret = maxim4c_ioctl(sd, cmd, chn_power);
+		else
+			ret = -EFAULT;
+		kfree(chn_power);
+		break;
+	case RKMODULE_SET_CHANNEL_STREAM:
+		chn_stream = kzalloc(sizeof(*chn_stream), GFP_KERNEL);
+		if (!chn_stream) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(chn_stream, up, sizeof(*chn_stream));
+		if (!ret)
+			ret = maxim4c_ioctl(sd, cmd, chn_stream);
+		else
+			ret = -EFAULT;
+		kfree(chn_stream);
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -655,16 +736,7 @@ static int __maxim4c_start_stream(maxim4c_t *maxim4c)
 	video_pipe_mask = maxim4c->video_pipe.pipe_enable_mask;
 
 #if (MAXIM4C_TEST_PATTERN == 0)
-	// remote devices power on
-	if (maxim4c->remote_routing_to_isp == 0) {
-		ret = maxim4c_remote_devices_power(maxim4c, link_mask, 1);
-		if (ret) {
-			dev_err(dev, "remote devices power on error\n");
-			return ret;
-		}
-	} else {
-		dev_info(dev, "remote devices power on by cif\n");
-	}
+	dev_info(dev, "remote devices power on by cif\n");
 #endif /* MAXIM4C_TEST_PATTERN */
 
 	// disable all video pipe
@@ -683,16 +755,7 @@ static int __maxim4c_start_stream(maxim4c_t *maxim4c)
 	link_mask = maxim4c->gmsl_link.link_locked_mask;
 
 #if (MAXIM4C_TEST_PATTERN == 0)
-	// remote devices start stream
-	if (maxim4c->remote_routing_to_isp == 0) {
-		ret = maxim4c_remote_devices_s_stream(maxim4c, link_mask, 1);
-		if (ret) {
-			dev_err(dev, "remote devices start stream error\n");
-			return ret;
-		}
-	} else {
-		dev_info(dev, "remote devices start stream by cif\n");
-	}
+	dev_info(dev, "remote devices start stream by cif\n");
 #endif /* MAXIM4C_TEST_PATTERN */
 
 	// mipi txphy enable setting: standby or enable
@@ -773,14 +836,7 @@ static int __maxim4c_stop_stream(maxim4c_t *maxim4c)
 	ret |= maxim4c_video_pipe_mask_enable(maxim4c, pipe_mask, false);
 
 #if (MAXIM4C_TEST_PATTERN == 0)
-	if (maxim4c->remote_routing_to_isp == 0) {
-		// remote devices stop stream
-		ret |= maxim4c_remote_devices_s_stream(maxim4c, link_mask, 0);
-		// remote devices power off
-		ret |= maxim4c_remote_devices_power(maxim4c, link_mask, 0);
-	} else {
-		dev_info(dev, "remote devices control by cif\n");
-	}
+	dev_info(dev, "remote devices control by cif\n");
 #endif /* MAXIM4C_TEST_PATTERN */
 
 	// i2c mux enable: default disable all remote channel
