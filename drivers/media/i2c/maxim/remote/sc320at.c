@@ -40,6 +40,10 @@
 #define REG_NULL			0xFFFF
 #define SC320AT_REG_VALUE_08BIT		1
 
+#define SC320AT_REG_CHIP_ID		0x3107
+
+#define SC320AT_REG_VALUE_16BIT		2
+
 struct i2c_regval {
 	u16 reg_addr;
 	u8 reg_val;
@@ -64,6 +68,7 @@ struct sc320at {
 
 	struct mutex mutex;
 
+	struct v4l2_subdev *des_subdev;
 	struct v4l2_subdev subdev;
 	struct media_pad pad;
 	struct v4l2_ctrl_handler ctrl_handler;
@@ -468,6 +473,97 @@ static int sc320at_get_distor_param(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int sc320at_set_trans_link(struct v4l2_subdev *sd, int enable)
+{
+	struct sc320at *sc320at = v4l2_get_subdevdata(sd);
+	maxim_remote_ser_t *remote_ser = sc320at->remote_ser;
+	struct i2c_client *client = sc320at->client;
+	struct device *dev = &client->dev;
+	int ret = 0;
+	struct rkmodule_channel_power chn_power;
+
+	if (!remote_ser ||
+	    !remote_ser->ser_ops ||
+	    !remote_ser->ser_ops->ser_module_init ||
+	    !remote_ser->ser_ops->ser_module_deinit) {
+		dev_err(dev, "%s: remote_ser error\n", __func__);
+		return -EINVAL;
+	}
+
+	memset(&chn_power, 0, sizeof(chn_power));
+	chn_power.channel = 0;
+	chn_power.enable = enable;
+
+	if (enable) {
+		sc320at_s_channel_power(sd, &chn_power);
+
+		ret = v4l2_subdev_call(sc320at->des_subdev, core, ioctl,
+				       RKMODULE_SET_DES_LINK, &chn_power.enable);
+		if (ret && ret != -ENOIOCTLCMD) {
+			dev_err(dev, "Failed to call s_stream %s remote subdev: %d\n",
+				enable ? "on" : "off", ret);
+		}
+
+		ret = remote_ser->ser_ops->ser_module_init(remote_ser);
+		if (ret) {
+			dev_err(dev, "%s: remote_ser module_init error\n", __func__);
+			return ret;
+		}
+	} else {
+		chn_power.enable = 0;
+
+		ret = remote_ser->ser_ops->ser_module_deinit(remote_ser);
+		if (ret) {
+			dev_err(dev, "%s: remote_ser module_deinit error\n", __func__);
+			return ret;
+		}
+
+		ret = v4l2_subdev_call(sc320at->des_subdev, core, ioctl,
+				       RKMODULE_SET_DES_LINK, &chn_power.enable);
+		if (ret && ret != -ENOIOCTLCMD) {
+			dev_err(dev, "Failed to call s_stream on remote subdev: %d\n", ret);
+		}
+
+		sc320at_s_channel_power(sd, &chn_power);
+	}
+
+	return ret;
+}
+
+static int sc320at_get_sensor_match_id(struct v4l2_subdev *sd, uint32_t *match_id)
+{
+	struct sc320at *sc320at = v4l2_get_subdevdata(sd);
+	struct i2c_client *client = sc320at->client;
+	struct device *dev = &client->dev;
+	u32 reg_val = 0;
+	int ret = 0, i;
+
+	ret = sc320at_set_trans_link(sd, 1);
+	if (ret) {
+		dev_err(dev, "sc320at_set_trans_link failed: %d\n", ret);
+		return ret;
+	}
+
+	for (i = 0; i < 5; i++) {
+		ret = sc320at_i2c_read_reg(client, SC320AT_REG_CHIP_ID, SC320AT_REG_VALUE_16BIT, &reg_val);
+		if (ret == 0)
+			break;
+
+		usleep_range(1000, 2000);
+	}
+
+	if (ret == 0)
+		*match_id = reg_val;
+	else
+		dev_err(dev, "Failed to read SC320AT chip ID: %d\n", ret);
+
+	dev_info(dev, "SC320AT chip ID: 0x%04x\n", *match_id);
+
+	ret = sc320at_set_trans_link(sd, 0);
+
+	return ret;
+}
+
 static long sc320at_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct sc320at *sc320at = v4l2_get_subdevdata(sd);
@@ -499,6 +595,9 @@ static long sc320at_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	case RKMODULE_SET_CHANNEL_STREAM:
 		ret = sc320at_s_channel_stream(sd, (struct rkmodule_channel_stream *)arg);
 		break;
+	case RKMODULE_GET_MATCH_ID:
+		ret = sc320at_get_sensor_match_id(sd, (uint32_t *)arg);
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -518,6 +617,7 @@ static long sc320at_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 	struct yw_module_sensor_distor_param *distor_param;
 	struct rkmodule_channel_power *chn_power;
 	struct rkmodule_channel_stream *chn_stream;
+	uint32_t match_id = 0;
 	long ret = 0;
 
 	switch (cmd) {
@@ -622,6 +722,14 @@ static long sc320at_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 		else
 			ret = -EFAULT;
 		kfree(chn_stream);
+		break;
+	case RKMODULE_GET_MATCH_ID:
+		ret = sc320at_ioctl(sd, cmd, &match_id);
+		if (!ret) {
+			ret = copy_to_user(up, &match_id, sizeof(match_id));
+			if (ret)
+				ret = -EFAULT;
+		}
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -1151,6 +1259,30 @@ static int sc320at_mipi_data_lanes_parse(struct sc320at *sc320at)
 	return 0;
 }
 
+struct v4l2_subdev *get_remote_subdev(struct media_entity *local_entity, int local_pad)
+{
+    struct media_link *link;
+    struct media_pad *local_pad_ptr = &local_entity->pads[local_pad];
+    struct media_entity *remote;
+
+    list_for_each_entry(link, &local_entity->links, list) {
+        if (link->source == local_pad_ptr || link->sink == local_pad_ptr) {
+            if (!(link->flags & MEDIA_LNK_FL_ENABLED))
+                continue;
+
+            if (link->source == local_pad_ptr)
+                remote = link->sink->entity;
+            else
+                remote = link->source->entity;
+
+            if (is_media_entity_v4l2_subdev(remote))
+                return media_entity_to_v4l2_subdev(remote);
+        }
+    }
+
+    return NULL;
+}
+
 static int sc320at_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
@@ -1272,6 +1404,10 @@ static int sc320at_probe(struct i2c_client *client,
 	} else {
 		dev_err(dev, "remote serializer bind fail\n");
 	}
+
+	sc320at->des_subdev = get_remote_subdev(&sd->entity, 0);
+	dev_err(dev, "remote subdev: %s\n",
+		sc320at->des_subdev ? sc320at->des_subdev->name : "NULL");
 
 	pm_runtime_set_autosuspend_delay(dev, 1000);
 	pm_runtime_use_autosuspend(dev);
