@@ -49,9 +49,9 @@
 		 * 2: controlled by PWRCTRL2
 		 * 3: controlled by PWRCTRL3
 		 */
-		dvs-suspend-control-by = <0 0 0 0 0 0 0 0 0 0 /* BUCK1~10 */
-					  0 0 2 0 0 /* NLDO1~5 */
-					  2 0 0 0 0 0>; /* PLDO1~6 */
+		dvs-suspend-control-by = <1 1 1 1 1 1 1 1 1 1 /* BUCK1~10 */
+					  1 1 1 1 1 /* NLDO1~5 */
+					  1 1 1 1 1 1>; /* PLDO1~6 */
 
 		/* 0: restart PMU;
 		 * 1: reset all the power off reset registers,
@@ -450,9 +450,9 @@
 		 * 2: controlled by PWRCTRL2
 		 * 3: controlled by PWRCTRL3
 		 */
-		dvs-suspend-control-by = <0 0 0 2 0 0 0 0 0 0 /* BUCK1~10 */
-					  0 0 0 0 2 /* NLDO1~5 */
-					  0 0 0 0 0 0>; /* PLDO1~6 */
+		dvs-suspend-control-by = <1 1 1 1 1 1 1 1 1 1 /* BUCK1~10 */
+					  1 1 1 1 1 /* NLDO1~5 */
+					  1 1 1 1 1 1>; /* PLDO1~6 */
 
 		/* 0: restart PMU;
 		 * 1: reset all the power off reset registers,
