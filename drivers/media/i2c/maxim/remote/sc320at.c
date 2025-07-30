@@ -99,6 +99,42 @@ struct sc320at {
 	struct maxim_remote_ser *remote_ser;
 };
 
+struct yw_module_sensor_distor_param {
+    /*
+     * camera num
+     */
+    __u32 cameraNum;
+
+    /*
+     * distortion param
+     */
+    __s32 fx;
+    __s32 fy;
+    __s32 ppx;
+    __s32 ppy;
+    __s32 k1;
+    __s32 k2;
+    __s32 k3;
+    __s32 k4;
+    __s32 k5;
+    __s32 k6;
+    __s32 k7;
+
+    /*
+     * reserved param from driver
+     */
+    __s32 reserve1;
+    __s32 reserve2;
+
+    /*
+     * param's number
+     */
+    __u32 paraNum;
+};
+
+#define YWMODULE_GET_SENSOR_DISTORPARAM       \
+	_IOR('Y', BASE_VIDIOC_PRIVATE + 50, struct yw_module_sensor_distor_param)
+
 static const struct i2c_regval sc320at_1920x1440_regs[] = {
 	{ REG_NULL, 0x00 },
 };
@@ -392,6 +428,42 @@ static int sc320at_get_error_info(struct v4l2_subdev *sd, struct rkmodule_error_
 	return 0;
 }
 
+static int32_t float2int32(float f)
+{
+	int32_t val;
+
+	memcpy(&val, &f, sizeof(val));
+
+	return val;
+}
+
+static int sc320at_get_distor_param(struct v4l2_subdev *sd,
+				    struct yw_module_sensor_distor_param *distor_param)
+{
+	///TODO: fake distor param for test
+	memset(distor_param, 0, sizeof(*distor_param));
+
+	distor_param->cameraNum = 1;
+	distor_param->paraNum = 8;
+
+	distor_param->fx  = float2int32(0.0f);
+	distor_param->fy  = float2int32(-0.0f);
+	distor_param->ppx = float2int32(1.0f);
+	distor_param->ppy = float2int32(-1.0f);
+	distor_param->k1  = float2int32(123.456f);
+	distor_param->k2  = float2int32(-123.456f);;
+	distor_param->k3  = float2int32(1e-38f);
+	distor_param->k4  = float2int32(-1e-38f);
+	distor_param->k5  = float2int32(999999.0f);
+	distor_param->k6  = float2int32(-999999.0f);
+	distor_param->k7  = float2int32(0.123456f);
+
+	distor_param->reserve1 = float2int32(0.333333f);
+	distor_param->reserve2 = float2int32(-0.000001f);
+
+	return 0;
+}
+
 static long sc320at_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct sc320at *sc320at = v4l2_get_subdevdata(sd);
@@ -414,6 +486,9 @@ static long sc320at_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	case RKMODULE_GET_ERROR_INFO:
 		ret = sc320at_get_error_info(sd, (struct rkmodule_error_info *)arg);
 		break;
+	case YWMODULE_GET_SENSOR_DISTORPARAM:
+		ret = sc320at_get_distor_param(sd, (struct yw_module_sensor_distor_param *)arg);
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -430,6 +505,7 @@ static long sc320at_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 	struct rkmodule_error_info *err_info;
 	struct rkmodule_inf *inf;
 	struct rkmodule_vicap_reset_info *vicap_rst_inf;
+	struct yw_module_sensor_distor_param *distor_param;
 	long ret = 0;
 
 	switch (cmd) {
@@ -491,6 +567,21 @@ static long sc320at_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 				ret = -EFAULT;
 		}
 		kfree(err_info);
+		break;
+	case YWMODULE_GET_SENSOR_DISTORPARAM:
+		distor_param = kzalloc(sizeof(*distor_param), GFP_KERNEL);
+		if (!distor_param) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = sc320at_ioctl(sd, cmd, distor_param);
+		if (!ret) {
+			ret = copy_to_user(up, distor_param, sizeof(*distor_param));
+			if (ret)
+				ret = -EFAULT;
+		}
+		kfree(distor_param);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
