@@ -375,6 +375,23 @@ static void sc320at_set_vicap_rst_inf(struct sc320at *sc320at,
 	sc320at->is_reset = rst_info.is_reset;
 }
 
+static int sc320at_get_error_info(struct v4l2_subdev *sd, struct rkmodule_error_info *err_info)
+{
+	///TODO: fake error info for test
+	struct sc320at *sc320at = v4l2_get_subdevdata(sd);
+
+	memset(err_info, 0, sizeof(*err_info));
+
+	err_info->err_code = 3;
+	strscpy(err_info->detail, "sensor:1,2,3,4,5,6,7,8",
+		sizeof(err_info->detail));
+
+	dev_info(&sc320at->client->dev, "err_code = %d, detail = %s\n",
+		 err_info->err_code, err_info->detail);
+
+	return 0;
+}
+
 static long sc320at_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct sc320at *sc320at = v4l2_get_subdevdata(sd);
@@ -394,6 +411,9 @@ static long sc320at_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		sc320at_set_vicap_rst_inf(sc320at,
 			*(struct rkmodule_vicap_reset_info *)arg);
 		break;
+	case RKMODULE_GET_ERROR_INFO:
+		ret = sc320at_get_error_info(sd, (struct rkmodule_error_info *)arg);
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -407,6 +427,7 @@ static long sc320at_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 					unsigned long arg)
 {
 	void __user *up = compat_ptr(arg);
+	struct rkmodule_error_info *err_info;
 	struct rkmodule_inf *inf;
 	struct rkmodule_vicap_reset_info *vicap_rst_inf;
 	long ret = 0;
@@ -455,6 +476,21 @@ static long sc320at_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 		else
 			ret = -EFAULT;
 		kfree(vicap_rst_inf);
+		break;
+	case RKMODULE_GET_ERROR_INFO:
+		err_info = kzalloc(sizeof(*err_info), GFP_KERNEL);
+		if (!err_info) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = sc320at_ioctl(sd, cmd, err_info);
+		if (!ret) {
+			ret = copy_to_user(up, err_info, sizeof(*err_info));
+			if (ret)
+				ret = -EFAULT;
+		}
+		kfree(err_info);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
