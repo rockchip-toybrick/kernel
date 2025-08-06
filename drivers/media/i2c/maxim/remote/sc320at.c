@@ -135,6 +135,9 @@ struct yw_module_sensor_distor_param {
 #define YWMODULE_GET_SENSOR_DISTORPARAM       \
 	_IOR('Y', BASE_VIDIOC_PRIVATE + 50, struct yw_module_sensor_distor_param)
 
+static int sc320at_s_channel_stream(struct v4l2_subdev *sd,
+				    struct rkmodule_channel_stream *chn_stream);
+
 static const struct i2c_regval sc320at_1920x1440_regs[] = {
 	{ REG_NULL, 0x00 },
 };
@@ -351,10 +354,11 @@ static int sc320at_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 }
 #endif
 
-static int sc320at_s_power(struct v4l2_subdev *sd, int on)
+static int sc320at_s_channel_power(struct v4l2_subdev *sd, struct rkmodule_channel_power *chn_power)
 {
 	struct sc320at *sc320at = v4l2_get_subdevdata(sd);
 	struct i2c_client *client = sc320at->client;
+	bool on = chn_power->enable;
 	int ret = 0;
 
 	mutex_lock(&sc320at->mutex);
@@ -489,6 +493,12 @@ static long sc320at_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	case YWMODULE_GET_SENSOR_DISTORPARAM:
 		ret = sc320at_get_distor_param(sd, (struct yw_module_sensor_distor_param *)arg);
 		break;
+	case RKMODULE_SET_CHANNEL_POWER:
+		ret = sc320at_s_channel_power(sd, (struct rkmodule_channel_power *)arg);
+		break;
+	case RKMODULE_SET_CHANNEL_STREAM:
+		ret = sc320at_s_channel_stream(sd, (struct rkmodule_channel_stream *)arg);
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -506,6 +516,8 @@ static long sc320at_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 	struct rkmodule_inf *inf;
 	struct rkmodule_vicap_reset_info *vicap_rst_inf;
 	struct yw_module_sensor_distor_param *distor_param;
+	struct rkmodule_channel_power *chn_power;
+	struct rkmodule_channel_stream *chn_stream;
 	long ret = 0;
 
 	switch (cmd) {
@@ -582,6 +594,34 @@ static long sc320at_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 				ret = -EFAULT;
 		}
 		kfree(distor_param);
+		break;
+	case RKMODULE_SET_CHANNEL_POWER:
+		chn_power = kzalloc(sizeof(*chn_power), GFP_KERNEL);
+		if (!chn_power) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(chn_power, up, sizeof(*chn_power));
+		if (!ret)
+			ret = sc320at_ioctl(sd, cmd, chn_power);
+		else
+			ret = -EFAULT;
+		kfree(chn_power);
+		break;
+	case RKMODULE_SET_CHANNEL_STREAM:
+		chn_stream = kzalloc(sizeof(*chn_stream), GFP_KERNEL);
+		if (!chn_stream) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(chn_stream, up, sizeof(*chn_stream));
+		if (!ret)
+			ret = sc320at_ioctl(sd, cmd, chn_stream);
+		else
+			ret = -EFAULT;
+		kfree(chn_stream);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -660,10 +700,12 @@ static int __sc320at_stop_stream(struct sc320at *sc320at)
 	return 0;
 }
 
-static int sc320at_s_stream(struct v4l2_subdev *sd, int on)
+static int sc320at_s_channel_stream(struct v4l2_subdev *sd,
+				    struct rkmodule_channel_stream *chn_stream)
 {
 	struct sc320at *sc320at = v4l2_get_subdevdata(sd);
 	struct i2c_client *client = sc320at->client;
+	bool on = !!chn_stream->enable;
 	int ret = 0;
 
 	dev_info(&client->dev, "%s: on = %d\n", __func__, on);
@@ -978,7 +1020,6 @@ static const struct v4l2_subdev_internal_ops sc320at_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops sc320at_core_ops = {
-	.s_power = sc320at_s_power,
 	.ioctl = sc320at_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = sc320at_compat_ioctl32,
@@ -986,7 +1027,6 @@ static const struct v4l2_subdev_core_ops sc320at_core_ops = {
 };
 
 static const struct v4l2_subdev_video_ops sc320at_video_ops = {
-	.s_stream = sc320at_s_stream,
 	.g_frame_interval = sc320at_g_frame_interval,
 #if KERNEL_VERSION(5, 10, 0) > LINUX_VERSION_CODE
 	.g_mbus_config = sc320at_g_mbus_config,
