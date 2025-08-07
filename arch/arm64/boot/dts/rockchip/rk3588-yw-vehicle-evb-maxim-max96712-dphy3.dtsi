@@ -149,24 +149,6 @@
 					data-lanes = <1 2 3 4>;
 				};
 			};
-
-			port@3 {
-				reg = <3>;
-
-				max96712_serdes_in2: endpoint {
-					remote-endpoint = <&max96712_dphy3_cam2_out>;
-					data-lanes = <1 2 3 4>;
-				};
-			};
-
-			port@4 {
-				reg = <4>;
-
-				max96712_serdes_in3: endpoint {
-					remote-endpoint = <&max96712_dphy3_cam3_out>;
-					data-lanes = <1 2 3 4>;
-				};
-			};
 		};
 
 		/* support mode config start */
@@ -241,54 +223,6 @@
 						];
 					};
 				};
-
-				// Link C: link-id = 2
-				gmsl-link-config-2 {
-					status = "okay";
-					link-id = <2>; // Link ID: 0/1/2/3
-
-					link-type = <1>;
-					link-rx-rate = <1>;
-					link-tx-rate = <0>;
-
-					link-remote-cam = <&max96712_dphy3_cam2>; // remote camera
-
-					link-init-sequence {
-						seq-item-size = <5>; // reg-addr-len + reg-val-len * 2 + 1
-						reg-addr-len = <2>; // 1: 8bits, 2: 16bits
-						reg-val-len = <1>; // 1: 8bits, 2: 16bits, 3: 24bits
-
-						// reg_addr reg_val val_mask delay
-						init-sequence = [
-							16 D1 03 00 00 // VGAHiGain
-							16 45 00 00 00 // Disable SSC
-						];
-					};
-				};
-
-				// Link D: link-id = 3
-				gmsl-link-config-3 {
-					status = "okay";
-					link-id = <3>; // Link ID: 0/1/2/3
-
-					link-type = <1>;
-					link-rx-rate = <1>;
-					link-tx-rate = <0>;
-
-					link-remote-cam = <&max96712_dphy3_cam3>; // remote camera
-
-					link-init-sequence {
-						seq-item-size = <5>; // reg-addr-len + reg-val-len * 2 + 1
-						reg-addr-len = <2>; // 1: 8bits, 2: 16bits
-						reg-val-len = <1>; // 1: 8bits, 2: 16bits, 3: 24bits
-
-						// reg_addr reg_val val_mask delay
-						init-sequence = [
-							17 D1 03 00 00 // VGAHiGain
-							17 45 00 00 00 // Disable SSC
-						];
-					};
-				};
 			};
 			/* GMSL LINK config end */
 
@@ -350,64 +284,6 @@
 							09 50 40 00 00 // DST1 VC = 1, DT = Frame Start
 							09 51 01 00 00 // SRC2 VC = 0, DT = Frame End
 							09 52 41 00 00 // DST2 VC = 1, DT = Frame End
-						];
-					};
-				};
-
-				// Video Pipe 2
-				video-pipe-config-2 {
-					status = "okay";
-					pipe-id = <2>; // Video Pipe ID: 0/1/2/3/4/5/6/7
-
-					pipe-idx = <2>; // Video Pipe X/Y/Z/U: 0/1/2/3
-					link-idx = <2>; // Link A/B/C/D: 0/1/2/3
-
-					pipe-init-sequence {
-						seq-item-size = <5>; // reg-addr-len + reg-val-len * 2 + 1
-						reg-addr-len = <2>; // 1: 8bits, 2: 16bits
-						reg-val-len = <1>; // 1: 8bits, 2: 16bits, 3: 24bits
-
-						// reg_addr reg_val val_mask delay
-						init-sequence = [
-							// Send YUV422, FS, and FE from Video Pipe 2 to Controller 1
-							09 8B 07 00 00 // Enable 0/1/2 SRC/DST Mappings
-							09 AD 15 00 00 // SRC/DST 0/1/2 -> CSI2 Controller 1;
-							// For the following MSB 2 bits = VC, LSB 6 bits = DT
-							09 8D 1e 00 00 // SRC0 VC = 0, DT = YUV422 8bit
-							09 8E 9e 00 00 // DST0 VC = 2, DT = YUV422 8bit
-							09 8F 00 00 00 // SRC1 VC = 0, DT = Frame Start
-							09 90 80 00 00 // DST1 VC = 2, DT = Frame Start
-							09 91 01 00 00 // SRC2 VC = 0, DT = Frame End
-							09 92 81 00 00 // DST2 VC = 2, DT = Frame End
-						];
-					};
-				};
-
-				// Video Pipe 3
-				video-pipe-config-3 {
-					status = "okay";
-					pipe-id = <3>; // Video Pipe ID: 0/1/2/3/4/5/6/7
-
-					pipe-idx = <2>; // Video Pipe X/Y/Z/U: 0/1/2/3
-					link-idx = <3>; // Link A/B/C/D: 0/1/2/3
-
-					pipe-init-sequence {
-						seq-item-size = <5>; // reg-addr-len + reg-val-len * 2 + 1
-						reg-addr-len = <2>; // 1: 8bits, 2: 16bits
-						reg-val-len = <1>; // 1: 8bits, 2: 16bits, 3: 24bits
-
-						// reg_addr reg_val val_mask delay
-						init-sequence = [
-							// Send YUV422, FS, and FE from Video Pipe 3 to Controller 1
-							09 CB 07 00 00 // Enable 0/1/2 SRC/DST Mappings
-							09 ED 15 00 00 // SRC/DST 0/1/2 -> CSI2 Controller 1;
-							// For the following MSB 2 bits = VC, LSB 6 bits = DT
-							09 CD 1e 00 00 // SRC0 VC = 0, DT = YUV422 8bit
-							09 CE de 00 00 // DST0 VC = 3, DT = YUV422 8bit
-							09 CF 00 00 00 // SRC1 VC = 0, DT = Frame Start
-							09 D0 c0 00 00 // DST1 VC = 3, DT = Frame Start
-							09 D1 01 00 00 // SRC2 VC = 0, DT = Frame End
-							09 D2 c1 00 00 // DST2 VC = 3, DT = Frame End
 						];
 					};
 				};
@@ -570,112 +446,6 @@
 						max96712_dphy3_cam1_out: endpoint {
 							/* remote endpoint: rkcif_mipi_lvds_sditf_vir1 */
 							remote-endpoint = <&max96712_serdes_in1>;
-							data-lanes = <1 2 3 4>;
-						};
-					};
-					/* port config end */
-				};
-			};
-
-			i2c@2 {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				reg = <2>;
-
-				// Note: Serializer node defined before camera node
-				max96712_dphy3_ser2: max96717@43 {
-					compatible = "maxim,ser,max96717";
-					reg = <0x43>;
-
-					ser-i2c-addr-def = <0x40>;
-
-					ser-init-sequence {
-						seq-item-size = <5>; // reg-addr-len + reg-val-len * 2 + 1
-						reg-addr-len = <2>; // 1: 8bits, 2: 16bits
-						reg-val-len = <1>; // 1: 8bits, 2: 16bits, 3: 24bits
-
-						// reg_addr reg_val val_mask delay
-						init-sequence = [
-							03 02 10 00 00
-							14 17 00 00 00
-							14 32 7f 00 00
-						];
-					};
-				};
-
-				max96712_dphy3_cam2: sc320at@33 {
-					compatible = "maxim,smartsens,sc320at";
-					reg = <0x33>;
-
-					cam-i2c-addr-def = <0x30>;
-
-					cam-remote-ser = <&max96712_dphy3_ser2>; // remote serializer
-
-					poc-supply = <&max96712_dphy3_poc_regulator>;
-
-					rockchip,camera-module-index = <2>;
-					rockchip,camera-module-facing = "back";
-					rockchip,camera-module-name = "default";
-					rockchip,camera-module-lens-name = "default";
-
-					/* port config start */
-					port {
-						max96712_dphy3_cam2_out: endpoint {
-							/* remote endpoint: rkcif_mipi_lvds_sditf_vir2 */
-							remote-endpoint = <&max96712_serdes_in2>;
-							data-lanes = <1 2 3 4>;
-						};
-					};
-					/* port config end */
-				};
-			};
-
-			i2c@3 {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				reg = <3>;
-
-				// Note: Serializer node defined before camera node
-				max96712_dphy3_ser3: max96717@44 {
-					compatible = "maxim,ser,max96717";
-					reg = <0x44>;
-
-					ser-i2c-addr-def = <0x40>;
-
-					ser-init-sequence {
-						seq-item-size = <5>; // reg-addr-len + reg-val-len * 2 + 1
-						reg-addr-len = <2>; // 1: 8bits, 2: 16bits
-						reg-val-len = <1>; // 1: 8bits, 2: 16bits, 3: 24bits
-
-						// reg_addr reg_val val_mask delay
-						init-sequence = [
-							03 02 10 00 00
-							14 17 00 00 00
-							14 32 7f 00 00
-						];
-					};
-				};
-
-				max96712_dphy3_cam3: sc320at@34 {
-					compatible = "maxim,smartsens,sc320at";
-					reg = <0x34>;
-
-					cam-i2c-addr-def = <0x30>;
-
-					cam-remote-ser = <&max96712_dphy3_ser3>; // remote serializer
-
-					poc-supply = <&max96712_dphy3_poc_regulator>;
-
-					rockchip,camera-module-index = <3>;
-					rockchip,camera-module-facing = "back";
-					rockchip,camera-module-name = "default";
-					rockchip,camera-module-lens-name = "default";
-
-					/* port config start */
-					port {
-						max96712_dphy3_cam3_out: endpoint {
-							/* remote endpoint: rkcif_mipi_lvds_sditf_vir3 */
-							remote-endpoint = <&max96712_serdes_in3>;
 							data-lanes = <1 2 3 4>;
 						};
 					};
