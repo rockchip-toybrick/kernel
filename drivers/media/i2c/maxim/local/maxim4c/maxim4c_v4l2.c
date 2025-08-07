@@ -97,6 +97,9 @@ static struct rkmodule_csi_dphy_param rk3588_dcphy_param = {
 	.reserved = {0},
 };
 
+static int __maxim4c_start_stream(maxim4c_t *maxim4c);
+static int __maxim4c_stop_stream(maxim4c_t *maxim4c);
+
 static int maxim4c_support_mode_init(maxim4c_t *maxim4c)
 {
 	struct device *dev = &maxim4c->client->dev;
@@ -475,6 +478,38 @@ static int maxim4c_set_channel_stream(maxim4c_t *maxim4c,
 	return ret;
 }
 
+static int maxim4c_set_des_link(maxim4c_t *maxim4c, int on)
+{
+	struct i2c_client *client = maxim4c->client;
+	struct device *dev = &maxim4c->client->dev;
+	int ret = 0;
+
+	mutex_lock(&maxim4c->mutex);
+	on = !!on;
+
+	dev_info(&client->dev, "set des link = %d\n", on);
+
+	if (on == maxim4c->linking)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = __maxim4c_start_stream(maxim4c);
+		if (ret) {
+			dev_err(dev, "start stream failed while write regs\n");
+			goto unlock_and_return;
+		}
+		maxim4c->linking = true;
+	} else {
+		maxim4c->linking = false;
+		__maxim4c_stop_stream(maxim4c);
+	}
+
+unlock_and_return:
+	mutex_unlock(&maxim4c->mutex);
+
+	return ret;
+}
+
 static long maxim4c_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	maxim4c_t *maxim4c = v4l2_get_subdevdata(sd);
@@ -536,6 +571,9 @@ static long maxim4c_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	case RKMODULE_SET_CHANNEL_STREAM:
 		ret = maxim4c_set_channel_stream(maxim4c, (struct rkmodule_channel_stream *)arg);
 		break;
+	case RKMODULE_SET_DES_LINK:
+		ret = maxim4c_set_des_link(maxim4c, *((int *)arg));
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -556,6 +594,7 @@ static long maxim4c_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 	struct rkmodule_channel_info *ch_info;
 	struct rkmodule_channel_power *chn_power;
 	struct rkmodule_channel_stream *chn_stream;
+	u32 enable;
 	u32 stream = 0;
 	long ret = 0;
 
@@ -699,6 +738,13 @@ static long maxim4c_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 			ret = -EFAULT;
 		kfree(chn_stream);
 		break;
+	case RKMODULE_SET_DES_LINK:
+		ret = copy_from_user(&enable, up, sizeof(u32));
+		if (!ret)
+			ret = maxim4c_ioctl(sd, cmd, &enable);
+		else
+			ret = -EFAULT;
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -711,23 +757,40 @@ static long maxim4c_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 static int __maxim4c_start_stream(maxim4c_t *maxim4c)
 {
 	struct device *dev = &maxim4c->client->dev;
+	struct i2c_client *client = maxim4c->client;
 	int ret = 0;
 	s64 link_freq_hz = 0;
 	u8 link_mask = 0, link_freq_idx = 0;
 	u8 video_pipe_mask = 0;
+
+	if (maxim4c->streaming ||
+	    maxim4c->linking) {
+		dev_info(dev, "stream has already started\n");
+		return 0;
+	}
+
+#if KERNEL_VERSION(5, 5, 0) <= LINUX_VERSION_CODE
+	ret = pm_runtime_resume_and_get(&client->dev);
+#else
+	ret = pm_runtime_get_sync(&client->dev);
+#endif
+	if (ret < 0) {
+		dev_err(dev, "pm_runtime_get_sync failed\n");
+		return ret;
+	}
 
 #if MAXIM4C_LOCAL_DES_ON_OFF_EN
 #if MAXIM4C_TEST_PATTERN
 	ret = maxim4c_pattern_hw_init(maxim4c);
 	if (ret) {
 		dev_err(dev, "test pattern hw init error\n");
-		return ret;
+		goto exit;
 	}
 #else
 	ret = maxim4c_module_hw_init(maxim4c);
 	if (ret) {
 		dev_err(dev, "maxim4c module hw init error\n");
-		return ret;
+		goto exit;
 	}
 #endif /* MAXIM4C_TEST_PATTERN */
 #endif /* MAXIM4C_LOCAL_DES_ON_OFF_EN */
@@ -743,13 +806,13 @@ static int __maxim4c_start_stream(maxim4c_t *maxim4c)
 	ret = maxim4c_video_pipe_mask_enable(maxim4c, video_pipe_mask, false);
 	if (ret) {
 		dev_err(dev, "video pipe disable error\n");
-		return ret;
+		goto exit;
 	}
 
 	ret = maxim4c_link_select_remote_enable(maxim4c, link_mask);
 	if (ret) {
 		dev_err(dev, "link select enable error, mask = 0x%x\n", link_mask);
-		return ret;
+		goto exit;
 	}
 
 	link_mask = maxim4c->gmsl_link.link_locked_mask;
@@ -762,7 +825,7 @@ static int __maxim4c_start_stream(maxim4c_t *maxim4c)
 	ret = maxim4c_mipi_txphy_enable(maxim4c, true);
 	if (ret) {
 		dev_err(dev, "mipi txphy enable error\n");
-		return ret;
+		goto exit;
 	}
 
 	// mipi txphy dpll setting
@@ -771,33 +834,33 @@ static int __maxim4c_start_stream(maxim4c_t *maxim4c)
 	ret = maxim4c_dphy_dpll_predef_set(maxim4c, link_freq_hz);
 	if (ret) {
 		dev_err(dev, "mipi txphy dpll setting error\n");
-		return ret;
+		goto exit;
 	}
 
 	// enable video pipe
 	ret = maxim4c_video_pipe_mask_enable(maxim4c, video_pipe_mask, true);
 	if (ret) {
 		dev_err(dev, "video pipe enable error\n");
-		return ret;
+		goto exit;
 	}
 
 	/* In case these controls are set before streaming */
 	ret = __v4l2_ctrl_handler_setup(&maxim4c->ctrl_handler);
 	if (ret)
-		return ret;
+		goto exit;
 
 #if MAXIM4C_TEST_PATTERN
 	ret = maxim4c_pattern_enable(maxim4c, true);
 	if (ret) {
 		dev_err(dev, "test pattern setting error\n");
-		return ret;
+		goto exit;
 	}
 #endif /* MAXIM4C_TEST_PATTERN */
 
 	ret = maxim4c_mipi_csi_output(maxim4c, true);
 	if (ret) {
 		dev_err(dev, "mipi csi output error\n");
-		return ret;
+		goto exit;
 	}
 
 	if (maxim4c->hot_plug_irq > 0)
@@ -808,14 +871,25 @@ static int __maxim4c_start_stream(maxim4c_t *maxim4c)
 		maxim4c_hot_plug_detect_work_start(maxim4c);
 	}
 
-	return 0;
+exit:
+	if (ret)
+		pm_runtime_put_sync(&client->dev);
+
+	return ret;
 }
 
 static int __maxim4c_stop_stream(maxim4c_t *maxim4c)
 {
 	struct device *dev = &maxim4c->client->dev;
+	struct i2c_client *client = maxim4c->client;
 	u8 link_mask = 0, pipe_mask = 0;
 	int ret = 0;
+
+	if (maxim4c->streaming ||
+	    maxim4c->linking) {
+		dev_info(dev, "stream wait streaming & linking stop.\n");
+		return 0;
+	}
 
 	link_mask = maxim4c->gmsl_link.link_enable_mask;
 	pipe_mask = maxim4c->video_pipe.pipe_enable_mask;
@@ -844,6 +918,9 @@ static int __maxim4c_stop_stream(maxim4c_t *maxim4c)
 
 	ret |= maxim4c_link_mask_enable(maxim4c, link_mask, false);
 
+	pm_runtime_mark_last_busy(&client->dev);
+	pm_runtime_put_autosuspend(&client->dev);
+
 	if (ret) {
 		dev_err(dev, "stop stream error\n");
 		return ret;
@@ -869,27 +946,16 @@ static int maxim4c_s_stream(struct v4l2_subdev *sd, int on)
 		goto unlock_and_return;
 
 	if (on) {
-#if KERNEL_VERSION(5, 5, 0) <= LINUX_VERSION_CODE
-		ret = pm_runtime_resume_and_get(&client->dev);
-#else
-		ret = pm_runtime_get_sync(&client->dev);
-#endif
-		if (ret < 0)
-			goto unlock_and_return;
-
 		ret = __maxim4c_start_stream(maxim4c);
 		if (ret) {
 			v4l2_err(sd, "start stream failed while write regs\n");
-			pm_runtime_put_sync(&client->dev);
 			goto unlock_and_return;
 		}
+		maxim4c->streaming = true;
 	} else {
+		maxim4c->streaming = false;
 		__maxim4c_stop_stream(maxim4c);
-		pm_runtime_mark_last_busy(&client->dev);
-		pm_runtime_put_autosuspend(&client->dev);
 	}
-
-	maxim4c->streaming = on;
 
 unlock_and_return:
 	mutex_unlock(&maxim4c->mutex);

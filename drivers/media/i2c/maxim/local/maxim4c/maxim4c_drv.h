@@ -116,6 +116,7 @@ typedef struct maxim4c {
 	bool bridge_mode;
 
 	bool streaming;
+	bool linking;
 	bool power_on;
 	bool hot_plug;
 	u8 is_reset;
