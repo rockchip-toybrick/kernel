@@ -207,28 +207,17 @@
 };
 
 &u2phy0_otg {
-	//phy-supply = <&vcc5v0_host_usb20>;
 	rockchip,sel-pipe-phystatus;
 	rockchip,dis-u2-susphy;
 	status = "okay";
 };
 
-/*
-&u2phy1_otg {
-	phy-supply = <&vcc5v0_host_usb30>;
+&usbdrd3_0 {
+	status = "okay";
 };
-
-&u2phy2_host {
-	phy-supply = <&vcc5v0_host_usb30>;
-};
-
-&u2phy3_host {
-	phy-supply = <&vcc5v0_host_usb30>;
-};
-*/
 
 &usbdrd_dwc3_0 {
-	dr_mode = "peripheral";
+	dr_mode = "otg";
 	maximum-speed = "high-speed";
 	extcon = <&u2phy0>;
 	phys = <&u2phy0_otg>;
@@ -236,16 +225,6 @@
 	snps,dis_u2_susphy_quirk;
 	snps,usb2-lpm-disable;
 	status = "okay";
- };
-
-/*
-&usbdrd_dwc3_1 {
-	dr_mode = "host";
-	maximum-speed = "high-speed";
-	snps,dis_u2_susphy_quirk;
-	snps,usb2-lpm-disable;
-	status = "okay";
- };
- */
+};
 
 

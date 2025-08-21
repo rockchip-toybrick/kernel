@@ -86,16 +86,6 @@
 	status = "okay";
 };
 
-/*
-&dfi {
-	status = "disabled";
-};
-
-&dmc {
-	status = "disabled";
-};
-*/
-
 &gmac0 {
 	/* Use rgmii-rxid mode to disable rx delay inside Soc */
 	phy-mode = "rgmii-rxid";
@@ -132,15 +122,6 @@
 	};
 };
 
-/*
-&avdd1v8_ddr_pll_s0 {
-	regulator-state-mem {
-		regulator-on-in-suspend;
-		regulator-suspend-microvolt = <1800000>;
-	};
-};
-*/
-
 &pcie30phy {
 	rockchip,pcie30-phymode = <PHY_MODE_PCIE_AGGREGATION>;
 	status = "okay";
@@ -160,14 +141,6 @@
 			rockchip,pins = <4 RK_PB5 RK_FUNC_GPIO &pcfg_output_high>;
 		};
 	};
-
-/*
-	vcc5v0-buck {
-		vcc5v0_buck_en: vcc5v0-buck-en {
-			rockchip,pins = <0 RK_PC2 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-	};
-*/
 
 	pcie {
 		pcie20x1_0_clkreqn_m1: pcie20x1-0-clkreqn-m1 {
@@ -206,21 +179,34 @@
 	status = "okay";
 };
 
+&u2phy2 {
+	status = "okay";
+};
+
 &u2phy0_otg {
-	//phy-supply = <&vcc5v0_host_usb20>;
 	rockchip,sel-pipe-phystatus;
 	rockchip,dis-u2-susphy;
 	status = "okay";
 };
 
-/*
 &u2phy2_host {
-	phy-supply = <&vcc5v0_host_usb30>;
+	status = "okay";
 };
-*/
+
+&usb_host0_ehci {
+	status = "okay";
+};
+
+&usb_host0_ohci {
+	status = "okay";
+};
+
+&usbdrd3_0 {
+	status = "okay";
+};
 
 &usbdrd_dwc3_0 {
-	dr_mode = "peripheral";
+	dr_mode = "otg";
 	maximum-speed = "high-speed";
 	extcon = <&u2phy0>;
 	phys = <&u2phy0_otg>;
@@ -228,5 +214,4 @@
 	snps,dis_u2_susphy_quirk;
 	snps,usb2-lpm-disable;
 	status = "okay";
- };
-
+};
