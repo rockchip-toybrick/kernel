@@ -1057,6 +1057,7 @@ struct rkcif_device {
 	u32				pre_buf_addr[MAX_PRE_BUF_NUM];
 	u64				pre_buf_timestamp[MAX_PRE_BUF_NUM];
 	struct rkcif_switch_info	switch_info;
+	u32				ch_reset_state;
 };
 
 extern struct platform_driver rkcif_plat_drv;

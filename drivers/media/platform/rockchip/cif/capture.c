@@ -11272,6 +11272,8 @@ static int rkcif_streamoff_in_reset(struct rkcif_device *cif_dev,
 	struct sditf_priv *priv = cif_dev->sditf[0];
 	u32 on, sof_cnt;
 	int i, j, ret = 0;
+	struct rkmodule_channel_stream ch_stream;
+	struct rkmodule_channel_power ch_power;
 
 	for (i = 0, j = 0; i < RKCIF_MAX_STREAM_MIPI; i++) {
 		stream = &cif_dev->stream[i];
@@ -11345,6 +11347,25 @@ static int rkcif_streamoff_in_reset(struct rkcif_device *cif_dev,
 			}
 		}
 	}
+	if (is_deserializer_name(cif_dev->terminal_sensor.sd->name)) {
+		for (i = 0; i  < cif_dev->num_channels; i++) {
+			if (cif_dev->stream[i].state == RKCIF_STATE_STREAMING ||
+			    cif_dev->stream[i].state == RKCIF_STATE_RESET_IN_STREAMING) {
+				ch_stream.channel = cif_dev->stream[i].id;
+				ch_stream.enable = on;
+				if (v4l2_subdev_call(cif_dev->terminal_sensor.sd,
+				    core, ioctl, RKMODULE_SET_CHANNEL_STREAM, &ch_stream))
+					v4l2_info(&cif_dev->v4l2_dev, "stream[%d] serdes failed to stream %s single channel\n",
+						  cif_dev->stream[i].id, on ? "on" : "off");
+				ch_power.channel = cif_dev->stream[i].id;
+				ch_power.enable = on;
+				if (v4l2_subdev_call(cif_dev->terminal_sensor.sd,
+				    core, ioctl, RKMODULE_SET_CHANNEL_POWER, &ch_power))
+					v4l2_info(&cif_dev->v4l2_dev, "stream[%d] serdes failed to power %s single channel\n",
+						  cif_dev->stream[i].id, on ? "on" : "off");
+			}
+		}
+	}
 	return ret;
 }
 
@@ -11361,6 +11382,8 @@ static int rkcif_streamon_in_reset(struct rkcif_device *cif_dev,
 	int ret = 0;
 	int on = 0;
 	int capture_mode = 0;
+	struct rkmodule_channel_stream ch_stream;
+	struct rkmodule_channel_power ch_power;
 
 	for (i = 0; i < RKCIF_MAX_STREAM_MIPI; i++) {
 		stream = resume_stream[i];
@@ -11454,6 +11477,25 @@ static int rkcif_streamon_in_reset(struct rkcif_device *cif_dev,
 			}
 		}
 	}
+	if (is_deserializer_name(cif_dev->terminal_sensor.sd->name)) {
+		for (i = 0; i  < cif_dev->num_channels; i++) {
+			if (cif_dev->stream[i].state == RKCIF_STATE_STREAMING ||
+			    cif_dev->stream[i].state == RKCIF_STATE_RESET_IN_STREAMING) {
+				ch_power.channel = cif_dev->stream[i].id;
+				ch_power.enable = on;
+				if (v4l2_subdev_call(cif_dev->terminal_sensor.sd,
+				    core, ioctl, RKMODULE_SET_CHANNEL_POWER, &ch_power))
+					v4l2_info(&cif_dev->v4l2_dev, "stream[%d] serdes failed to power %s single channel\n",
+						  cif_dev->stream[i].id, on ? "on" : "off");
+				ch_stream.channel = cif_dev->stream[i].id;
+				ch_stream.enable = on;
+				if (v4l2_subdev_call(cif_dev->terminal_sensor.sd,
+				    core, ioctl, RKMODULE_SET_CHANNEL_STREAM, &ch_stream))
+					v4l2_info(&cif_dev->v4l2_dev, "stream[%d] serdes failed to stream %s single channel\n",
+						  cif_dev->stream[i].id, on ? "on" : "off");
+			}
+		}
+	}
 	return ret;
 }
 
@@ -11512,6 +11554,56 @@ unlock_stream:
 	return ret;
 }
 
+static int rkcif_des_reset_by_channel(struct rkcif_device *cif_dev)
+{
+	struct rkcif_timer *timer = &cif_dev->reset_watchdog_timer;
+	int i = 0;
+	struct rkmodule_channel_power ch_power;
+	struct rkmodule_channel_stream ch_stream;
+	int on = 0;
+
+	v4l2_info(&cif_dev->v4l2_dev, "trigger serdes reset by channel...\n");
+
+	for (i = 0; i < RKCIF_MAX_STREAM_MIPI; i++) {
+		if (cif_dev->ch_reset_state & BIT(i)) {
+			v4l2_info(&cif_dev->v4l2_dev, "trigger serdes reset channel[%d]\n", i);
+
+			on = 0;
+			ch_stream.channel = i;
+			ch_stream.enable = on;
+			if (v4l2_subdev_call(cif_dev->terminal_sensor.sd,
+			    core, ioctl, RKMODULE_SET_CHANNEL_STREAM, &ch_stream))
+				v4l2_info(&cif_dev->v4l2_dev, "stream[%d] serdes failed to stream %s single channel\n",
+					  i, on ? "on" : "off");
+
+			ch_power.channel = i;
+			ch_power.enable = on;
+			if (v4l2_subdev_call(cif_dev->terminal_sensor.sd,
+			    core, ioctl, RKMODULE_SET_CHANNEL_POWER, &ch_power))
+				v4l2_info(&cif_dev->v4l2_dev, "stream[%d] serdes failed to power %s single channel\n",
+					  i, on ? "on" : "off");
+
+			on = 1;
+			ch_power.channel = i;
+			ch_power.enable = on;
+			if (v4l2_subdev_call(cif_dev->terminal_sensor.sd,
+			    core, ioctl, RKMODULE_SET_CHANNEL_POWER, &ch_power))
+				v4l2_info(&cif_dev->v4l2_dev, "stream[%d] serdes failed to power %s single channel\n",
+					  i, on ? "on" : "off");
+
+			ch_stream.channel = i;
+			ch_stream.enable = on;
+			if (v4l2_subdev_call(cif_dev->terminal_sensor.sd,
+			    core, ioctl, RKMODULE_SET_CHANNEL_STREAM, &ch_stream))
+				v4l2_info(&cif_dev->v4l2_dev, "stream[%d] serdes failed to stream %s single channel\n",
+					  i, on ? "on" : "off");
+		}
+	}
+	timer->csi2_err_triggered_cnt = 0;
+	rkcif_monitor_reset_event(cif_dev);
+	return 0;
+}
+
 static int rkcif_do_reset_work(struct rkcif_device *cif_dev,
 			       enum rkmodule_reset_src reset_src)
 {
@@ -11520,6 +11612,12 @@ static int rkcif_do_reset_work(struct rkcif_device *cif_dev,
 	struct rkcif_timer *timer = &cif_dev->reset_watchdog_timer;
 	struct sditf_priv *priv = cif_dev->sditf[0];
 	int ret = 0;
+	u32 reset_cnt = 0;
+
+	reset_cnt = cif_dev->ch_reset_state >> 16;
+	if (is_deserializer_name(cif_dev->terminal_sensor.sd->name) &&
+	    reset_cnt != atomic_read(&cif_dev->pipe.stream_cnt))
+		return rkcif_des_reset_by_channel(cif_dev);
 
 	if (cif_dev->chip_id < CHIP_RK3588_CIF)
 		return rkcif_do_reset_work_below_rk3588(cif_dev, reset_src);
@@ -11800,10 +11898,8 @@ static int rkcif_detect_reset_event(struct rkcif_stream *stream,
 			timer->is_csi2_err_occurred = false;
 		}
 
-		if (is_reset) {
-			rkcif_init_reset_work(timer);
+		if (is_reset)
 			return is_reset;
-		}
 
 		if (timer->monitor_mode == RKCIF_MONITOR_MODE_CONTINUE ||
 		    timer->monitor_mode == RKCIF_MONITOR_MODE_HOTPLUG) {
@@ -11840,9 +11936,10 @@ static int rkcif_detect_reset_event(struct rkcif_stream *stream,
 				  timer->run_cnt);
 
 			timer->reset_src = RKICF_RESET_SRC_ERR_CUTOFF;
-			rkcif_init_reset_work(timer);
 			is_reset = true;
 		}
+	} else {
+		timer->last_buf_wakeup_cnt[stream->id] = stream->buf_wake_up_cnt;
 	}
 
 	return is_reset;
@@ -11861,7 +11958,9 @@ void rkcif_reset_watchdog_timer_handler(struct timer_list *t)
 	int is_reset = 0;
 	int check_cnt = 0;
 	bool is_mod_timer = false;
+	u32 reset_cnt = 0;
 
+	dev->ch_reset_state = 0;
 	for (i = 0; i < dev->num_channels; i++) {
 		stream = &dev->stream[i];
 		if (stream->state == RKCIF_STATE_STREAMING) {
@@ -11870,13 +11969,19 @@ void rkcif_reset_watchdog_timer_handler(struct timer_list *t)
 							    check_cnt,
 							    &is_mod_timer);
 			check_cnt++;
-			if (is_reset)
+			if (is_reset) {
+				dev->ch_reset_state |= (1 << stream->id);
+				reset_cnt++;
+			}
+			if (!is_deserializer_name(dev->terminal_sensor.sd->name) && is_reset)
 				break;
 		}
 	}
-	if (!is_reset && is_mod_timer)
+	if (!dev->ch_reset_state && is_mod_timer)
 		mod_timer(&timer->timer, jiffies + timer->cycle);
-
+	dev->ch_reset_state |= (reset_cnt << 16);
+	if (dev->ch_reset_state)
+		rkcif_init_reset_work(timer);
 	timer->run_cnt += 1;
 
 	if (!check_cnt) {
