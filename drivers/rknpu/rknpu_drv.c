@@ -32,6 +32,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/of_address.h>
+#include <linux/rockchip/rockchip_sip.h>
 
 #ifndef FPGA_PLATFORM
 #include <soc/rockchip/rockchip_iommu.h>
@@ -1382,6 +1383,12 @@ static int rknpu_probe(struct platform_device *pdev)
 		INIT_LIST_HEAD(&rknpu_dev->subcore_datas[i].priority_todo_list);
 		init_waitqueue_head(&rknpu_dev->subcore_datas[i].job_done_wq);
 		rknpu_dev->subcore_datas[i].task_num = 0;
+		rknpu_dev->subcore_datas[i].status = RKNPU_CORE_STATUS_IDLE;
+		if (i == 2) {
+			sip_smc_access_mem_os_reg(RK_MEM_OS_REG_WRITE,
+				RKNPU_CORE2_REE_STATUS_REG,
+				&rknpu_dev->subcore_datas[i].status);
+		}
 		res = platform_get_resource(pdev, IORESOURCE_MEM, i);
 		if (!res) {
 			LOG_DEV_ERROR(

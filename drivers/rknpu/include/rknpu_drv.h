@@ -56,6 +56,9 @@
 #define RKNPU_MAX_IOMMU_DOMAIN_NUM 16
 #define RKNPU_CACHE_SG_TABLE_NUM 2
 
+#define RKNPU_CORE2_REE_STATUS_REG 30
+#define RKNPU_CORE2_TEE_STATUS_REG 31
+
 struct rknpu_irqs_data {
 	const char *name;
 	irqreturn_t (*irq_hdl)(int irq, void *ctx);
@@ -94,6 +97,13 @@ struct rknpu_timer {
 	ktime_t total_busy_time;
 };
 
+enum e_rknpu_core_status {
+	RKNPU_CORE_STATUS_IDLE = 0,
+	RKNPU_CORE_STATUS_WORKING = 1,
+	RKNPU_CORE_STATUS_PREPARING = 2,
+	RKNPU_CORE_STATUS_LOCKED = 3,
+};
+
 struct rknpu_subcore_data {
 	struct list_head todo_list;
 	struct list_head normal_todo_list;
@@ -103,6 +113,7 @@ struct rknpu_subcore_data {
 	struct rknpu_job *job;
 	int64_t task_num;
 	struct rknpu_timer timer;
+	uint32_t status;
 };
 
 /**

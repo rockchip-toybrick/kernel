@@ -8,6 +8,7 @@
 #include <linux/delay.h>
 #include <linux/sync_file.h>
 #include <linux/io.h>
+#include <linux/rockchip/rockchip_sip.h>
 
 #include "rknpu_ioctl.h"
 #include "rknpu_drv.h"
@@ -25,6 +26,36 @@
 #define REG_WRITE(value, offset) _REG_WRITE(rknpu_core_base, value, offset)
 
 #define RKNPU_PRIORITY_HIGH_QUOTA 5
+
+static int rknpu_set_core_status(struct rknpu_device *rknpu_dev,
+				int core_index, uint32_t status)
+{
+	int ret = -EINVAL;
+	int i = 0;
+
+	for (i = 1; i < rknpu_dev->config->num_irqs; i++) {
+		if(core_index == i) {
+			ret = sip_smc_access_mem_os_reg(RK_MEM_OS_REG_WRITE, RKNPU_CORE2_REE_STATUS_REG, &status);
+			if (ret == 0) {
+				rknpu_dev->subcore_datas[i].status = status;
+			} else {
+				LOG_ERROR("rknpu set core[%d] status %u failed, !\n", core_index, status);
+			}
+		}
+	}
+	return ret;
+}
+
+static int rknpu_get_tee_status(uint32_t *status)
+{
+	int ret = -EINVAL;
+
+	ret = sip_smc_access_mem_os_reg(RK_MEM_OS_REG_READ, RKNPU_CORE2_TEE_STATUS_REG, status);
+	if (ret)
+		LOG_ERROR("rknpu get tee status failed!\n");
+
+	return ret;
+}
 
 static int rknpu_wait_core_index(int core_mask)
 {
@@ -448,6 +479,16 @@ static void rknpu_job_next(struct rknpu_device *rknpu_dev, int core_index)
 
 	spin_lock_irqsave(&rknpu_dev->irq_lock, flags);
 
+	if (core_index == 2 &&
+	    list_empty(&subcore_data->normal_todo_list) &&
+	    list_empty(&subcore_data->priority_todo_list)) {
+		if (subcore_data->status == RKNPU_CORE_STATUS_PREPARING) {
+			rknpu_set_core_status(rknpu_dev, 2, RKNPU_CORE_STATUS_LOCKED);
+		} else {
+			rknpu_set_core_status(rknpu_dev, 2, RKNPU_CORE_STATUS_IDLE);
+		}
+	}
+
 	if (subcore_data->job ||
 	    (list_empty(&subcore_data->normal_todo_list) &&
 	     list_empty(&subcore_data->priority_todo_list))) {
@@ -534,6 +575,9 @@ static int rknpu_schedule_core_index(struct rknpu_device *rknpu_dev)
 	int i = 0;
 
 	for (i = 1; i < core_num; i++) {
+		if (rknpu_dev->subcore_datas[i].status == RKNPU_CORE_STATUS_PREPARING ||
+			rknpu_dev->subcore_datas[i].status == RKNPU_CORE_STATUS_LOCKED)
+			continue;
 		if (task_num > rknpu_dev->subcore_datas[i].task_num) {
 			core_index = i;
 			task_num = rknpu_dev->subcore_datas[i].task_num;
@@ -568,6 +612,33 @@ static void rknpu_job_schedule(struct rknpu_job *job)
 	spin_lock_irqsave(&rknpu_dev->irq_lock, flags);
 	for (i = 0; i < rknpu_dev->config->num_irqs; i++) {
 		if (job->args->core_mask & rknpu_core_mask(i)) {
+			if (job->args->core_mask & RKNPU_CORE2_MASK) {
+				uint32_t tee_status;
+				rknpu_get_tee_status(&tee_status);
+
+				if (rknpu_dev->subcore_datas[i].status == RKNPU_CORE_STATUS_IDLE) {
+					if(tee_status == RKNPU_CORE_STATUS_IDLE) {
+						rknpu_set_core_status(rknpu_dev, i, RKNPU_CORE_STATUS_WORKING);
+					} else if (tee_status == RKNPU_CORE_STATUS_WORKING) {
+						rknpu_set_core_status(rknpu_dev, i, RKNPU_CORE_STATUS_LOCKED);
+					}
+				} else if (rknpu_dev->subcore_datas[i].status == RKNPU_CORE_STATUS_WORKING) {
+					if(tee_status == RKNPU_CORE_STATUS_WORKING) {
+						rknpu_set_core_status(rknpu_dev, i, RKNPU_CORE_STATUS_PREPARING);
+					}
+				} else if (rknpu_dev->subcore_datas[i].status == RKNPU_CORE_STATUS_LOCKED) {
+					if(tee_status == RKNPU_CORE_STATUS_IDLE) {
+						rknpu_set_core_status(rknpu_dev, i, RKNPU_CORE_STATUS_WORKING);
+					}
+				}
+
+				if (rknpu_dev->subcore_datas[i].status != RKNPU_CORE_STATUS_WORKING) {
+					job->ret = -EINVAL;
+					spin_unlock_irqrestore(&rknpu_dev->irq_lock, flags);
+					return;
+				}
+			}
+
 			subcore_data = &rknpu_dev->subcore_datas[i];
 			if (priority_type == NORMAL) {
 				list_add_tail(&job->head[i],
@@ -781,6 +852,13 @@ static void rknpu_job_timeout_clean(struct rknpu_device *rknpu_dev,
 				rknpu_flush_todo_list(
 					rknpu_dev, subcore_data,
 					&subcore_data->priority_todo_list, i);
+
+				subcore_data->status = RKNPU_CORE_STATUS_IDLE;
+				if (i == 2) {
+					sip_smc_access_mem_os_reg(RK_MEM_OS_REG_WRITE,
+						RKNPU_CORE2_REE_STATUS_REG,
+						&subcore_data->status);
+				}
 			}
 		}
 	}
@@ -874,6 +952,10 @@ static int rknpu_submit(struct rknpu_device *rknpu_dev,
 		}
 	} else {
 		rknpu_job_schedule(job);
+		if (job->ret == -EINVAL) {
+			rknpu_job_abort(job);
+			return job->ret;
+		}
 		if (args->flags & RKNPU_JOB_PC)
 			job->ret = rknpu_job_wait(job);
 
