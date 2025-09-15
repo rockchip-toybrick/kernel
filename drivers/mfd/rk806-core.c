@@ -318,6 +318,12 @@ static const struct reg_field rk806_reg_fields[] = {
 	[PLDO4_SEQ] = REG_FIELD(0xC1, 0, 5),
 	[PLDO5_SEQ] = REG_FIELD(0xC2, 0, 5),
 
+	[CHIP_ID0] = REG_FIELD(0xDF, 0, 7),
+	[CHIP_ID1] = REG_FIELD(0xE0, 0, 7),
+	[CHIP_ID2] = REG_FIELD(0xE1, 0, 7),
+	[CHIP_ID3] = REG_FIELD(0xE2, 0, 7),
+	[CHIP_ID4] = REG_FIELD(0xE3, 0, 7),
+
 	[BUCK9_RATE2] = REG_FIELD(0xEA, 0, 0),
 	[BUCK10_RATE2] = REG_FIELD(0xEA, 1, 1),
 	[LDO_RATE] = REG_FIELD(0xEA, 3, 5),
@@ -876,6 +882,7 @@ int rk806_device_init(struct rk806 *rk806)
 	struct rk806_platform_data *pdata;
 	int name_h, name_l, chip_ver, otp_ver;
 	int on_source, off_source;
+	int chip_id[5];
 	int ret;
 	int i;
 
@@ -910,6 +917,11 @@ int rk806_device_init(struct rk806 *rk806)
 	on_source = rk806_field_read(rk806, ON_SOURCE);
 	off_source = rk806_field_read(rk806, OFF_SOURCE);
 	dev_info(rk806->dev, "ON: 0x%x OFF:0x%x\n", on_source, off_source);
+
+	for (i = 0; i < 5; i++)
+		chip_id[i] = rk806_field_read(rk806, CHIP_ID0 + i);
+	dev_info(rk806->dev, "chip unique id: 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x\n",
+		 chip_id[0], chip_id[1], chip_id[2], chip_id[3], chip_id[4]);
 
 	rk806_parse_dt(rk806);
 
