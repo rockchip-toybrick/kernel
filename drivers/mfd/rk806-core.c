@@ -534,6 +534,48 @@ static struct device_attribute rk806_master_attrs =
 static struct device_attribute rk806_slaver_attrs =
 		__ATTR(debug, 0200, NULL, rk806_slaver_store);
 
+static ssize_t rk806_master_chipid_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	struct rk806 *rk806 = rk806_master;
+	int chip_id[5], i, len = 0;
+
+	if (!rk806)
+		return -ENODEV;
+
+	for (i = 0; i < 5; i++)
+		chip_id[i] = rk806_field_read(rk806, CHIP_ID0 + i);
+
+	len = snprintf(buf, PAGE_SIZE, "%02x %02x %02x %02x %02x\n",
+		       chip_id[0], chip_id[1], chip_id[2], chip_id[3], chip_id[4]);
+	return len;
+}
+
+static ssize_t rk806_slaver_chipid_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	struct rk806 *rk806 = rk806_slaver;
+	int chip_id[5], i, len = 0;
+
+	if (!rk806)
+		return -ENODEV;
+
+	for (i = 0; i < 5; i++)
+		chip_id[i] = rk806_field_read(rk806, CHIP_ID0 + i);
+
+	len = snprintf(buf, PAGE_SIZE, "%02x %02x %02x %02x %02x\n",
+		       chip_id[0], chip_id[1], chip_id[2], chip_id[3], chip_id[4]);
+	return len;
+}
+
+static struct device_attribute rk806_master_chipid_attr =
+		__ATTR(chipid, 0444, rk806_master_chipid_show, NULL);
+
+static struct device_attribute rk806_slaver_chipid_attr =
+		__ATTR(chipid, 0444, rk806_slaver_chipid_show, NULL);
+
 int rk806_field_read(struct rk806 *rk806,
 		     enum rk806_fields field_id)
 {
@@ -962,6 +1004,10 @@ int rk806_device_init(struct rk806 *rk806)
 				dev_err(rk806->dev, "create %s sysfs error\n", np->name);
 			else
 				rk806_master = rk806;
+
+			ret = sysfs_create_file(rk806_kobj[0], &rk806_master_chipid_attr.attr);
+			if (ret)
+				dev_err(rk806->dev, "create %s chip unique id sysfs error\n", np->name);
 		}
 	} else {
 		rk806_kobj[1] = kobject_create_and_add(np->name, NULL);
@@ -971,6 +1017,10 @@ int rk806_device_init(struct rk806 *rk806)
 				dev_err(rk806->dev, "create %s sysfs error\n", np->name);
 			else
 				rk806_slaver = rk806;
+
+			ret = sysfs_create_file(rk806_kobj[1], &rk806_slaver_chipid_attr.attr);
+			if (ret)
+				dev_err(rk806->dev, "create %s chip unique id sysfs error\n", np->name);
 		}
 	}
 
@@ -985,11 +1035,13 @@ int rk806_device_exit(struct rk806 *rk806)
 	if (strcmp(np->name, "rk806slave")) {
 		if (rk806_kobj[0]) {
 			sysfs_remove_file(rk806_kobj[0], &rk806_master_attrs.attr);
+			sysfs_remove_file(rk806_kobj[0], &rk806_master_chipid_attr.attr);
 			kobject_put(rk806_kobj[0]);
 		}
 	} else {
 		if (rk806_kobj[1]) {
 			sysfs_remove_file(rk806_kobj[1], &rk806_slaver_attrs.attr);
+			sysfs_remove_file(rk806_kobj[0], &rk806_slaver_chipid_attr.attr);
 			kobject_put(rk806_kobj[1]);
 		}
 	}
