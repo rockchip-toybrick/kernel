@@ -286,7 +286,7 @@ static void rkisp_params_vb2_stop_streaming(struct vb2_queue *vq)
 	}
 	spin_unlock_irqrestore(&params_vdev->config_lock, flags);
 
-	if (dev->is_pre_on) {
+	if (dev->is_pre_on && (dev->isp_state & ISP_START)) {
 		params_vdev->first_cfg_params = true;
 		return;
 	}
