@@ -662,6 +662,44 @@ static unsigned long kbase_devfreq_get_static_power(struct devfreq *devfreq,
 	return rockchip_ipa_get_static_power(kbdev->model_data, voltage);
 }
 
+static ssize_t opp_table_show(struct kobject *kobj,
+			      struct kobj_attribute *attr, char *buf)
+{
+	struct device *devfreq_dev = container_of(kobj, struct device, kobj);
+	struct devfreq *df = container_of(devfreq_dev, struct devfreq, dev);
+	struct device *dev = df->dev.parent;
+	struct dev_pm_opp *opp;
+	int i, num_opps = dev_pm_opp_get_opp_count(dev);
+	unsigned long current_freq;
+	u32 voltage;
+	ssize_t len = 0;
+
+	num_opps = dev_pm_opp_get_opp_count(dev);
+	if (num_opps <= 0) {
+		return scnprintf(buf, PAGE_SIZE, "No OPPs registered for device\n");
+	}
+
+	len += scnprintf(buf + len, PAGE_SIZE - len, "Frequency(Hz)\tVoltage(uV)\n");
+	current_freq = 0;
+	for (i = 0; i < num_opps; i++) {
+		opp = dev_pm_opp_find_freq_ceil(dev, &current_freq);
+		if (IS_ERR(opp)) {
+			len += scnprintf(buf + len, PAGE_SIZE - len, "get OPP error, index = %d\n", i);
+			continue;
+		}
+
+		voltage = dev_pm_opp_get_voltage(opp);
+
+		len += scnprintf(buf + len, PAGE_SIZE - len, "%lu\t%u\n", current_freq, voltage);
+
+		dev_pm_opp_put(opp);
+		current_freq++;
+	}
+
+	return len;
+}
+static struct kobj_attribute opp_table_attr = __ATTR(opp_table, S_IRUGO, opp_table_show, NULL);
+
 int kbase_devfreq_init(struct kbase_device *kbdev)
 {
 	struct devfreq_cooling_power *kbase_dcp = &kbdev->dfc_power;
@@ -738,6 +776,12 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 	 * set drvdata explicitly so IPA models can access kbdev.
 	 */
 	dev_set_drvdata(&kbdev->devfreq->dev, kbdev);
+
+	err = sysfs_create_file(&kbdev->devfreq->dev.kobj, &opp_table_attr.attr);
+	if (err) {
+		dev_err(kbdev->dev, "fail to create opp_table node, ret = %d\n", err);
+		goto opp_notifier_failed;
+	}
 
 	err = devfreq_register_opp_notifier(kbdev->dev, kbdev->devfreq);
 	if (err) {
