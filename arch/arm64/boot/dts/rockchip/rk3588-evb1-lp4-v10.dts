@@ -13,6 +13,84 @@
 / {
 	model = "Rockchip RK3588 EVB1 LP4 V10 Board";
 	compatible = "rockchip,rk3588-evb1-lp4-v10", "rockchip,rk3588";
+
+	fake_gpu_opp_table: fake-gpu-opp-table {
+		compatible = "operating-points-v2";
+		opp-300000000 {
+			opp-hz = /bits/ 64 <300000000>;
+			opp-microvolt = <750000 750000 850000>;
+		};
+		opp-400000000 {
+			opp-hz = /bits/ 64 <400000000>;
+			opp-microvolt = <750000 750000 850000>;
+		};
+		opp-500000000 {
+			opp-hz = /bits/ 64 <500000000>;
+			opp-microvolt = <750000 750000 850000>;
+		};
+		opp-600000000 {
+			opp-hz = /bits/ 64 <600000000>;
+			opp-microvolt = <750000 750000 850000>;
+		};
+		opp-700000000 {
+			opp-hz = /bits/ 64 <700000000>;
+			opp-microvolt = <750000 750000 850000>;
+		};
+		opp-800000000 {
+			opp-hz = /bits/ 64 <800000000>;
+			opp-microvolt = <750000 750000 850000>;
+		};
+		opp-900000000 {
+			opp-hz = /bits/ 64 <900000000>;
+			opp-microvolt = <750000 750000 850000>;
+		};
+		opp-1000000000 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <787500 787500 850000>;
+		};
+	};
+
+	fake_gpu: fake-gpu {
+		compatible = "rockchip,fake-gpu";
+		operating-points-v2 = <&fake_gpu_opp_table>;
+		#cooling-cells = <2>;
+		dynamic-power-coefficient = <2982>;
+	};
+};
+
+&soc_thermal {
+	cooling-maps {
+		map0 {
+			trip = <&target>;
+			cooling-device = <&cpu_l0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			contribution = <1024>;
+		};
+		map1 {
+			trip = <&target>;
+			cooling-device = <&cpu_b0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			contribution = <1024>;
+		};
+		map2 {
+			trip = <&target>;
+			cooling-device = <&cpu_b2 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			contribution = <1024>;
+		};
+		map3 {
+			trip = <&target>;
+			cooling-device = <&gpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			contribution = <1024>;
+		};
+		map4 {
+			trip = <&target>;
+			cooling-device = <&rknpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			contribution = <1024>;
+		};
+		map5 {
+			trip = <&target>;
+			cooling-device = <&fake_gpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			contribution = <1024>;
+		};
+	};
 };
 
 &bt_sco {
