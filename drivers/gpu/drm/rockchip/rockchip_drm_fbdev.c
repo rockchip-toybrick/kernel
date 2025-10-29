@@ -56,18 +56,19 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 	mode_cmd.pixel_format = drm_mode_legacy_fb_format(sizes->surface_bpp,
 		sizes->surface_depth);
 
-	size = mode_cmd.pitches[0] * mode_cmd.height;
+	size = (size_t)(u32)(mode_cmd.pitches[0] * mode_cmd.height);
 
-	rk_obj = rockchip_gem_create_object(dev, size, true, 0);
-	if (IS_ERR(rk_obj))
+	rk_obj = rockchip_gem_create_object(dev, (u32)size, (_Bool)true, 0U);
+	if (IS_ERR(rk_obj)) {
 		return -ENOMEM;
+	}
 
 	private->fbdev_bo = &rk_obj->base;
 
 	fbi = drm_fb_helper_alloc_fbi(helper);
 	if (IS_ERR(fbi)) {
 		DRM_DEV_ERROR(dev->dev, "Failed to create framebuffer info.\n");
-		ret = PTR_ERR(fbi);
+		ret = (int)PTR_ERR(fbi);
 		goto out;
 	}
 
@@ -76,7 +77,7 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 	if (IS_ERR(helper->fb)) {
 		DRM_DEV_ERROR(dev->dev,
 			      "Failed to allocate DRM framebuffer.\n");
-		ret = PTR_ERR(helper->fb);
+		ret = (int)PTR_ERR(helper->fb);
 		goto out;
 	}
 
@@ -85,13 +86,13 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 	fb = helper->fb;
 	drm_fb_helper_fill_info(fbi, helper, sizes);
 
-	offset = fbi->var.xoffset * bytes_per_pixel;
-	offset += fbi->var.yoffset * fb->pitches[0];
+	offset = (unsigned long)(u32)(fbi->var.xoffset * bytes_per_pixel);
+	offset += (unsigned long)(u32)(fbi->var.yoffset * fb->pitches[0]);
 
 	dev->mode_config.fb_base = 0;
 	fbi->screen_base = rk_obj->kvaddr + offset;
 	fbi->screen_size = rk_obj->base.size;
-	fbi->fix.smem_len = rk_obj->base.size;
+	fbi->fix.smem_len = (u32)rk_obj->base.size;
 
 	DRM_DEBUG_KMS("FB [%dx%d]-%d kvaddr=%p offset=%ld size=%zu\n",
 		      fb->width, fb->height, fb->format->depth,
@@ -115,12 +116,14 @@ int rockchip_drm_fbdev_init(struct drm_device *dev)
 	struct drm_fb_helper *helper;
 	int ret;
 
-	if (!dev->mode_config.num_crtc || !dev->mode_config.num_connector)
+	if (0 == dev->mode_config.num_crtc || 0 == dev->mode_config.num_connector) {
 		return -EINVAL;
+	}
 
 	helper = devm_kzalloc(dev->dev, sizeof(*helper), GFP_KERNEL);
-	if (!helper)
+	if (!helper) {
 		return -ENOMEM;
+	}
 	private->fbdev_helper = helper;
 
 	drm_fb_helper_prepare(dev, helper, &rockchip_drm_fb_helper_funcs);
@@ -153,13 +156,15 @@ void rockchip_drm_fbdev_fini(struct drm_device *dev)
 	struct rockchip_drm_private *private = dev->dev_private;
 	struct drm_fb_helper *helper = private->fbdev_helper;
 
-	if (!helper)
+	if (!helper) {
 		return;
+	}
 
 	drm_fb_helper_unregister_fbi(helper);
 
-	if (helper->fb)
+	if (helper->fb) {
 		drm_framebuffer_put(helper->fb);
+	}
 
 	drm_fb_helper_fini(helper);
 }
