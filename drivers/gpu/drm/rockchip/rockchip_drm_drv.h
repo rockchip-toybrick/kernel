@@ -34,8 +34,8 @@ struct drm_device;
 struct drm_connector;
 struct iommu_domain;
 
-#define VOP_COLOR_KEY_NONE	(0 << 31)
-#define VOP_COLOR_KEY_MASK	(1 << 31)
+#define VOP_COLOR_KEY_NONE	(0ULL << 31ULL)
+#define VOP_COLOR_KEY_MASK	(1ULL << 31ULL)
 
 #define VOP_OUTPUT_IF_RGB	BIT(0)
 #define VOP_OUTPUT_IF_BT1120	BIT(1)
@@ -78,7 +78,7 @@ struct iommu_domain;
 #define HDMI_EOTF_HDR10PLUS	0x10
 #define HDMI_EOTF_HDRVIVID	0x11
 #define HDMI_EOTF_DOVI		0x12
-#define DOVI_VSDB_LEN		26
+#define DOVI_VSDB_LEN		26U
 
 enum rockchip_drm_debug_category {
 	VOP_DEBUG_PLANE		= BIT(0),
@@ -254,7 +254,7 @@ struct rockchip_crtc_state {
 	int output_type;
 	int output_mode;
 	int output_bpc;
-	int output_flags;
+	unsigned int output_flags;
 	bool enable_afbc;
 	/**
 	 * @splice_mode: enabled when display a hdisplay > 4096 on rk3588
@@ -328,8 +328,10 @@ struct rockchip_crtc_state {
 	int vrr_type;
 };
 
-#define to_rockchip_crtc_state(s) \
-		container_of(s, struct rockchip_crtc_state, base)
+static inline struct rockchip_crtc_state *to_rockchip_crtc_state(const struct drm_crtc_state *s)
+{
+	return container_of(s, struct rockchip_crtc_state, base);
+}
 
 struct rockchip_drm_vcnt {
 	struct drm_pending_vblank_event *event;
