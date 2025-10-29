@@ -38,7 +38,7 @@ struct rockchip_gem_object {
 
 struct sg_table *rockchip_gem_prime_get_sg_table(struct drm_gem_object *obj);
 struct drm_gem_object *
-rockchip_gem_prime_import_sg_table(struct drm_device *dev,
+rockchip_gem_prime_import_sg_table(struct drm_device *drm,
 				   struct dma_buf_attachment *attach,
 				   struct sg_table *sg);
 void *rockchip_gem_prime_vmap(struct drm_gem_object *obj);
