@@ -1045,7 +1045,7 @@
 
 #define RK3568_GRF_VO_CON1			0x0364
 /* System registers definition */
-#define RK3568_REG_CFG_DONE			0x000
+#define RK3568_REG_CFG_DONE			0x000U
 #define RK3568_VOP2_WB_CFG_DONE			BIT(14)
 #define RK3568_VOP2_GLB_CFG_DONE_EN		BIT(15)
 #define RK3568_VERSION_INFO			0x004
