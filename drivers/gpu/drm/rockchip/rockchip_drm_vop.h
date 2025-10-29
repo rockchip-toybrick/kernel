@@ -38,15 +38,15 @@
 #define VOP_VERSION_RK3228		VOP_VERSION(3, 7)
 #define VOP_VERSION_RK3328		VOP_VERSION(3, 8)
 
-#define VOP2_VERSION(major, minor, build)	((major) << 24 | (minor) << 16 | (build))
-#define VOP2_MAJOR(version)		(((version) >> 24) & 0xff)
-#define VOP2_MINOR(version)		(((version) >> 16) & 0xff)
-#define VOP2_BUILD(version)		((version) & 0xffff)
+#define VOP2_VERSION(major, minor, build)	((u64)(major) << 24ULL | (u64)(minor) << 16ULL | (u64)(build))
+#define VOP2_MAJOR(version)		(((version) >> 24U) & 0xffU)
+#define VOP2_MINOR(version)		(((version) >> 16U) & 0xffU)
+#define VOP2_BUILD(version)		((version) & 0xffffU)
 
-#define VOP_VERSION_RK3528	VOP2_VERSION(0x50, 0x17, 0x1263)
-#define VOP_VERSION_RK3562	VOP2_VERSION(0x50, 0x17, 0x4350)
-#define VOP_VERSION_RK3568	VOP2_VERSION(0x40, 0x15, 0x8023)
-#define VOP_VERSION_RK3588	VOP2_VERSION(0x40, 0x17, 0x6786)
+#define VOP_VERSION_RK3528	(unsigned int)VOP2_VERSION(0x50U, 0x17U, 0x1263U)
+#define VOP_VERSION_RK3562	(unsigned int)VOP2_VERSION(0x50U, 0x17U, 0x4350U)
+#define VOP_VERSION_RK3568	(unsigned int)VOP2_VERSION(0x40U, 0x15U, 0x8023U)
+#define VOP_VERSION_RK3588	(unsigned int)VOP2_VERSION(0x40U, 0x17U, 0x6786U)
 
 /* register one connector */
 #define ROCKCHIP_OUTPUT_DUAL_CHANNEL_LEFT_RIGHT_MODE	BIT(0)
@@ -180,10 +180,10 @@ enum vop3_esmart_lb_mode {
 #define VOP2_MEM_PG_DB2		BIT(6)
 #define VOP2_MEM_PG_WB		BIT(7)
 
-#define DSP_BG_SWAP		0x1
-#define DSP_RB_SWAP		0x2
-#define DSP_RG_SWAP		0x4
-#define DSP_DELTA_SWAP		0x8
+#define DSP_BG_SWAP		0x1U
+#define DSP_RB_SWAP		0x2U
+#define DSP_RG_SWAP		0x4U
+#define DSP_DELTA_SWAP		0x8U
 
 #define V4L2_COLORSPACE_BT709F	0xfe
 #define V4L2_COLORSPACE_BT2020F	0xff
@@ -1660,7 +1660,7 @@ enum vop_pol {
 };
 
 
-#define FRAC_16_16(mult, div)    (((mult) << 16) / (div))
+#define FRAC_16_16(mult, div)    (((u64)(mult) << 16ULL) / (u64)(div))
 #define SCL_FT_DEFAULT_FIXPOINT_SHIFT	12
 #define SCL_MAX_VSKIPLINES		4
 #define MIN_SCL_FT_AFTER_VSKIP		1
