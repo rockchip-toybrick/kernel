@@ -38,7 +38,6 @@
 #include <linux/reset.h>
 #include <linux/resource.h>
 #include <linux/rfkill-wlan.h>
-#include <linux/signal.h>
 #include <linux/types.h>
 #include <linux/uaccess.h>
 #include <linux/pci-epf.h>
@@ -108,8 +107,8 @@ enum rk_pcie_device_mode {
 #define PCIE_CLIENT_INTR_STATUS_MISC	0x10
 #define PCIE_CLIENT_INTR_MASK_LEGACY	0x1c
 #define UNMASK_ALL_LEGACY_INT		0xffff0000
-#define MASK_LEGACY_INT(x)		(0x00110011 << x)
-#define UNMASK_LEGACY_INT(x)		(0x00110000 << x)
+#define MASK_LEGACY_INT(x)		(0x00110011u << (x))
+#define UNMASK_LEGACY_INT(x)		(0x00110000u << (x))
 #define PCIE_CLIENT_INTR_MASK		0x24
 #define PCIE_CLIENT_POWER		0x2c
 #define READY_ENTER_L23			BIT(3)
@@ -132,8 +131,8 @@ enum rk_pcie_device_mode {
 #define PCIE_CLIENT_DBG_FIFO_TRN_HIT_D0 0x328
 #define PCIE_CLIENT_DBG_FIFO_TRN_HIT_D1 0x32c
 #define PCIE_CLIENT_DBG_FIFO_STATUS	0x350
-#define PCIE_CLIENT_DBG_TRANSITION_DATA	0xffff0000
-#define PCIE_CLIENT_DBF_EN		0xffff0007
+#define PCIE_CLIENT_DBG_TRANSITION_DATA	0xffff0000u
+#define PCIE_CLIENT_DBF_EN		0xffff0007u
 
 #define PCIE_PHY_LINKUP			BIT(0)
 #define PCIE_DATA_LINKUP		BIT(1)
@@ -172,7 +171,7 @@ struct rk_pcie {
 	struct phy			*phy;
 	struct clk_bulk_data		*clks;
 	struct reset_control		*rsts;
-	unsigned int			clk_cnt;
+	int				clk_cnt;
 	struct gpio_desc		*rst_gpio;
 	u32				perst_inactive_ms;
 	u32                             s2r_perst_inactive_ms;
@@ -215,7 +214,11 @@ static int rk_pcie_enable_power(struct rk_pcie *rk_pcie);
 
 static int rk_pcie_read(void __iomem *addr, int size, u32 *val)
 {
-	if ((uintptr_t)addr & (size - 1)) {
+        uint32_t addr_val = (uint32_t)(uintptr_t)addr;
+	uintptr_t size_val = (uintptr_t)size;
+        uintptr_t mask = size_val - (uintptr_t)1;
+
+	if ((addr_val & (uint32_t)mask) > (uint32_t)0) {
 		*val = 0;
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 	}
@@ -236,17 +239,23 @@ static int rk_pcie_read(void __iomem *addr, int size, u32 *val)
 
 static int rk_pcie_write(void __iomem *addr, int size, u32 val)
 {
-	if ((uintptr_t)addr & (size - 1))
-		return PCIBIOS_BAD_REGISTER_NUMBER;
+        uint32_t addr_val = (uint32_t)(uintptr_t)addr;
+	uintptr_t size_val = (uintptr_t)size;
+        uintptr_t mask = size_val - (uintptr_t)1;
 
-	if (size == 4)
-		writel(val, addr);
-	else if (size == 2)
-		writew(val, addr);
-	else if (size == 1)
-		writeb(val, addr);
-	else
+	if ((addr_val & (uint32_t)mask) > (uint32_t)0) {
 		return PCIBIOS_BAD_REGISTER_NUMBER;
+	}
+
+	if (size == 4) {
+		writel(val, addr);
+	} else if (size == 2) {
+		writew(val, addr);
+	} else if (size == 1) {
+		writeb((u8)val, addr);
+	} else {
+		return PCIBIOS_BAD_REGISTER_NUMBER;
+	}
 
 	return PCIBIOS_SUCCESSFUL;
 }
@@ -257,9 +266,10 @@ static u32 __rk_pcie_read_apb(struct rk_pcie *rk_pcie, void __iomem *base,
 	int ret;
 	u32 val;
 
-	ret = rk_pcie_read(base + reg, size, &val);
-	if (ret)
+	ret = rk_pcie_read(base + reg, (int)size, &val);
+	if (ret != 0) {
 		dev_err(rk_pcie->pci->dev, "Read APB address failed\n");
+	}
 
 	return val;
 }
@@ -269,9 +279,10 @@ static void __rk_pcie_write_apb(struct rk_pcie *rk_pcie, void __iomem *base,
 {
 	int ret;
 
-	ret = rk_pcie_write(base + reg, size, val);
-	if (ret)
+	ret = rk_pcie_write(base + reg, (int)size, val);
+	if (ret != 0) {
 		dev_err(rk_pcie->pci->dev, "Write APB address failed\n");
+	}
 }
 
 static inline u32 rk_pcie_readl_apb(struct rk_pcie *rk_pcie, u32 reg)
@@ -290,8 +301,9 @@ static u8 rk_pcie_iatu_unroll_enabled(struct dw_pcie *pci)
 	u32 val;
 
 	val = dw_pcie_readl_dbi(pci, PCIE_ATU_VIEWPORT);
-	if (val == 0xffffffff)
+	if (val == 0xffffffffu) {
 		return 1;
+	}
 
 	return 0;
 }
@@ -300,22 +312,23 @@ static void rk_pcie_writel_atu(struct dw_pcie *pci, u32 reg, u32 val)
 {
 	int ret;
 
-	if (pci->ops->write_dbi) {
+	if (pci->ops->write_dbi != NULL) {
 		pci->ops->write_dbi(pci, pci->atu_base, reg, 4, val);
 		return;
 	}
 
 	ret = dw_pcie_write(pci->atu_base + reg, 4, val);
-	if (ret)
+	if (ret < 0) {
 		dev_err(pci->dev, "Write ATU address failed\n");
+	}
 }
 
 static void rk_pcie_writel_ib_unroll(struct dw_pcie *pci, u32 index, u32 reg,
 				     u32 val)
 {
-	u32 offset = PCIE_GET_ATU_INB_UNR_REG_OFFSET(index);
+	u64 offset = (((u64)(index) << 9) | BIT(8));
 
-	rk_pcie_writel_atu(pci, offset + reg, val);
+	rk_pcie_writel_atu(pci, (u32)(offset + reg), val);
 }
 
 static u32 rk_pcie_readl_atu(struct dw_pcie *pci, u32 reg)
@@ -323,21 +336,23 @@ static u32 rk_pcie_readl_atu(struct dw_pcie *pci, u32 reg)
 	int ret;
 	u32 val;
 
-	if (pci->ops->read_dbi)
+	if (pci->ops->read_dbi != NULL) {
 		return pci->ops->read_dbi(pci, pci->atu_base, reg, 4);
+	}
 
 	ret = dw_pcie_read(pci->atu_base + reg, 4, &val);
-	if (ret)
+	if (ret != 0) {
 		dev_err(pci->dev, "Read ATU address failed\n");
+	}
 
 	return val;
 }
 
 static u32 rk_pcie_readl_ib_unroll(struct dw_pcie *pci, u32 index, u32 reg)
 {
-	u32 offset = PCIE_GET_ATU_INB_UNR_REG_OFFSET(index);
+	u64 offset = (((u64)(index) << 9) | BIT(8));
 
-	return rk_pcie_readl_atu(pci, offset + reg);
+	return rk_pcie_readl_atu(pci, (u32)(offset + reg));
 }
 
 static int rk_pcie_prog_inbound_atu_unroll(struct dw_pcie *pci, u8 func_no,
@@ -346,10 +361,11 @@ static int rk_pcie_prog_inbound_atu_unroll(struct dw_pcie *pci, u8 func_no,
 {
 	int type;
 	u32 retries, val;
+	u64 bar_val = (u64)((u64)bar << 8);
 
-	rk_pcie_writel_ib_unroll(pci, index, PCIE_ATU_UNR_LOWER_TARGET,
+	rk_pcie_writel_ib_unroll(pci, (u32)index, PCIE_ATU_UNR_LOWER_TARGET,
 				 lower_32_bits(cpu_addr));
-	rk_pcie_writel_ib_unroll(pci, index, PCIE_ATU_UNR_UPPER_TARGET,
+	rk_pcie_writel_ib_unroll(pci, (u32)index, PCIE_ATU_UNR_UPPER_TARGET,
 				 upper_32_bits(cpu_addr));
 
 	switch (as_type) {
@@ -360,26 +376,31 @@ static int rk_pcie_prog_inbound_atu_unroll(struct dw_pcie *pci, u8 func_no,
 		type = PCIE_ATU_TYPE_IO;
 		break;
 	default:
+		type = -1;
+		break;
+	}
+
+	if (type != PCIE_ATU_TYPE_IO && type != PCIE_ATU_TYPE_MEM) {
 		return -EINVAL;
 	}
 
-	rk_pcie_writel_ib_unroll(pci, index, PCIE_ATU_UNR_REGION_CTRL1, type |
-				 PCIE_ATU_FUNC_NUM(func_no));
-	rk_pcie_writel_ib_unroll(pci, index, PCIE_ATU_UNR_REGION_CTRL2,
-				 PCIE_ATU_FUNC_NUM_MATCH_EN |
+	rk_pcie_writel_ib_unroll(pci, (u32)index, PCIE_ATU_UNR_REGION_CTRL1, (u32)type |
+				 (u32)((u32)func_no << 20));
+	rk_pcie_writel_ib_unroll(pci, (u32)index, PCIE_ATU_UNR_REGION_CTRL2,
+				 (u32)(PCIE_ATU_FUNC_NUM_MATCH_EN |
 				 PCIE_ATU_ENABLE |
-				 PCIE_ATU_BAR_MODE_ENABLE | (bar << 8));
+				 PCIE_ATU_BAR_MODE_ENABLE | (u32)bar_val));
 
 	/*
 	 * Make sure ATU enable takes effect before any subsequent config
 	 * and I/O accesses.
 	 */
-	for (retries = 0; retries < LINK_WAIT_MAX_IATU_RETRIES; retries++) {
-		val = rk_pcie_readl_ib_unroll(pci, index,
+	for (retries = 0; retries < (u32)LINK_WAIT_MAX_IATU_RETRIES; retries++) {
+		val = rk_pcie_readl_ib_unroll(pci, (u32)index,
 					      PCIE_ATU_UNR_REGION_CTRL2);
-		if (val & PCIE_ATU_ENABLE)
+		if ((val & PCIE_ATU_ENABLE) != (u32)0) {
 			return 0;
-
+		}
 		mdelay(LINK_WAIT_IATU);
 	}
 	dev_err(pci->dev, "Inbound iATU is not being enabled\n");
@@ -394,13 +415,16 @@ static int rk_pcie_prog_inbound_atu(struct dw_pcie *pci, u8 func_no, int index,
 {
 	int type;
 	u32 retries, val;
+	u64 bar_val = (u64)((u64)bar << 8);
+	u64 func_val = (u64)((u64)func_no << 20);
 
-	if (pci->iatu_unroll_enabled)
+	if (pci->iatu_unroll_enabled > (u8)0) {
 		return rk_pcie_prog_inbound_atu_unroll(pci, func_no, index, bar,
 						       cpu_addr, as_type);
+	}
 
-	dw_pcie_writel_dbi(pci, PCIE_ATU_VIEWPORT, PCIE_ATU_REGION_INBOUND |
-			   index);
+	dw_pcie_writel_dbi(pci, PCIE_ATU_VIEWPORT, (u32)(PCIE_ATU_REGION_INBOUND |
+			   (u32)index));
 	dw_pcie_writel_dbi(pci, PCIE_ATU_LOWER_TARGET, lower_32_bits(cpu_addr));
 	dw_pcie_writel_dbi(pci, PCIE_ATU_UPPER_TARGET, upper_32_bits(cpu_addr));
 
@@ -412,23 +436,29 @@ static int rk_pcie_prog_inbound_atu(struct dw_pcie *pci, u8 func_no, int index,
 		type = PCIE_ATU_TYPE_IO;
 		break;
 	default:
+		type = -1;
+		break;
+	}
+
+	if (type == -1) {
 		return -EINVAL;
 	}
 
-	dw_pcie_writel_dbi(pci, PCIE_ATU_CR1, type |
-			   PCIE_ATU_FUNC_NUM(func_no));
-	dw_pcie_writel_dbi(pci, PCIE_ATU_CR2, PCIE_ATU_ENABLE |
+	dw_pcie_writel_dbi(pci, PCIE_ATU_CR1, (u32)type |
+			   (u32)func_val);
+	dw_pcie_writel_dbi(pci, PCIE_ATU_CR2, (u32)(PCIE_ATU_ENABLE |
 			   PCIE_ATU_FUNC_NUM_MATCH_EN |
-			   PCIE_ATU_BAR_MODE_ENABLE | (bar << 8));
+			   PCIE_ATU_BAR_MODE_ENABLE | (u32)bar_val));
 
 	/*
 	 * Make sure ATU enable takes effect before any subsequent config
 	 * and I/O accesses.
 	 */
-	for (retries = 0; retries < LINK_WAIT_MAX_IATU_RETRIES; retries++) {
+	for (retries = 0; retries < (u32)LINK_WAIT_MAX_IATU_RETRIES; retries++) {
 		val = dw_pcie_readl_dbi(pci, PCIE_ATU_CR2);
-		if (val & PCIE_ATU_ENABLE)
+		if ((val & PCIE_ATU_ENABLE) != (u32)0) {
 			return 0;
+		}
 
 		mdelay(LINK_WAIT_IATU);
 	}
@@ -445,28 +475,33 @@ static int rk_pcie_ep_inbound_atu(struct rk_pcie *rk_pcie,
 	u32 free_win;
 	u8 func_no = 0x0;
 
+	if ((u32)bar >= (u32)6) {
+		return -1;
+	}
+
 	if (rk_pcie->in_suspend) {
 		free_win = rk_pcie->bar_to_atu[bar];
 	} else {
-		free_win = find_first_zero_bit(rk_pcie->ib_window_map,
-					       rk_pcie->num_ib_windows);
+		free_win = (u32)find_first_zero_bit((const unsigned long *)rk_pcie->ib_window_map,
+					       (u64)rk_pcie->num_ib_windows);
 		if (free_win >= rk_pcie->num_ib_windows) {
 			dev_err(rk_pcie->pci->dev, "No free inbound window\n");
 			return -EINVAL;
 		}
 	}
 
-	ret = rk_pcie_prog_inbound_atu(rk_pcie->pci, func_no, free_win, bar,
+	ret = rk_pcie_prog_inbound_atu(rk_pcie->pci, func_no, (int)free_win, (int)bar,
 				       cpu_addr, as_type);
 	if (ret < 0) {
 		dev_err(rk_pcie->pci->dev, "Failed to program IB window\n");
 		return ret;
 	}
 
-	if (rk_pcie->in_suspend)
+	if (rk_pcie->in_suspend) {
 		return 0;
+	}
 
-	rk_pcie->bar_to_atu[bar] = free_win;
+	rk_pcie->bar_to_atu[bar] = (u8)free_win;
 	set_bit(free_win, rk_pcie->ib_window_map);
 
 	return 0;
@@ -493,34 +528,35 @@ static void rk_pcie_prog_outbound_atu_unroll(struct dw_pcie *pci, u8 func_no,
 					     u32 size)
 {
 	u32 retries, val;
-	u64 limit_addr = cpu_addr + size - 1;
+	u64 limit_addr = cpu_addr + (u64)size - (u64)1;
 
-	rk_pcie_writel_ob_unroll(pci, index, PCIE_ATU_UNR_LOWER_BASE,
+	rk_pcie_writel_ob_unroll(pci, (u32)index, PCIE_ATU_UNR_LOWER_BASE,
 				 lower_32_bits(cpu_addr));
-	rk_pcie_writel_ob_unroll(pci, index, PCIE_ATU_UNR_UPPER_BASE,
+	rk_pcie_writel_ob_unroll(pci, (u32)index, PCIE_ATU_UNR_UPPER_BASE,
 				 upper_32_bits(cpu_addr));
-	rk_pcie_writel_ob_unroll(pci, index, PCIE_ATU_UNR_LOWER_LIMIT,
+	rk_pcie_writel_ob_unroll(pci, (u32)index, PCIE_ATU_UNR_LOWER_LIMIT,
 				 lower_32_bits(limit_addr));
-	rk_pcie_writel_ob_unroll(pci, index, PCIE_ATU_UNR_UPPER_LIMIT,
+	rk_pcie_writel_ob_unroll(pci, (u32)index, PCIE_ATU_UNR_UPPER_LIMIT,
 				 upper_32_bits(limit_addr));
-	rk_pcie_writel_ob_unroll(pci, index, PCIE_ATU_UNR_LOWER_TARGET,
+	rk_pcie_writel_ob_unroll(pci, (u32)index, PCIE_ATU_UNR_LOWER_TARGET,
 				 lower_32_bits(pci_addr));
-	rk_pcie_writel_ob_unroll(pci, index, PCIE_ATU_UNR_UPPER_TARGET,
+	rk_pcie_writel_ob_unroll(pci, (u32)index, PCIE_ATU_UNR_UPPER_TARGET,
 				 upper_32_bits(pci_addr));
-	rk_pcie_writel_ob_unroll(pci, index, PCIE_ATU_UNR_REGION_CTRL1,
-				 type | PCIE_ATU_FUNC_NUM(func_no));
-	rk_pcie_writel_ob_unroll(pci, index, PCIE_ATU_UNR_REGION_CTRL2,
-				 PCIE_ATU_ENABLE);
+	rk_pcie_writel_ob_unroll(pci, (u32)index, PCIE_ATU_UNR_REGION_CTRL1,
+				 (u32)type | (u32)((u32)func_no << 20));
+	rk_pcie_writel_ob_unroll(pci, (u32)index, PCIE_ATU_UNR_REGION_CTRL2,
+				 (u32)PCIE_ATU_ENABLE);
 
 	/*
 	 * Make sure ATU enable takes effect before any subsequent config
 	 * and I/O accesses.
 	 */
-	for (retries = 0; retries < LINK_WAIT_MAX_IATU_RETRIES; retries++) {
-		val = rk_pcie_readl_ob_unroll(pci, index,
+	for (retries = 0; retries < (u32)LINK_WAIT_MAX_IATU_RETRIES; retries++) {
+		val = rk_pcie_readl_ob_unroll(pci, (u32)index,
 					      PCIE_ATU_UNR_REGION_CTRL2);
-		if (val & PCIE_ATU_ENABLE)
+		if ((val & PCIE_ATU_ENABLE) != (u32)0) {
 			return;
+		}
 
 		mdelay(LINK_WAIT_IATU);
 	}
@@ -532,17 +568,18 @@ static void rk_pcie_prog_outbound_atu(struct dw_pcie *pci, int index,
 {
 	u32 retries, val;
 
-	if (pci->ops->cpu_addr_fixup)
+	if (pci->ops->cpu_addr_fixup != NULL) {
 		cpu_addr = pci->ops->cpu_addr_fixup(pci, cpu_addr);
+	}
 
-	if (pci->iatu_unroll_enabled) {
+	if (pci->iatu_unroll_enabled > (u8)0) {
 		rk_pcie_prog_outbound_atu_unroll(pci, 0x0, index, type,
 						 cpu_addr, pci_addr, size);
 		return;
 	}
 
 	dw_pcie_writel_dbi(pci, PCIE_ATU_VIEWPORT,
-			   PCIE_ATU_REGION_OUTBOUND | index);
+			   (u32)PCIE_ATU_REGION_OUTBOUND | (u32)index);
 	dw_pcie_writel_dbi(pci, PCIE_ATU_LOWER_BASE,
 			   lower_32_bits(cpu_addr));
 	dw_pcie_writel_dbi(pci, PCIE_ATU_UPPER_BASE,
@@ -553,18 +590,19 @@ static void rk_pcie_prog_outbound_atu(struct dw_pcie *pci, int index,
 			   lower_32_bits(pci_addr));
 	dw_pcie_writel_dbi(pci, PCIE_ATU_UPPER_TARGET,
 			   upper_32_bits(pci_addr));
-	dw_pcie_writel_dbi(pci, PCIE_ATU_CR1, type |
-			   PCIE_ATU_FUNC_NUM(0x0));
-	dw_pcie_writel_dbi(pci, PCIE_ATU_CR2, PCIE_ATU_ENABLE);
+	dw_pcie_writel_dbi(pci, PCIE_ATU_CR1, (u32)type |
+			   (u32)((u32)0 << 20));
+	dw_pcie_writel_dbi(pci, PCIE_ATU_CR2, (u32)PCIE_ATU_ENABLE);
 
 	/*
 	 * Make sure ATU enable takes effect before any subsequent config
 	 * and I/O accesses.
 	 */
-	for (retries = 0; retries < LINK_WAIT_MAX_IATU_RETRIES; retries++) {
+	for (retries = 0; retries < (u32)LINK_WAIT_MAX_IATU_RETRIES; retries++) {
 		val = dw_pcie_readl_dbi(pci, PCIE_ATU_CR2);
-		if (val & PCIE_ATU_ENABLE)
+		if ((val & PCIE_ATU_ENABLE) != (u32)0) {
 			return;
+		}
 
 		mdelay(LINK_WAIT_IATU);
 	}
@@ -578,10 +616,10 @@ static int rk_pcie_ep_outbound_atu(struct rk_pcie *rk_pcie,
 	u32 free_win;
 
 	if (rk_pcie->in_suspend) {
-		free_win = find_first_bit(rk_pcie->ob_window_map,
+		free_win = (u32)find_first_bit(rk_pcie->ob_window_map,
 					  rk_pcie->num_ob_windows);
 	} else {
-		free_win = find_first_zero_bit(rk_pcie->ob_window_map,
+		free_win = (u32)find_first_zero_bit(rk_pcie->ob_window_map,
 					       rk_pcie->num_ob_windows);
 		if (free_win >= rk_pcie->num_ob_windows) {
 			dev_err(rk_pcie->pci->dev, "No free outbound window\n");
@@ -589,11 +627,12 @@ static int rk_pcie_ep_outbound_atu(struct rk_pcie *rk_pcie,
 		}
 	}
 
-	rk_pcie_prog_outbound_atu(rk_pcie->pci, free_win, PCIE_ATU_TYPE_MEM,
-				  phys_addr, pci_addr, size);
+	rk_pcie_prog_outbound_atu(rk_pcie->pci, (int)free_win, PCIE_ATU_TYPE_MEM,
+				  phys_addr, pci_addr, (u32)size);
 
-	if (rk_pcie->in_suspend)
+	if (rk_pcie->in_suspend) {
 		return 0;
+	}
 
 	set_bit(free_win, rk_pcie->ob_window_map);
 	rk_pcie->outbound_addr[free_win] = phys_addr;
@@ -605,11 +644,13 @@ static void __rk_pcie_ep_reset_bar(struct rk_pcie *rk_pcie,
 					     enum pci_barno bar, int flags)
 {
 	u32 reg;
+	u32 type_flags = (u32)flags;
 
-	reg = PCI_BASE_ADDRESS_0 + (4 * bar);
+	reg = (u32)PCI_BASE_ADDRESS_0 + ((u32)4 * (u32)bar);
 	dw_pcie_writel_dbi(rk_pcie->pci, reg, 0x0);
-	if (flags & PCI_BASE_ADDRESS_MEM_TYPE_64)
-		dw_pcie_writel_dbi(rk_pcie->pci, reg + 4, 0x0);
+	if ((type_flags & (u32)PCI_BASE_ADDRESS_MEM_TYPE_64) != (u32)0) {
+		dw_pcie_writel_dbi(rk_pcie->pci, reg + (u32)4, (u32)0x0);
+	}
 }
 
 static void rk_pcie_ep_reset_bar(struct rk_pcie *rk_pcie, enum pci_barno bar)
@@ -620,28 +661,33 @@ static void rk_pcie_ep_reset_bar(struct rk_pcie *rk_pcie, enum pci_barno bar)
 static int rk_pcie_ep_atu_init(struct rk_pcie *rk_pcie)
 {
 	int ret;
-	enum pci_barno bar;
 	enum dw_pcie_as_type as_type;
 	dma_addr_t cpu_addr;
 	phys_addr_t phys_addr;
 	u64 pci_addr;
 	size_t size;
 
-	for (bar = BAR_0; bar <= BAR_5; bar++)
-		rk_pcie_ep_reset_bar(rk_pcie, bar);
+	rk_pcie_ep_reset_bar(rk_pcie, BAR_0);
+	rk_pcie_ep_reset_bar(rk_pcie, BAR_1);
+	rk_pcie_ep_reset_bar(rk_pcie, BAR_2);
+	rk_pcie_ep_reset_bar(rk_pcie, BAR_3);
+	rk_pcie_ep_reset_bar(rk_pcie, BAR_4);
+	rk_pcie_ep_reset_bar(rk_pcie, BAR_5);
 
 	cpu_addr = rk_pcie->mem_start;
 	as_type = DW_PCIE_AS_MEM;
 	ret = rk_pcie_ep_inbound_atu(rk_pcie, BAR_0, cpu_addr, as_type);
-	if (ret)
+	if (ret < 0) {
 		return ret;
+	}
 
 	phys_addr = 0x0;
 	pci_addr = 0x0;
-	size = SZ_2G;
+	size = 0x80000000u;
 	ret = rk_pcie_ep_outbound_atu(rk_pcie, phys_addr, pci_addr, size);
-	if (ret)
+	if (ret < 0) {
 		return ret;
+	}
 
 	return 0;
 }
@@ -652,16 +698,16 @@ static void disable_aspm_l1ss(struct rk_pcie *rk_pcie)
 	u32 val, cfg_link_cap_l1sub;
 
 	val = dw_pcie_find_ext_capability(rk_pcie->pci, PCI_EXT_CAP_ID_L1SS);
-	if (!val) {
+	if (val == (u32)0) {
 		dev_err(rk_pcie->pci->dev, "can't find l1ss cap\n");
 
 		return;
 	}
 
-	cfg_link_cap_l1sub = val + PCI_L1SS_CAP;
+	cfg_link_cap_l1sub = val + (u32)PCI_L1SS_CAP;
 
 	val = dw_pcie_readl_dbi(rk_pcie->pci, cfg_link_cap_l1sub);
-	val &= ~(PCI_L1SS_CAP_ASPM_L1_1 | PCI_L1SS_CAP_ASPM_L1_2 | PCI_L1SS_CAP_L1_PM_SS);
+	val &= ~(u32)((u32)PCI_L1SS_CAP_ASPM_L1_1 | (u32)PCI_L1SS_CAP_ASPM_L1_2 | (u32)PCI_L1SS_CAP_L1_PM_SS);
 	dw_pcie_writel_dbi(rk_pcie->pci, cfg_link_cap_l1sub, val);
 }
 #else
@@ -689,10 +735,14 @@ static inline void rk_pcie_set_mode(struct rk_pcie *rk_pcie)
 		 * Need to check producer-consumer model.
 		 * Just for RK1808 platform.
 		 */
-		if (rk_pcie->is_rk1808)
+		if (rk_pcie->is_rk1808) {
 			dw_pcie_writel_dbi(rk_pcie->pci,
 					   PCIE_PL_ORDER_RULE_CTRL_OFF,
 					   0xff00);
+		}
+		break;
+	default:
+		dev_err(rk_pcie->pci->dev, "invalid mode\n");
 		break;
 	}
 }
@@ -719,12 +769,14 @@ static int rk_pcie_link_up(struct dw_pcie *pci)
 
 	if (rk_pcie->is_rk1808) {
 		val = rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_GENERAL_DEBUG);
-		if ((val & (PCIE_PHY_LINKUP | PCIE_DATA_LINKUP)) == 0x3)
+		if ((val & (PCIE_PHY_LINKUP | PCIE_DATA_LINKUP)) == (u32)0x3) {
 			return 1;
+		}
 	} else {
 		val = rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_LTSSM_STATUS);
-		if ((val & (RDLH_LINKUP | SMLH_LINKUP)) == 0x30000)
+		if ((val & (RDLH_LINKUP | SMLH_LINKUP)) == (u32)0x30000) {
 			return 1;
+		}
 	}
 
 	return 0;
@@ -732,10 +784,12 @@ static int rk_pcie_link_up(struct dw_pcie *pci)
 
 static void rk_pcie_enable_debug(struct rk_pcie *rk_pcie)
 {
-	if (!IS_ENABLED(CONFIG_DEBUG_FS))
+#ifndef CONFIG_DEBUG_FS
 		return;
-	if (rk_pcie->is_rk1808 == true)
+#endif
+	if (rk_pcie->is_rk1808) {
 		return;
+	}
 
 	rk_pcie_writel_apb(rk_pcie, PCIE_CLIENT_DBG_FIFO_PTN_HIT_D0,
 			   PCIE_CLIENT_DBG_TRANSITION_DATA);
@@ -765,10 +819,10 @@ static void rk_pcie_debug_dump(struct rk_pcie *rk_pcie)
 
 static int rk_pcie_establish_link(struct dw_pcie *pci)
 {
-	int retries, power;
+	int retries, power, status;
 	struct rk_pcie *rk_pcie = to_rk_pcie(pci);
 	bool std_rc = rk_pcie->mode == RK_PCIE_RC_TYPE && !rk_pcie->dma_obj;
-	int hw_retries = 0;
+	int hw_retries;
 	u32 ltssm;
 
 	/*
@@ -776,7 +830,7 @@ static int rk_pcie_establish_link(struct dw_pcie *pci)
 	 * we still need to reset link as we need to remove all resource info
 	 * from devices, for instance BAR, as it wasn't assigned by kernel.
 	 */
-	if (dw_pcie_link_up(pci) && !std_rc) {
+	if ((dw_pcie_link_up(pci) == 1) && !std_rc) {
 		dev_err(pci->dev, "link is already up\n");
 		return 0;
 	}
@@ -810,17 +864,19 @@ static int rk_pcie_establish_link(struct dw_pcie *pci)
 		 * work fine. If it doesn't, please add more in DT node by add rockchip,perst-inactive-ms.
 		 */
 		if (rk_pcie->in_suspend && rk_pcie->skip_scan_in_resume) {
-			rfkill_get_wifi_power_state(&power);
-			if (!power) {
+			status = rfkill_get_wifi_power_state(&power);
+			dev_info(pci->dev, "rfkill_get_wifi_power_state = %d\n", status);
+			if (power == 0) {
 				gpiod_set_value_cansleep(rk_pcie->rst_gpio, 1);
 				return 0;
 			}
-			if (rk_pcie->s2r_perst_inactive_ms)
-				usleep_range(rk_pcie->s2r_perst_inactive_ms * 1000,
-					(rk_pcie->s2r_perst_inactive_ms + 1) * 1000);
+			if (rk_pcie->s2r_perst_inactive_ms > (u32)0) {
+				usleep_range((u64)rk_pcie->s2r_perst_inactive_ms * (u64)1000,
+					((u64)rk_pcie->s2r_perst_inactive_ms + (u64)1) * (u64)1000);
+			}
 		} else {
-			usleep_range(rk_pcie->perst_inactive_ms * 1000,
-				(rk_pcie->perst_inactive_ms + 1) * 1000);
+			usleep_range((u64)rk_pcie->perst_inactive_ms * (u64)1000,
+				((u64)rk_pcie->perst_inactive_ms + (u64)1) * (u64)1000);
 
 		}
 
@@ -834,8 +890,8 @@ static int rk_pcie_establish_link(struct dw_pcie *pci)
 		 */
 		usleep_range(1000, 1100);
 
-		for (retries = 0; retries < rk_pcie->wait_for_link_ms / 20; retries++) {
-			if (dw_pcie_link_up(pci)) {
+		for (retries = 0; retries < (int)rk_pcie->wait_for_link_ms / 20; retries++) {
+			if (dw_pcie_link_up(pci) == 1) {
 				/*
 				 * We may be here in case of L0 in Gen1. But if EP is capable
 				 * of Gen2 or Gen3, Gen switch may happen just in this time, but
@@ -845,7 +901,7 @@ static int rk_pcie_establish_link(struct dw_pcie *pci)
 				 */
 				msleep(50);
 				/* In case link drop after linkup, double check it */
-				if (dw_pcie_link_up(pci)) {
+				if (dw_pcie_link_up(pci) == 1) {
 					dev_info(pci->dev, "PCIe Link up, LTSSM is 0x%x\n",
 						rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_LTSSM_STATUS));
 					rk_pcie_debug_dump(rk_pcie);
@@ -866,19 +922,21 @@ static int rk_pcie_establish_link(struct dw_pcie *pci)
 		 */
 		ltssm = rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_LTSSM_STATUS);
 		dev_err(pci->dev, "PCIe Link Fail, LTSSM is 0x%x, hw_retries=%d\n", ltssm, hw_retries);
-		if (ltssm >= 3 && !rk_pcie->is_signal_test) {
-			rk_pcie_disable_power(rk_pcie);
+		if (ltssm >= (u32)3 && !rk_pcie->is_signal_test) {
+			status = rk_pcie_disable_power(rk_pcie);
+			dev_info(pci->dev, "rk_pcie_disable_power = %d\n", status);
 			msleep(1000);
-			rk_pcie_enable_power(rk_pcie);
+			status = rk_pcie_enable_power(rk_pcie);
+			dev_info(pci->dev, "rk_pcie_ensable_power = %d\n", status);
 		} else {
 			break;
 		}
 	}
 
-	return rk_pcie->is_signal_test == true ? 0 : -EINVAL;
+	return rk_pcie->is_signal_test ? 0 : -EINVAL;
 }
 
-static bool rk_pcie_udma_enabled(struct rk_pcie *rk_pcie)
+static u32 rk_pcie_udma_enabled(struct rk_pcie *rk_pcie)
 {
 	return dw_pcie_readl_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
 				 PCIE_DMA_CTRL_OFF);
@@ -886,18 +944,21 @@ static bool rk_pcie_udma_enabled(struct rk_pcie *rk_pcie)
 
 static int rk_pcie_init_dma_trx(struct rk_pcie *rk_pcie)
 {
-	if (!rk_pcie_udma_enabled(rk_pcie))
+	if (rk_pcie_udma_enabled(rk_pcie) == (u32)0) {
 		return 0;
+	}
 
 	rk_pcie->dma_obj = rk_pcie_dma_obj_probe(rk_pcie->pci->dev);
 	if (IS_ERR(rk_pcie->dma_obj)) {
 		dev_err(rk_pcie->pci->dev, "failed to prepare dma object\n");
 		return -EINVAL;
-	} else if (rk_pcie->dma_obj) {
+	} else if (rk_pcie->dma_obj != NULL) {
 		goto out;
+	} else {
+		dev_info(rk_pcie->pci->dev, "prepare dma object\n");
 	}
 
-	rk_pcie->dma_obj = pcie_dw_dmatest_register(rk_pcie->pci->dev, true);
+	rk_pcie->dma_obj = pcie_dw_dmatest_register(rk_pcie->pci->dev, (bool)true);
 	if (IS_ERR(rk_pcie->dma_obj)) {
 		dev_err(rk_pcie->pci->dev, "failed to prepare dmatest\n");
 		return -EINVAL;
@@ -922,30 +983,37 @@ static int rk_pci_find_resbar_capability(struct rk_pcie *rk_pcie)
 	int start = 0;
 	int pos = PCI_CFG_SPACE_SIZE;
 	int cap = PCI_EXT_CAP_ID_REBAR;
+	u32 new_pos;
 
 	/* minimum 8 bytes per capability */
 	ttl = (PCI_CFG_SPACE_EXP_SIZE - PCI_CFG_SPACE_SIZE) / 8;
 
-	header = dw_pcie_readl_dbi(rk_pcie->pci, pos);
+	header = dw_pcie_readl_dbi(rk_pcie->pci, (u32)pos);
 
 	/*
 	 * If we have no capabilities, this is indicated by cap ID,
 	 * cap version and next pointer all being 0.
 	 */
-	if (header == 0)
+	if (header == (u32)0) {
 		return 0;
+	}
 
-	while (ttl-- > 0) {
-		if (PCI_EXT_CAP_ID(header) == cap && pos != start)
+	while (ttl > 0) {
+		ttl = ttl - 1;
+		if ((header & 0x0000ffffu) == (u32)cap && pos != start) {
 			return pos;
+		}
 
-		pos = PCI_EXT_CAP_NEXT(header);
-		if (pos < PCI_CFG_SPACE_SIZE)
+		new_pos = (u32)((header >> 20) & (u32)0xffc);
+		pos = (int)new_pos;
+		if (pos < PCI_CFG_SPACE_SIZE) {
 			break;
+		}
 
-		header = dw_pcie_readl_dbi(rk_pcie->pci, pos);
-		if (!header)
+		header = dw_pcie_readl_dbi(rk_pcie->pci, (u32)pos);
+		if (header == (u32)0) {
 			break;
+		}
 	}
 
 	return 0;
@@ -967,22 +1035,22 @@ void dw_pcie_write_dbi2(struct dw_pcie *pci, u32 reg, size_t size, u32 val)
 }
 #endif
 
-static int rk_pcie_ep_set_bar_flag(struct rk_pcie *rk_pcie, enum pci_barno barno, int flags)
+static void rk_pcie_ep_set_bar_flag(struct rk_pcie *rk_pcie, enum pci_barno barno, int flags)
 {
 	enum pci_barno bar = barno;
-	u32 reg;
+	u32 reg, local_flags = (u32)flags;
 
-	reg = PCI_BASE_ADDRESS_0 + (4 * bar);
+	reg = (u32)PCI_BASE_ADDRESS_0 + ((u32)4 * (u32)bar);
 
 	/* Disabled the upper 32bits BAR to make a 64bits bar pair */
-	if (flags & PCI_BASE_ADDRESS_MEM_TYPE_64)
-		dw_pcie_writel_dbi2(rk_pcie->pci, reg + 4, 0);
+	if ((local_flags & (u32)PCI_BASE_ADDRESS_MEM_TYPE_64) != (u32)0) {
+		dw_pcie_writel_dbi2(rk_pcie->pci, reg + (u32)4, 0);
+	}
 
-	dw_pcie_writel_dbi(rk_pcie->pci, reg, flags);
-	if (flags & PCI_BASE_ADDRESS_MEM_TYPE_64)
-		dw_pcie_writel_dbi(rk_pcie->pci, reg + 4, 0);
-
-	return 0;
+	dw_pcie_writel_dbi(rk_pcie->pci, reg, local_flags);
+	if ((local_flags & (u32)PCI_BASE_ADDRESS_MEM_TYPE_64) != (u32)0) {
+		dw_pcie_writel_dbi(rk_pcie->pci, reg + (u32)4, 0);
+	}
 }
 
 static void rk_pcie_ep_setup(struct rk_pcie *rk_pcie)
@@ -1006,27 +1074,37 @@ static void rk_pcie_ep_setup(struct rk_pcie *rk_pcie)
 			   0x0);
 
 	ret = of_property_read_u32(np, "num-lanes", &lanes);
-	if (ret)
+	if (ret != 0) {
 		lanes = 0;
+	}
 
 	/* Set the number of lanes */
 	val = dw_pcie_readl_dbi(rk_pcie->pci, PCIE_PORT_LINK_CONTROL);
-	val &= ~PORT_LINK_MODE_MASK;
+	val = val & 0xFFC0FFFFu;
 	switch (lanes) {
 	case 1:
-		val |= PORT_LINK_MODE_1_LANES;
+		val = val + (u32)0x10000u;
+		dev_err(dev, "val %u: \n", val);
 		break;
 	case 2:
-		val |= PORT_LINK_MODE_2_LANES;
+		val = val + (u32)0x30000u;
+		dev_err(dev, "val %u: \n", val);
 		break;
 	case 4:
-		val |= PORT_LINK_MODE_4_LANES;
+		val = val + (u32)0x70000u;
+		dev_err(dev, "val %u: \n", val);
 		break;
 	case 8:
-		val |= PORT_LINK_MODE_8_LANES;
+		val = val + (u32)0xf0000u;
+		dev_err(dev, "val %u: \n", val);
 		break;
 	default:
 		dev_err(dev, "num-lanes %u: invalid value\n", lanes);
+		lanes = 0xff;
+		break;
+	}
+
+	if (lanes ==(u32)0xff) {
 		return;
 	}
 
@@ -1034,23 +1112,31 @@ static void rk_pcie_ep_setup(struct rk_pcie *rk_pcie)
 
 	/* Set link width speed control register */
 	val = dw_pcie_readl_dbi(rk_pcie->pci, PCIE_LINK_WIDTH_SPEED_CONTROL);
-	val &= ~PORT_LOGIC_LINK_WIDTH_MASK;
+	val = val & 0xFFFFE0FFu;
 	switch (lanes) {
 	case 1:
-		val |= PORT_LOGIC_LINK_WIDTH_1_LANES;
+		val = val + (u32)0x100u;
+		dev_err(dev, "val %u: \n", val);
 		break;
 	case 2:
-		val |= PORT_LOGIC_LINK_WIDTH_2_LANES;
+		val = val + (u32)0x200u;
+		dev_err(dev, "val %u: \n", val);
 		break;
 	case 4:
-		val |= PORT_LOGIC_LINK_WIDTH_4_LANES;
+		val = val + (u32)0x400u;
+		dev_err(dev, "val %u: \n", val);
 		break;
 	case 8:
-		val |= PORT_LOGIC_LINK_WIDTH_8_LANES;
+		val = val + (u32)0x800u;
+		dev_err(dev, "val %u: \n", val);
+		break;
+	default:
+		dev_err(dev, "num-lanes %u: invalid value\n", lanes);
+		lanes = 0xff;
 		break;
 	}
 
-	val |= PCIE_DIRECT_SPEED_CHANGE;
+	val = val + ((u32)0x1 << 17);
 
 	dw_pcie_writel_dbi(rk_pcie->pci, PCIE_LINK_WIDTH_SPEED_CONTROL, val);
 
@@ -1058,24 +1144,24 @@ static void rk_pcie_ep_setup(struct rk_pcie *rk_pcie)
 	dw_pcie_writel_dbi(rk_pcie->pci, PCIE_TYPE0_STATUS_COMMAND_REG, 0x6);
 
 	resbar_base = rk_pci_find_resbar_capability(rk_pcie);
-	if (!resbar_base) {
+	if (resbar_base == 0) {
 		dev_warn(dev, "failed to find resbar_base\n");
 	} else {
 		/* Resize BAR0 to support 512GB, BAR1 to support 8M, BAR2~5 to support 64M */
-		dw_pcie_writel_dbi(rk_pcie->pci, resbar_base + 0x4, 0xfffff0);
-		dw_pcie_writel_dbi(rk_pcie->pci, resbar_base + 0x8, 0x13c0);
-		dw_pcie_writel_dbi(rk_pcie->pci, resbar_base + 0xc, 0xfffff0);
-		dw_pcie_writel_dbi(rk_pcie->pci, resbar_base + 0x10, 0x3c0);
+		dw_pcie_writel_dbi(rk_pcie->pci, (u32)resbar_base + (u32)0x4, 0xfffff0);
+		dw_pcie_writel_dbi(rk_pcie->pci, (u32)resbar_base + (u32)0x8, 0x13c0);
+		dw_pcie_writel_dbi(rk_pcie->pci, (u32)resbar_base + (u32)0xc, 0xfffff0);
+		dw_pcie_writel_dbi(rk_pcie->pci, (u32)resbar_base + (u32)0x10, 0x3c0);
 		for (bar = 2; bar < 6; bar++) {
-			dw_pcie_writel_dbi(rk_pcie->pci, resbar_base + 0x4 + bar * 0x8, 0xfffff0);
-			dw_pcie_writel_dbi(rk_pcie->pci, resbar_base + 0x8 + bar * 0x8, 0x6c0);
+			dw_pcie_writel_dbi(rk_pcie->pci, (u32)resbar_base +  (u32)0x4 + (u32)bar *  (u32)0x8, 0xfffff0);
+			dw_pcie_writel_dbi(rk_pcie->pci, (u32)resbar_base +  (u32)0x8 + (u32)bar *  (u32)0x8, 0x6c0);
 		}
 
 		/* Set flags */
 		rk_pcie_ep_set_bar_flag(rk_pcie, BAR_0, PCI_BASE_ADDRESS_MEM_TYPE_32);
 		rk_pcie_ep_set_bar_flag(rk_pcie, BAR_1, PCI_BASE_ADDRESS_MEM_TYPE_32);
-		rk_pcie_ep_set_bar_flag(rk_pcie, BAR_2, PCI_BASE_ADDRESS_MEM_PREFETCH | PCI_BASE_ADDRESS_MEM_TYPE_64);
-		rk_pcie_ep_set_bar_flag(rk_pcie, BAR_4, PCI_BASE_ADDRESS_MEM_PREFETCH | PCI_BASE_ADDRESS_MEM_TYPE_64);
+		rk_pcie_ep_set_bar_flag(rk_pcie, BAR_2, (int)((u32)PCI_BASE_ADDRESS_MEM_PREFETCH | (u32)PCI_BASE_ADDRESS_MEM_TYPE_64));
+		rk_pcie_ep_set_bar_flag(rk_pcie, BAR_4, (int)((u32)PCI_BASE_ADDRESS_MEM_PREFETCH | (u32)PCI_BASE_ADDRESS_MEM_TYPE_64));
 	}
 
 	/* Device id and class id needed for request bar address */
@@ -1084,7 +1170,7 @@ static void rk_pcie_ep_setup(struct rk_pcie *rk_pcie)
 
 	/* Set shadow BAR0 */
 	if (rk_pcie->is_rk1808) {
-		val = rk_pcie->mem_size - 1;
+		val = (u32)(rk_pcie->mem_size) - (u32)1;
 		dw_pcie_writel_dbi(rk_pcie->pci, PCIE_SB_BAR0_MASK_REG, val);
 	}
 }
@@ -1103,7 +1189,7 @@ static int rk_pcie_ep_win_parse(struct rk_pcie *rk_pcie)
 		return ret;
 	}
 
-	if (rk_pcie->num_ib_windows > MAX_IATU_IN) {
+	if (rk_pcie->num_ib_windows > (u32)MAX_IATU_IN) {
 		dev_err(dev, "Invalid *num-ib-windows*\n");
 		return -EINVAL;
 	}
@@ -1115,7 +1201,7 @@ static int rk_pcie_ep_win_parse(struct rk_pcie *rk_pcie)
 		return ret;
 	}
 
-	if (rk_pcie->num_ob_windows > MAX_IATU_OUT) {
+	if (rk_pcie->num_ob_windows > (u32)MAX_IATU_OUT) {
 		dev_err(dev, "Invalid *num-ob-windows*\n");
 		return -EINVAL;
 	}
@@ -1123,19 +1209,22 @@ static int rk_pcie_ep_win_parse(struct rk_pcie *rk_pcie)
 	rk_pcie->ib_window_map = devm_kcalloc(dev,
 					BITS_TO_LONGS(rk_pcie->num_ib_windows),
 					sizeof(long), GFP_KERNEL);
-	if (!rk_pcie->ib_window_map)
+	if (!rk_pcie->ib_window_map) {
 		return -ENOMEM;
+	}
 
 	rk_pcie->ob_window_map = devm_kcalloc(dev,
 					BITS_TO_LONGS(rk_pcie->num_ob_windows),
 					sizeof(long), GFP_KERNEL);
-	if (!rk_pcie->ob_window_map)
+	if (!rk_pcie->ob_window_map) {
 		return -ENOMEM;
+	}
 
 	addr = devm_kcalloc(dev, rk_pcie->num_ob_windows, sizeof(phys_addr_t),
 			    GFP_KERNEL);
-	if (!addr)
+	if (!addr) {
 		return -ENOMEM;
+	}
 
 	rk_pcie->outbound_addr = addr;
 
@@ -1168,8 +1257,9 @@ static int rk_pcie_host_init(struct pcie_port *pp)
 
 	ret = rk_pcie_establish_link(pci);
 
-	if (pp->msi_irq > 0)
+	if (pp->msi_irq > 0) {
 		dw_pcie_msi_init(pp);
+	}
 
 	return ret;
 }
@@ -1185,31 +1275,30 @@ static int rk_add_pcie_port(struct rk_pcie *rk_pcie, struct platform_device *pde
 	struct pcie_port *pp = &pci->pp;
 	struct device *dev = pci->dev;
 
-	if (IS_ENABLED(CONFIG_PCI_MSI)) {
-		pp->msi_irq = platform_get_irq_byname(pdev, "msi");
-		/* If msi_irq is invalid, use outband msi routine */
-		if (pp->msi_irq < 0) {
-			dev_info(dev, "use outband MSI support");
-			rk_pcie_host_ops.msi_host_init = rk_pcie_msi_host_init;
-		} else {
-			dev_info(dev, "max MSI vector is %d\n", rk_pcie->msi_vector_num);
-			rk_pcie_host_ops.set_num_vectors = rk_pcie_msi_set_num_vectors;
-		}
+#ifdef CONFIG_PCI_MSI
+	pp->msi_irq = platform_get_irq_byname(pdev, "msi");
+	/* If msi_irq is invalid, use outband msi routine */
+	if (pp->msi_irq < 0) {
+		dev_info(dev, "use outband MSI support");
+		rk_pcie_host_ops.msi_host_init = rk_pcie_msi_host_init;
+	} else {
+		dev_info(dev, "max MSI vector is %d\n", rk_pcie->msi_vector_num);
+		rk_pcie_host_ops.set_num_vectors = rk_pcie_msi_set_num_vectors;
 	}
-
+#endif
 	pp->ops = &rk_pcie_host_ops;
 
 	/* Enable RASDES Error event by default */
 	rk_pcie->rasdes_off = dw_pcie_find_ext_capability(rk_pcie->pci, PCI_EXT_CAP_ID_VNDR);
-	if (!rk_pcie->rasdes_off) {
+	if (rk_pcie->rasdes_off == (u32)0) {
 		dev_err(dev, "Unable to find RASDES CAP!\n");
 	} else {
-		dw_pcie_writel_dbi(rk_pcie->pci, rk_pcie->rasdes_off + 8, 0x1c);
-		dw_pcie_writel_dbi(rk_pcie->pci, rk_pcie->rasdes_off + 8, 0x3);
+		dw_pcie_writel_dbi(rk_pcie->pci, rk_pcie->rasdes_off + (u32)8, 0x1c);
+		dw_pcie_writel_dbi(rk_pcie->pci, rk_pcie->rasdes_off + (u32)8, 0x3);
 	}
 
 	ret = dw_pcie_host_init(pp);
-	if (ret) {
+	if (ret != 0) {
 		dev_err(dev, "failed to initialize host\n");
 		return ret;
 	}
@@ -1241,16 +1330,16 @@ static int rk_pcie_add_ep(struct rk_pcie *rk_pcie)
 	rk_pcie->mem_size = resource_size(&reg);
 
 	ret = rk_pcie_ep_win_parse(rk_pcie);
-	if (ret) {
+	if (ret < 0) {
 		dev_err(dev, "failed to parse ep dts\n");
 		return ret;
 	}
 
-	rk_pcie->pci->atu_base = rk_pcie->pci->dbi_base + DEFAULT_DBI_ATU_OFFSET;
+	rk_pcie->pci->atu_base = rk_pcie->pci->dbi_base + ((u32)0x3 << 20);
 	rk_pcie->pci->iatu_unroll_enabled = rk_pcie_iatu_unroll_enabled(rk_pcie->pci);
 
 	ret = rk_pcie_ep_atu_init(rk_pcie);
-	if (ret) {
+	if (ret < 0) {
 		dev_err(dev, "failed to init ep device\n");
 		return ret;
 	}
@@ -1258,13 +1347,14 @@ static int rk_pcie_add_ep(struct rk_pcie *rk_pcie)
 	rk_pcie_ep_setup(rk_pcie);
 
 	ret = rk_pcie_establish_link(rk_pcie->pci);
-	if (ret) {
+	if (ret < 0) {
 		dev_err(dev, "failed to establish pcie link\n");
 		return ret;
 	}
 
-	if (!rk_pcie_udma_enabled(rk_pcie))
+	if (rk_pcie_udma_enabled(rk_pcie) == (u32)0) {
 		return 0;
+	}
 
 	return 0;
 }
@@ -1275,11 +1365,12 @@ static int rk_pcie_clk_init(struct rk_pcie *rk_pcie)
 	int ret;
 
 	rk_pcie->clk_cnt = devm_clk_bulk_get_all(dev, &rk_pcie->clks);
-	if (rk_pcie->clk_cnt < 1)
+	if (rk_pcie->clk_cnt < 1) {
 		return -ENODEV;
+	}
 
 	ret = clk_bulk_prepare_enable(rk_pcie->clk_cnt, rk_pcie->clks);
-	if (ret) {
+	if (ret < 0) {
 		dev_err(dev, "failed to prepare enable pcie bulk clks: %d\n", ret);
 		return ret;
 	}
@@ -1301,8 +1392,9 @@ static int rk_pcie_resource_get(struct platform_device *pdev,
 	}
 
 	rk_pcie->dbi_base = devm_ioremap_resource(&pdev->dev, dbi_base);
-	if (IS_ERR(rk_pcie->dbi_base))
+	if (IS_ERR(rk_pcie->dbi_base)) {
 		return PTR_ERR(rk_pcie->dbi_base);
+	}
 
 	rk_pcie->pci->dbi_base = rk_pcie->dbi_base;
 	rk_pcie->pci->dbi_base2 = rk_pcie->pci->dbi_base + PCIE_TYPE0_HDR_DBI2_OFFSET;
@@ -1314,8 +1406,9 @@ static int rk_pcie_resource_get(struct platform_device *pdev,
 		return -ENODEV;
 	}
 	rk_pcie->apb_base = devm_ioremap_resource(&pdev->dev, apb_base);
-	if (IS_ERR(rk_pcie->apb_base))
+	if (IS_ERR(rk_pcie->apb_base)) {
 		return PTR_ERR(rk_pcie->apb_base);
+	}
 
 	/*
 	 * Rest the device before enabling power because some of the
@@ -1333,20 +1426,28 @@ static int rk_pcie_resource_get(struct platform_device *pdev,
 	}
 
 	if (device_property_read_u32(&pdev->dev, "rockchip,perst-inactive-ms",
-				     &rk_pcie->perst_inactive_ms))
+				     &rk_pcie->perst_inactive_ms) != 0) {
 		rk_pcie->perst_inactive_ms = 200;
+	}
 
 	if (device_property_read_u32(&pdev->dev, "rockchip,s2r-perst-inactive-ms",
-				     &rk_pcie->s2r_perst_inactive_ms))
+				     &rk_pcie->s2r_perst_inactive_ms) != 0) {
 		rk_pcie->s2r_perst_inactive_ms = rk_pcie->perst_inactive_ms;
+	}
 
-	device_property_read_u32(&pdev->dev, "rockchip,wait-for-link-ms",
-				     &rk_pcie->wait_for_link_ms);
-	rk_pcie->wait_for_link_ms = max_t(u32, rk_pcie->wait_for_link_ms, 2000);
+	if (device_property_read_u32(&pdev->dev, "rockchip,wait-for-link-ms",
+				     &rk_pcie->wait_for_link_ms) != 0) {
+		dev_err(&pdev->dev, "No wait for link assigned\n");
+	}
+
+	if (rk_pcie->wait_for_link_ms > (u32)2000) {
+		rk_pcie->wait_for_link_ms = (u32)2000;
+	}
 
 	rk_pcie->prsnt_gpio = devm_gpiod_get_optional(&pdev->dev, "prsnt", GPIOD_IN);
-	if (IS_ERR_OR_NULL(rk_pcie->prsnt_gpio))
+	if (IS_ERR_OR_NULL(rk_pcie->prsnt_gpio)) {
 		dev_info(&pdev->dev, "invalid prsnt-gpios property in node\n");
+	}
 
 	return 0;
 }
@@ -1358,8 +1459,9 @@ static int rk_pcie_phy_init(struct rk_pcie *rk_pcie)
 
 	rk_pcie->phy = devm_phy_optional_get(dev, "pcie-phy");
 	if (IS_ERR(rk_pcie->phy)) {
-		if (PTR_ERR(rk_pcie->phy) != -EPROBE_DEFER)
+		if (PTR_ERR(rk_pcie->phy) != -EPROBE_DEFER) {
 			dev_info(dev, "missing phy\n");
+		}
 		return PTR_ERR(rk_pcie->phy);
 	}
 
@@ -1372,20 +1474,27 @@ static int rk_pcie_phy_init(struct rk_pcie *rk_pcie)
 		rk_pcie->phy_mode = PHY_MODE_PCIE;
 		rk_pcie->phy_sub_mode = PHY_MODE_PCIE_EP;
 		break;
+	default:
+		dev_info(dev, "invalid pcie mode\n");
+		break;
 	}
 
 	ret = phy_set_mode_ext(rk_pcie->phy, rk_pcie->phy_mode,
 			       rk_pcie->phy_sub_mode);
-	if (ret) {
+	if (ret < 0) {
 		dev_err(dev, "fail to set phy to  mode %s, err %d\n",
 			(rk_pcie->phy_sub_mode == PHY_MODE_PCIE_RC) ? "RC" : "EP",
 			ret);
 		return ret;
 	}
 
-	if (rk_pcie->bifurcation)
-		phy_set_mode_ext(rk_pcie->phy, rk_pcie->phy_mode,
-				 PHY_MODE_PCIE_BIFURCATION);
+	if (rk_pcie->bifurcation) {
+		ret = phy_set_mode_ext(rk_pcie->phy, rk_pcie->phy_mode,
+				PHY_MODE_PCIE_BIFURCATION);
+		if (ret < 0) {
+			dev_err(dev, "fail to set phy ext mode, err %d\n", ret);
+		}
+	}
 
 	ret = phy_init(rk_pcie->phy);
 	if (ret < 0) {
@@ -1393,19 +1502,22 @@ static int rk_pcie_phy_init(struct rk_pcie *rk_pcie)
 		return ret;
 	}
 
-	phy_power_on(rk_pcie->phy);
+	ret = phy_power_on(rk_pcie->phy);
+	if (ret < 0) {
+		dev_err(dev, "fail to power on phy, err %d\n", ret);
+	}
 
 	return 0;
 }
 
-static int rk_pcie_reset_grant_ctrl(struct rk_pcie *rk_pcie,
-						bool enable)
+static int rk_pcie_reset_grant_ctrl(struct rk_pcie *rk_pcie, int enable)
 {
 	int ret;
-	u32 val = (0x1 << 18); /* Write mask bit */
+	u32 val = ((u32)0x1 << 18); /* Write mask bit */
 
-	if (enable)
-		val |= (0x1 << 2);
+	if (enable == 1) {
+		val |= ((u32)0x1 << 2);
+	}
 
 	ret = regmap_write(rk_pcie->usb_pcie_grf, 0x0, val);
 	return ret;
@@ -1417,19 +1529,19 @@ static void rk_pcie_start_dma_rd(struct dma_trx_obj *obj, struct dma_table *cur,
 
 	dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET + PCIE_DMA_RD_ENB,
 			   cur->enb.asdword);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_RD_CTRL_LO,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_RD_CTRL_LO,
 			   cur->ctx_reg.ctrllo.asdword);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_RD_CTRL_HI,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_RD_CTRL_HI,
 			   cur->ctx_reg.ctrlhi.asdword);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_RD_XFERSIZE,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_RD_XFERSIZE,
 			   cur->ctx_reg.xfersize);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_RD_SAR_PTR_LO,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_RD_SAR_PTR_LO,
 			   cur->ctx_reg.sarptrlo);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_RD_SAR_PTR_HI,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_RD_SAR_PTR_HI,
 			   cur->ctx_reg.sarptrhi);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_RD_DAR_PTR_LO,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_RD_DAR_PTR_LO,
 			   cur->ctx_reg.darptrlo);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_RD_DAR_PTR_HI,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_RD_DAR_PTR_HI,
 			   cur->ctx_reg.darptrhi);
 	dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET + PCIE_DMA_RD_DOORBELL,
 			   cur->start.asdword);
@@ -1441,21 +1553,21 @@ static void rk_pcie_start_dma_wr(struct dma_trx_obj *obj, struct dma_table *cur,
 
 	dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET + PCIE_DMA_WR_ENB,
 			   cur->enb.asdword);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_WR_CTRL_LO,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_WR_CTRL_LO,
 			   cur->ctx_reg.ctrllo.asdword);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_WR_CTRL_HI,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_WR_CTRL_HI,
 			   cur->ctx_reg.ctrlhi.asdword);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_WR_XFERSIZE,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_WR_XFERSIZE,
 			   cur->ctx_reg.xfersize);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_WR_SAR_PTR_LO,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_WR_SAR_PTR_LO,
 			   cur->ctx_reg.sarptrlo);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_WR_SAR_PTR_HI,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_WR_SAR_PTR_HI,
 			   cur->ctx_reg.sarptrhi);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_WR_DAR_PTR_LO,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_WR_DAR_PTR_LO,
 			   cur->ctx_reg.darptrlo);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_WR_DAR_PTR_HI,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_WR_DAR_PTR_HI,
 			   cur->ctx_reg.darptrhi);
-	dw_pcie_writel_dbi(rk_pcie->pci, ctr_off + PCIE_DMA_WR_WEILO,
+	dw_pcie_writel_dbi(rk_pcie->pci, (u32)ctr_off + (u32)PCIE_DMA_WR_WEILO,
 			   cur->weilo.asdword);
 	dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET + PCIE_DMA_WR_DOORBELL,
 			   cur->start.asdword);
@@ -1463,15 +1575,18 @@ static void rk_pcie_start_dma_wr(struct dma_trx_obj *obj, struct dma_table *cur,
 
 static void rk_pcie_start_dma_dwc(struct dma_trx_obj *obj, struct dma_table *table)
 {
-	int dir = table->dir;
+	int dir = (int)table->dir;
 	int chn = table->chn;
 
 	int ctr_off = PCIE_DMA_OFFSET + chn * 0x200;
 
-	if (dir == DMA_FROM_BUS)
+	if (dir == (int)DMA_FROM_BUS) {
 		rk_pcie_start_dma_rd(obj, table, ctr_off);
-	else if (dir == DMA_TO_BUS)
+	} else if (dir == (int)DMA_TO_BUS) {
 		rk_pcie_start_dma_wr(obj, table, ctr_off);
+	} else {
+		return;
+	}
 }
 
 static void rk_pcie_config_dma_dwc(struct dma_table *table)
@@ -1481,21 +1596,23 @@ static void rk_pcie_config_dma_dwc(struct dma_table *table)
 	table->ctx_reg.ctrllo.rie = 0x0;
 	table->ctx_reg.ctrllo.td = 0x1;
 	table->ctx_reg.ctrlhi.asdword = 0x0;
-	table->ctx_reg.xfersize = table->buf_size;
-	if (table->dir == DMA_FROM_BUS) {
-		table->ctx_reg.sarptrlo = (u32)(table->bus & 0xffffffff);
+	table->ctx_reg.xfersize = (u32)table->buf_size;
+	if (table->dir == (u32)DMA_FROM_BUS) {
+		table->ctx_reg.sarptrlo = (u32)(table->bus & 0xffffffffu);
 		table->ctx_reg.sarptrhi = (u32)(table->bus >> 32);
-		table->ctx_reg.darptrlo = (u32)(table->local & 0xffffffff);
+		table->ctx_reg.darptrlo = (u32)(table->local & 0xffffffffu);
 		table->ctx_reg.darptrhi = (u32)(table->local >> 32);
-	} else if (table->dir == DMA_TO_BUS) {
-		table->ctx_reg.sarptrlo = (u32)(table->local & 0xffffffff);
+	} else if (table->dir == (u32)DMA_TO_BUS) {
+		table->ctx_reg.sarptrlo = (u32)(table->local & 0xffffffffu);
 		table->ctx_reg.sarptrhi = (u32)(table->local >> 32);
-		table->ctx_reg.darptrlo = (u32)(table->bus & 0xffffffff);
+		table->ctx_reg.darptrlo = (u32)(table->bus & 0xffffffffu);
 		table->ctx_reg.darptrhi = (u32)(table->bus >> 32);
+	} else {
+		return;
 	}
 	table->weilo.weight0 = 0x0;
 	table->start.stop = 0x0;
-	table->start.chnl = table->chn;
+	table->start.chnl = (u8)table->chn;
 }
 
 static void rk_pcie_hot_rst_work(struct work_struct *work)
@@ -1506,19 +1623,20 @@ static void rk_pcie_hot_rst_work(struct work_struct *work)
 
 	/* Setup command register */
 	val = dw_pcie_readl_dbi(rk_pcie->pci, PCI_COMMAND);
-	val &= 0xffff0000;
-	val |= PCI_COMMAND_IO | PCI_COMMAND_MEMORY |
-		PCI_COMMAND_MASTER | PCI_COMMAND_SERR;
+	val &= 0xffff0000u;
+	val = val + (u32)PCI_COMMAND_IO | (u32)PCI_COMMAND_MEMORY |
+		(u32)PCI_COMMAND_MASTER | (u32)PCI_COMMAND_SERR;
 	dw_pcie_writel_dbi(rk_pcie->pci, PCI_COMMAND, val);
 
-	if (rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_HOT_RESET_CTRL) & PCIE_LTSSM_APP_DLY2_EN) {
+	if ((rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_HOT_RESET_CTRL) & (u32)PCIE_LTSSM_APP_DLY2_EN) != (u32)0) {
 		ret = readl_poll_timeout(rk_pcie->apb_base + PCIE_CLIENT_LTSSM_STATUS,
 			 status, ((status & 0x3F) == 0), 100, RK_PCIE_HOTRESET_TMOUT_US);
-		if (ret)
+		if (ret < 0) {
 			dev_err(rk_pcie->pci->dev, "wait for detect quiet failed!\n");
+		}
 
 		rk_pcie_writel_apb(rk_pcie, PCIE_CLIENT_HOT_RESET_CTRL,
-			(PCIE_LTSSM_APP_DLY2_DONE) | ((PCIE_LTSSM_APP_DLY2_DONE) << 16));
+			(u32)(PCIE_LTSSM_APP_DLY2_DONE) | ((u32)(PCIE_LTSSM_APP_DLY2_DONE) << 16));
 	}
 }
 
@@ -1529,21 +1647,23 @@ static irqreturn_t rk_pcie_sys_irq_handler(int irq, void *arg)
 	union int_status status;
 	union int_clear clears;
 	u32 reg;
+	bool ret;
 
 	status.asdword = dw_pcie_readl_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
 					   PCIE_DMA_WR_INT_STATUS);
-	for (chn = 0; chn < PCIE_DMA_CHANEL_MAX_NUM; chn++) {
-		if (status.donesta & BIT(chn)) {
-			clears.doneclr = 0x1 << chn;
+	for (chn = 0; chn < (u32)PCIE_DMA_CHANEL_MAX_NUM; chn++) {
+		if ((status.donesta & BIT(chn)) != (u32)0) {
+			clears.doneclr = (u32)0x1 << chn;
 			dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
 					PCIE_DMA_WR_INT_CLEAR, clears.asdword);
-			if (rk_pcie->dma_obj && rk_pcie->dma_obj->cb)
+			if (rk_pcie->dma_obj != NULL && rk_pcie->dma_obj->cb != NULL) {
 				rk_pcie->dma_obj->cb(rk_pcie->dma_obj, chn, DMA_TO_BUS);
+			}
 		}
 
-		if (status.abortsta & BIT(chn)) {
+		if ((status.abortsta & BIT(chn)) != (u32)0) {
 			dev_err(rk_pcie->pci->dev, "%s, abort\n", __func__);
-			clears.abortclr = 0x1 << chn;
+			clears.abortclr = (u32)0x1 << chn;
 			dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
 					PCIE_DMA_WR_INT_CLEAR, clears.asdword);
 		}
@@ -1551,26 +1671,31 @@ static irqreturn_t rk_pcie_sys_irq_handler(int irq, void *arg)
 
 	status.asdword = dw_pcie_readl_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
 					   PCIE_DMA_RD_INT_STATUS);
-	for (chn = 0; chn < PCIE_DMA_CHANEL_MAX_NUM; chn++) {
-		if (status.donesta & BIT(chn)) {
-			clears.doneclr = 0x1 << chn;
+	for (chn = 0; chn < (u32)PCIE_DMA_CHANEL_MAX_NUM; chn++) {
+		if ((status.donesta & BIT(chn)) != (u32)0) {
+			clears.doneclr = (u32)0x1 << chn;
 			dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
 					PCIE_DMA_RD_INT_CLEAR, clears.asdword);
-			if (rk_pcie->dma_obj && rk_pcie->dma_obj->cb)
+			if (rk_pcie->dma_obj != NULL && rk_pcie->dma_obj->cb != NULL) {
 				rk_pcie->dma_obj->cb(rk_pcie->dma_obj, chn, DMA_FROM_BUS);
+			}
 		}
 
-		if (status.abortsta & BIT(chn)) {
+		if ((status.abortsta & BIT(chn)) != (u32)0) {
 			dev_err(rk_pcie->pci->dev, "%s, abort\n", __func__);
-			clears.abortclr = 0x1 << chn;
+			clears.abortclr = (u32)0x1 << chn;
 			dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
 					PCIE_DMA_RD_INT_CLEAR, clears.asdword);
 		}
 	}
 
 	reg = rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_INTR_STATUS_MISC);
-	if (reg & BIT(2))
-		queue_work(rk_pcie->hot_rst_wq, &rk_pcie->hot_rst_work);
+	if ((reg & BIT(2)) != (u32)0) {
+		ret = queue_work(rk_pcie->hot_rst_wq, &rk_pcie->hot_rst_work);
+		if (!ret) {
+			dev_err(rk_pcie->pci->dev, "%s, queue_work fail\n", __func__);
+		}
+	}
 
 	rk_pcie_writel_apb(rk_pcie, PCIE_CLIENT_INTR_STATUS_MISC, reg);
 
@@ -1589,9 +1714,9 @@ static int rk_pcie_request_sys_irq(struct rk_pcie *rk_pcie,
 		return -EINVAL;
 	}
 
-	ret = devm_request_irq(rk_pcie->pci->dev, irq, rk_pcie_sys_irq_handler,
+	ret = devm_request_irq(rk_pcie->pci->dev, (u32)irq, rk_pcie_sys_irq_handler,
 			       IRQF_SHARED, "pcie-sys", rk_pcie);
-	if (ret) {
+	if (ret != 0) {
 		dev_err(rk_pcie->pci->dev, "failed to request PCIe subsystem IRQ\n");
 		return ret;
 	}
@@ -1676,12 +1801,14 @@ static int rk1808_pcie_fixup(struct rk_pcie *rk_pcie, struct device_node *np)
 
 	/* Workaround for pcie, switch to PCIe_PRSTNm0 */
 	ret = regmap_write(rk_pcie->pmu_grf, 0x100, 0x01000100);
-	if (ret)
+	if (ret < 0) {
 		return ret;
+	}
 
 	ret = regmap_write(rk_pcie->pmu_grf, 0x0, 0x0c000000);
-	if (ret)
+	if (ret < 0) {
 		return ret;
+	}
 
 	/* release link reset grant */
 	ret = rk_pcie_reset_grant_ctrl(rk_pcie, true);
@@ -1694,8 +1821,8 @@ static void rk_pcie_fast_link_setup(struct rk_pcie *rk_pcie)
 
 	/* LTSSM EN ctrl mode */
 	val = rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_HOT_RESET_CTRL);
-	val |= (PCIE_LTSSM_ENABLE_ENHANCE | PCIE_LTSSM_APP_DLY2_EN)
-		| ((PCIE_LTSSM_APP_DLY2_EN | PCIE_LTSSM_ENABLE_ENHANCE) << 16);
+	val = val + (u32)(PCIE_LTSSM_ENABLE_ENHANCE | PCIE_LTSSM_APP_DLY2_EN)
+		| ((u32)(PCIE_LTSSM_APP_DLY2_EN | PCIE_LTSSM_ENABLE_ENHANCE) << 16);
 	rk_pcie_writel_apb(rk_pcie, PCIE_CLIENT_HOT_RESET_CTRL, val);
 }
 
