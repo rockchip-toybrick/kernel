@@ -45,7 +45,7 @@ enum rk_spdif_type {
  * d: additional format information
  */
 #define CS_BYTE			6
-#define CS_FRAME(c)		((c) << 16 | (c))
+#define CS_FRAME(c)		(((unsigned int)(c)) << 16 | ((unsigned int)(c)))
 
 #define RK3288_GRF_SOC_CON2	0x24c
 
@@ -60,27 +60,41 @@ struct rk_spdif_dev {
 	struct regmap *regmap;
 };
 
+struct rk_spdif_drv_data {
+	enum rk_spdif_type type;
+};
+
+union rk_spdif_cs {
+    u8  cs[CS_BYTE];
+    u16 fc[CS_BYTE / 2];
+};
+
+static const struct rk_spdif_drv_data rk3066_data = { RK_SPDIF_RK3066 };
+static const struct rk_spdif_drv_data rk3188_data = { RK_SPDIF_RK3188 };
+static const struct rk_spdif_drv_data rk3288_data = { RK_SPDIF_RK3288 };
+static const struct rk_spdif_drv_data rk3366_data = { RK_SPDIF_RK3366 };
+
 static const struct of_device_id rk_spdif_match[] __maybe_unused = {
 	{ .compatible = "rockchip,rk3066-spdif",
-	  .data = (void *)RK_SPDIF_RK3066 },
+	  .data = &rk3066_data },
 	{ .compatible = "rockchip,rk3188-spdif",
-	  .data = (void *)RK_SPDIF_RK3188 },
+	  .data = &rk3188_data },
 	{ .compatible = "rockchip,rk3228-spdif",
-	  .data = (void *)RK_SPDIF_RK3366 },
+	  .data = &rk3366_data },
 	{ .compatible = "rockchip,rk3288-spdif",
-	  .data = (void *)RK_SPDIF_RK3288 },
+	  .data = &rk3288_data },
 	{ .compatible = "rockchip,rk3328-spdif",
-	  .data = (void *)RK_SPDIF_RK3366 },
+	  .data = &rk3366_data },
 	{ .compatible = "rockchip,rk3366-spdif",
-	  .data = (void *)RK_SPDIF_RK3366 },
+	  .data = &rk3366_data },
 	{ .compatible = "rockchip,rk3368-spdif",
-	  .data = (void *)RK_SPDIF_RK3366 },
+	  .data = &rk3366_data },
 	{ .compatible = "rockchip,rk3399-spdif",
-	  .data = (void *)RK_SPDIF_RK3366 },
+	  .data = &rk3366_data },
 	{ .compatible = "rockchip,rk3568-spdif",
-	  .data = (void *)RK_SPDIF_RK3366 },
+	  .data = &rk3366_data },
 	{ .compatible = "rockchip,rk3588-spdif",
-	  .data = (void *)RK_SPDIF_RK3366 },
+	  .data = &rk3366_data },
 	{},
 };
 MODULE_DEVICE_TABLE(of, rk_spdif_match);
@@ -102,13 +116,13 @@ static int __maybe_unused rk_spdif_runtime_resume(struct device *dev)
 	int ret;
 
 	ret = clk_prepare_enable(spdif->mclk);
-	if (ret) {
+	if (ret != 0) {
 		dev_err(spdif->dev, "mclk clock enable failed %d\n", ret);
 		return ret;
 	}
 
 	ret = clk_prepare_enable(spdif->hclk);
-	if (ret) {
+	if (ret != 0) {
 		clk_disable_unprepare(spdif->mclk);
 		dev_err(spdif->dev, "hclk clock enable failed %d\n", ret);
 		return ret;
@@ -118,7 +132,7 @@ static int __maybe_unused rk_spdif_runtime_resume(struct device *dev)
 	regcache_mark_dirty(spdif->regmap);
 
 	ret = regcache_sync(spdif->regmap);
-	if (ret) {
+	if (ret != 0) {
 		clk_disable_unprepare(spdif->mclk);
 		clk_disable_unprepare(spdif->hclk);
 	}
@@ -132,24 +146,32 @@ static int rk_spdif_hw_params(struct snd_pcm_substream *substream,
 {
 	struct rk_spdif_dev *spdif = snd_soc_dai_get_drvdata(dai);
 	unsigned int val = SPDIF_CFGR_HALFWORD_ENABLE;
-	unsigned int mclk_rate = clk_get_rate(spdif->mclk);
-	int bmc, div, ret, i;
-	u8 cs[CS_BYTE];
-	u16 *fc = (u16 *)cs;
+	unsigned int bmc, div;
+	unsigned long mclk_rate = clk_get_rate(spdif->mclk);
+	int ret, i;
+	union rk_spdif_cs cs_u;
 
-	ret = snd_pcm_create_iec958_consumer_hw_params(params, cs, sizeof(cs));
-	if (ret < 0)
+	ret = snd_pcm_create_iec958_consumer_hw_params(params, cs_u.cs, sizeof(cs_u.cs));
+	if (ret < 0){
 		return ret;
+	}
 
-	for (i = 0; i < CS_BYTE / 2; i++)
-		regmap_write(spdif->regmap, SPDIF_CHNSRn(i), CS_FRAME(fc[i]));
+	for (i = 0; i < CS_BYTE / 2; i++) {
+		ret = regmap_write(spdif->regmap, SPDIF_CHNSRn(i), CS_FRAME(cs_u.fc[i]));
+		if (ret < 0){
+			return ret;
+		}
+	}
 
-	regmap_update_bits(spdif->regmap, SPDIF_CFGR, SPDIF_CFGR_CSE_MASK,
-			   SPDIF_CFGR_CSE_EN);
+	ret = regmap_update_bits(spdif->regmap, SPDIF_CFGR, SPDIF_CFGR_CSE_MASK,
+				 SPDIF_CFGR_CSE_EN);
+	if (ret < 0){
+		return ret;
+	}
 
 	/* bmc = 128fs */
-	bmc = 128 * params_rate(params);
-	div = DIV_ROUND_CLOSEST(mclk_rate, bmc);
+	bmc = 128U * params_rate(params);
+	div = DIV_ROUND_CLOSEST(((unsigned int)mclk_rate), (bmc));
 	val |= SPDIF_CFGR_CLK_DIV(div);
 
 	switch (params_format(params)) {
@@ -168,11 +190,19 @@ static int rk_spdif_hw_params(struct snd_pcm_substream *substream,
 		val |= SPDIF_CFGR_ADJ_LEFT_J;
 		break;
 	default:
-		return -EINVAL;
+		ret = -EINVAL;
+		break;
 	}
 
-	regmap_update_bits(spdif->regmap, SPDIF_CFGR, SPDIF_CFGR_CLR_MASK,
-			   SPDIF_CFGR_CLR_EN);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = regmap_update_bits(spdif->regmap, SPDIF_CFGR, SPDIF_CFGR_CLR_MASK,
+				 SPDIF_CFGR_CLR_EN);
+	if (ret < 0) {
+		return ret;
+	}
 
 	udelay(1);
 	ret = regmap_update_bits(spdif->regmap, SPDIF_CFGR,
@@ -200,8 +230,9 @@ static int rk_spdif_trigger(struct snd_pcm_substream *substream,
 					 SPDIF_DMACR_TDE_ENABLE |
 					 SPDIF_DMACR_TDL(16));
 
-		if (ret != 0)
+		if (ret != 0) {
 			return ret;
+		}
 
 		ret = regmap_update_bits(spdif->regmap, SPDIF_XFER,
 					 SPDIF_XFER_TXS_START,
@@ -214,8 +245,9 @@ static int rk_spdif_trigger(struct snd_pcm_substream *substream,
 					 SPDIF_DMACR_TDE_ENABLE,
 					 SPDIF_DMACR_TDE_DISABLE);
 
-		if (ret != 0)
+		if (ret != 0) {
 			return ret;
+		}
 
 		ret = regmap_update_bits(spdif->regmap, SPDIF_XFER,
 					 SPDIF_XFER_TXS_START,
@@ -242,14 +274,16 @@ static int rk_spdif_set_sysclk(struct snd_soc_dai *dai,
 			       int clk_id, unsigned int freq, int dir)
 {
 	struct rk_spdif_dev *spdif = snd_soc_dai_get_drvdata(dai);
-	int ret = 0;
+	int ret;
 
-	if (!freq)
+	if (freq == 0U) {
 		return 0;
+	}
 
 	ret = clk_set_rate(spdif->mclk, freq);
-	if (ret)
+	if (ret != 0) {
 		dev_err(spdif->dev, "Failed to set mclk: %d\n", ret);
+	}
 
 	return ret;
 }
@@ -281,6 +315,8 @@ static const struct snd_soc_component_driver rk_spdif_component = {
 
 static bool rk_spdif_wr_reg(struct device *dev, unsigned int reg)
 {
+	bool ret;
+
 	switch (reg) {
 	case SPDIF_CFGR:
 	case SPDIF_DMACR:
@@ -290,14 +326,20 @@ static bool rk_spdif_wr_reg(struct device *dev, unsigned int reg)
 	case SPDIF_VLDFRn(0) ... SPDIF_VLDFRn(11):
 	case SPDIF_USRDRn(0) ... SPDIF_USRDRn(11):
 	case SPDIF_CHNSRn(0) ... SPDIF_CHNSRn(11):
-		return true;
+		ret = true;
+		break;
 	default:
-		return false;
+		ret = false;
+		break;
 	}
+
+	return ret;
 }
 
 static bool rk_spdif_rd_reg(struct device *dev, unsigned int reg)
 {
+	bool ret;
+
 	switch (reg) {
 	case SPDIF_CFGR:
 	case SPDIF_SDBLR:
@@ -308,22 +350,33 @@ static bool rk_spdif_rd_reg(struct device *dev, unsigned int reg)
 	case SPDIF_VLDFRn(0) ... SPDIF_VLDFRn(11):
 	case SPDIF_USRDRn(0) ... SPDIF_USRDRn(11):
 	case SPDIF_CHNSRn(0) ... SPDIF_CHNSRn(11):
-		return true;
+		ret = true;
+		break;
 	default:
-		return false;
+		ret = false;
+		break;
+
 	}
+
+	return ret;
 }
 
 static bool rk_spdif_volatile_reg(struct device *dev, unsigned int reg)
 {
+	bool ret;
+
 	switch (reg) {
 	case SPDIF_INTSR:
 	case SPDIF_SDBLR:
 	case SPDIF_SMPDR:
-		return true;
+		ret = true;
+		break;
 	default:
-		return false;
+		ret = false;
+		break;
 	}
+
+	return ret;
 }
 
 static const struct regmap_config rk_spdif_regmap_config = {
@@ -342,12 +395,14 @@ static int rk_spdif_probe(struct platform_device *pdev)
 	struct device_node *np = pdev->dev.of_node;
 	struct rk_spdif_dev *spdif;
 	const struct of_device_id *match;
+	const struct rk_spdif_drv_data *drv_data;
 	struct resource *res;
 	void __iomem *regs;
 	int ret;
 
 	match = of_match_node(rk_spdif_match, np);
-	if (match->data == (void *)RK_SPDIF_RK3288) {
+	drv_data = (const struct rk_spdif_drv_data *)match->data;
+	if (drv_data->type == RK_SPDIF_RK3288) {
 		struct regmap *grf;
 
 		grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
@@ -360,29 +415,37 @@ static int rk_spdif_probe(struct platform_device *pdev)
 		/* Select the 8 channel SPDIF solution on RK3288 as
 		 * the 2 channel one does not appear to work
 		 */
-		regmap_write(grf, RK3288_GRF_SOC_CON2, BIT(1) << 16);
+		ret = regmap_write(grf, RK3288_GRF_SOC_CON2, (unsigned int)BIT(1) << 16);
+		if (ret < 0) {
+			return ret;
+		}
 	}
 
 	spdif = devm_kzalloc(&pdev->dev, sizeof(*spdif), GFP_KERNEL);
-	if (!spdif)
+	if (!spdif) {
 		return -ENOMEM;
+	}
 
 	spdif->hclk = devm_clk_get(&pdev->dev, "hclk");
-	if (IS_ERR(spdif->hclk))
+	if (IS_ERR(spdif->hclk)) {
 		return PTR_ERR(spdif->hclk);
+	}
 
 	spdif->mclk = devm_clk_get(&pdev->dev, "mclk");
-	if (IS_ERR(spdif->mclk))
+	if (IS_ERR(spdif->mclk)) {
 		return PTR_ERR(spdif->mclk);
+	}
 
 	regs = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
-	if (IS_ERR(regs))
+	if (IS_ERR(regs)) {
 		return PTR_ERR(regs);
+	}
 
 	spdif->regmap = devm_regmap_init_mmio_clk(&pdev->dev, "hclk", regs,
 						  &rk_spdif_regmap_config);
-	if (IS_ERR(spdif->regmap))
+	if (IS_ERR(spdif->regmap)) {
 		return PTR_ERR(spdif->regmap);
+	}
 
 	spdif->playback_dma_data.addr = res->start + SPDIF_SMPDR;
 	spdif->playback_dma_data.addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
@@ -394,12 +457,13 @@ static int rk_spdif_probe(struct platform_device *pdev)
 	pm_runtime_enable(&pdev->dev);
 	if (!pm_runtime_enabled(&pdev->dev)) {
 		ret = rk_spdif_runtime_resume(&pdev->dev);
-		if (ret)
+		if (ret != 0) {
 			goto err_pm_runtime;
+		}
 	}
 
 	ret = devm_snd_dmaengine_pcm_register(&pdev->dev, NULL, 0);
-	if (ret) {
+	if (ret != 0) {
 		dev_err(&pdev->dev, "Could not register PCM\n");
 		goto err_pm_suspend;
 	}
@@ -407,7 +471,7 @@ static int rk_spdif_probe(struct platform_device *pdev)
 	ret = devm_snd_soc_register_component(&pdev->dev,
 					      &rk_spdif_component,
 					      &rk_spdif_dai, 1);
-	if (ret) {
+	if (ret != 0) {
 		dev_err(&pdev->dev, "Could not register DAI\n");
 		goto err_pm_suspend;
 	}
@@ -415,8 +479,9 @@ static int rk_spdif_probe(struct platform_device *pdev)
 	return 0;
 
 err_pm_suspend:
-	if (!pm_runtime_status_suspended(&pdev->dev))
-		rk_spdif_runtime_suspend(&pdev->dev);
+	if (!pm_runtime_status_suspended(&pdev->dev)) {
+		(void)rk_spdif_runtime_suspend(&pdev->dev);
+	}
 err_pm_runtime:
 	pm_runtime_disable(&pdev->dev);
 
@@ -426,15 +491,16 @@ err_pm_runtime:
 static int rk_spdif_remove(struct platform_device *pdev)
 {
 	pm_runtime_disable(&pdev->dev);
-	if (!pm_runtime_status_suspended(&pdev->dev))
-		rk_spdif_runtime_suspend(&pdev->dev);
+	if (!pm_runtime_status_suspended(&pdev->dev)) {
+		(void)rk_spdif_runtime_suspend(&pdev->dev);
+	}
 
 	return 0;
 }
 
 static const struct dev_pm_ops rk_spdif_pm_ops = {
-	SET_RUNTIME_PM_OPS(rk_spdif_runtime_suspend, rk_spdif_runtime_resume,
-			   NULL)
+	SET_RUNTIME_PM_OPS((rk_spdif_runtime_suspend), (rk_spdif_runtime_resume),
+			   (NULL))
 };
 
 static struct platform_driver rk_spdif_driver = {
