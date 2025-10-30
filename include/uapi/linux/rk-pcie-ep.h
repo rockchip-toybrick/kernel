@@ -75,7 +75,7 @@ enum pcie_ep_mmap_resource {
 };
 
 #define PCIE_EP_OBJ_INFO_MSI_DATA_NUM	0x8
-#define RKEP_EP_VIRTUAL_ID_MAX		(PCIE_EP_OBJ_INFO_MSI_DATA_NUM * 32) /* 256 virtual_id */
+#define RKEP_EP_VIRTUAL_ID_MAX		(u32)(PCIE_EP_OBJ_INFO_MSI_DATA_NUM * 32) /* 256 virtual_id */
 
 /*
  * rockchip ep device information which is store in BAR0
