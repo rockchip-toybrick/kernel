@@ -16,8 +16,8 @@
 #include <linux/ioasid.h>
 #include <uapi/linux/iommu.h>
 
-#define IOMMU_READ	(1 << 0)
-#define IOMMU_WRITE	(1 << 1)
+#define IOMMU_READ	(1U << 0)
+#define IOMMU_WRITE	(1U << 1)
 #define IOMMU_CACHE	(1 << 2) /* DMA cache coherency */
 #define IOMMU_NOEXEC	(1 << 3)
 #define IOMMU_MMIO	(1 << 4) /* e.g. things like MSI doorbells */
@@ -30,7 +30,7 @@
  * This would usually imply the same permissions as kernel mappings on the CPU,
  * if the IOMMU page table format is equivalent.
  */
-#define IOMMU_PRIV	(1 << 5)
+#define IOMMU_PRIV	(1U << 5)
 /*
  * Allow caching in a transparent outer level of cache, also known as
  * the last-level or system cache, with a read/write allocation policy.
@@ -403,7 +403,7 @@ int  iommu_device_link(struct iommu_device   *iommu, struct device *link);
 void iommu_device_unlink(struct iommu_device *iommu, struct device *link);
 
 static inline void __iommu_device_set_ops(struct iommu_device *iommu,
-					  const struct iommu_ops *ops)
+					  struct iommu_ops *ops)
 {
 	iommu->ops = ops;
 }
