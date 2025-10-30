@@ -55,13 +55,13 @@ static int rk_spdifrx_runtime_resume(struct device *dev)
 	int ret;
 
 	ret = clk_prepare_enable(spdifrx->mclk);
-	if (ret) {
+	if (ret != 0) {
 		dev_err(spdifrx->dev, "mclk clock enable failed %d\n", ret);
 		return ret;
 	}
 
 	ret = clk_prepare_enable(spdifrx->hclk);
-	if (ret) {
+	if (ret != 0) {
 		dev_err(spdifrx->dev, "hclk clock enable failed %d\n", ret);
 		return ret;
 	}
@@ -74,33 +74,52 @@ static int rk_spdifrx_hw_params(struct snd_pcm_substream *substream,
 				struct snd_soc_dai *dai)
 {
 	struct rk_spdifrx_dev *spdifrx = snd_soc_dai_get_drvdata(dai);
+	int ret;
 
-	regmap_update_bits(spdifrx->regmap, SPDIFRX_INTEN,
-			   SPDIFRX_INTEN_SYNCIE_MASK |
-			   SPDIFRX_INTEN_NSYNCIE_MASK |
-			   SPDIFRX_INTEN_BTEIE_MASK,
-			   SPDIFRX_INTEN_SYNCIE_EN |
-			   SPDIFRX_INTEN_NSYNCIE_EN |
-			   SPDIFRX_INTEN_BTEIE_EN);
-	regmap_update_bits(spdifrx->regmap, SPDIFRX_DMACR,
-			   SPDIFRX_DMACR_RDL_MASK, SPDIFRX_DMACR_RDL(8));
-	regmap_update_bits(spdifrx->regmap, SPDIFRX_CDR,
-			   SPDIFRX_CDR_AVGSEL_MASK | SPDIFRX_CDR_BYPASS_MASK,
-			   SPDIFRX_CDR_AVGSEL_MIN | SPDIFRX_CDR_BYPASS_DIS);
+	ret = regmap_update_bits(spdifrx->regmap, SPDIFRX_INTEN,
+				 SPDIFRX_INTEN_SYNCIE_MASK |
+				 SPDIFRX_INTEN_NSYNCIE_MASK |
+				 SPDIFRX_INTEN_BTEIE_MASK,
+				 SPDIFRX_INTEN_SYNCIE_EN |
+				 SPDIFRX_INTEN_NSYNCIE_EN |
+				 SPDIFRX_INTEN_BTEIE_EN);
+	if (ret != 0) {
+		return ret;
+	}
 
-	if (params_rate(params) >= 32000)
+	ret = regmap_update_bits(spdifrx->regmap, SPDIFRX_DMACR,
+				 SPDIFRX_DMACR_RDL_MASK, SPDIFRX_DMACR_RDL(8));
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = regmap_update_bits(spdifrx->regmap, SPDIFRX_CDR,
+				 SPDIFRX_CDR_AVGSEL_MASK | SPDIFRX_CDR_BYPASS_MASK,
+				 SPDIFRX_CDR_AVGSEL_MIN | SPDIFRX_CDR_BYPASS_DIS);
+
+	if (params_rate(params) >= 32000U) {
 		spdifrx->cdr_count_avg = true;
-	else
+	} else {
 		spdifrx->cdr_count_avg = false;
+	}
 
-	return 0;
+	return ret;
 }
 
 static void rk_spdifrx_reset(struct rk_spdifrx_dev *spdifrx)
 {
-	reset_control_assert(spdifrx->reset);
+	int ret;
+
+	ret = reset_control_assert(spdifrx->reset);
+	if (ret != 0) {
+		dev_err(spdifrx->dev, "reset assert failed.\n");
+		return;
+	}
 	udelay(1);
-	reset_control_deassert(spdifrx->reset);
+	ret = reset_control_deassert(spdifrx->reset);
+	if (ret != 0) {
+		dev_err(spdifrx->dev, "reset deassert failed.\n");
+	}
 }
 
 static int rk_spdifrx_trigger(struct snd_pcm_substream *substream,
@@ -118,8 +137,9 @@ static int rk_spdifrx_trigger(struct snd_pcm_substream *substream,
 					 SPDIFRX_DMACR_RDE_MASK,
 					 SPDIFRX_DMACR_RDE_ENABLE);
 
-		if (ret != 0)
+		if (ret != 0) {
 			return ret;
+		}
 
 		ret = regmap_update_bits(spdifrx->regmap, SPDIFRX_CFGR,
 					 SPDIFRX_EN_MASK,
@@ -132,8 +152,9 @@ static int rk_spdifrx_trigger(struct snd_pcm_substream *substream,
 					 SPDIFRX_DMACR_RDE_MASK,
 					 SPDIFRX_DMACR_RDE_DISABLE);
 
-		if (ret != 0)
+		if (ret != 0) {
 			return ret;
+		}
 
 		ret = regmap_update_bits(spdifrx->regmap, SPDIFRX_CFGR,
 					 SPDIFRX_EN_MASK,
@@ -163,8 +184,8 @@ static int rk_spdifrx_sample_rate_get(struct snd_kcontrol *kcontrol,
 	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
 	struct rk_spdifrx_dev *spdifrx = snd_soc_dai_get_drvdata(dai);
 
-	ucontrol->value.integer.value[0] = spdifrx->info.sample_rate_src;
-	ucontrol->value.integer.value[1] = spdifrx->info.sample_rate_cal;
+	ucontrol->value.integer.value[0] = (long)spdifrx->info.sample_rate_src;
+	ucontrol->value.integer.value[1] = (long)spdifrx->info.sample_rate_cal;
 	return 0;
 }
 
@@ -185,7 +206,7 @@ static int rk_spdifrx_sample_rate_info(struct snd_kcontrol *kcontrol,
 	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
 	uinfo->count = 2;
 	uinfo->value.integer.min = 0;
-	uinfo->value.integer.max = 0xffffffff;
+	uinfo->value.integer.max = 0xffffffffL;
 
 	return 0;
 }
@@ -215,10 +236,9 @@ static int rk_spdifrx_dai_probe(struct snd_soc_dai *dai)
 
 	dai->capture_dma_data = &spdifrx->capture_dma_data;
 	spdifrx->dai = dai;
-	snd_soc_add_dai_controls(dai, rk_spdifrx_controls,
-				 ARRAY_SIZE(rk_spdifrx_controls));
 
-	return 0;
+	return snd_soc_add_dai_controls(dai, rk_spdifrx_controls,
+					ARRAY_SIZE(rk_spdifrx_controls));
 }
 
 static const struct snd_soc_dai_ops rk_spdifrx_dai_ops = {
@@ -247,6 +267,8 @@ static const struct snd_soc_component_driver rk_spdifrx_component = {
 
 static bool rk_spdifrx_wr_reg(struct device *dev, unsigned int reg)
 {
+	bool ret;
+
 	switch (reg) {
 	case SPDIFRX_CFGR:
 	case SPDIFRX_CLR:
@@ -261,14 +283,20 @@ static bool rk_spdifrx_wr_reg(struct device *dev, unsigned int reg)
 	case SPDIFRX_SMPDR:
 	case SPDIFRX_CHNSR1:
 	case SPDIFRX_BURSTINFO:
-		return true;
+		ret = true;
+		break;
 	default:
-		return false;
+		ret = false;
+		break;
 	}
+
+	return ret;
 }
 
 static bool rk_spdifrx_rd_reg(struct device *dev, unsigned int reg)
 {
+	bool ret;
+
 	switch (reg) {
 	case SPDIFRX_CFGR:
 	case SPDIFRX_CLR:
@@ -283,14 +311,20 @@ static bool rk_spdifrx_rd_reg(struct device *dev, unsigned int reg)
 	case SPDIFRX_SMPDR:
 	case SPDIFRX_CHNSR1:
 	case SPDIFRX_BURSTINFO:
-		return true;
+		ret = true;
+		break;
 	default:
-		return false;
+		ret = false;
+		break;
 	}
+
+	return ret;
 }
 
 static bool rk_spdifrx_volatile_reg(struct device *dev, unsigned int reg)
 {
+	bool ret;
+
 	switch (reg) {
 	case SPDIFRX_CLR:
 	case SPDIFRX_CDR:
@@ -301,20 +335,30 @@ static bool rk_spdifrx_volatile_reg(struct device *dev, unsigned int reg)
 	case SPDIFRX_SMPDR:
 	case SPDIFRX_CHNSR1:
 	case SPDIFRX_BURSTINFO:
-		return true;
+		ret = true;
+		break;
 	default:
-		return false;
+		ret = false;
+		break;
 	}
+
+	return ret;
 }
 
 static bool rk_spdifrx_precious_reg(struct device *dev, unsigned int reg)
 {
+	bool ret;
+
 	switch (reg) {
 	case SPDIFRX_SMPDR:
-		return true;
+		ret = true;
+		break;
 	default:
-		return false;
+		ret = false;
+		break;
 	}
+
+	return ret;
 }
 
 static const struct regmap_config rk_spdifrx_regmap_config = {
@@ -331,7 +375,7 @@ static const struct regmap_config rk_spdifrx_regmap_config = {
 
 static unsigned int rk_spdifrx_get_sample_rate(unsigned int flag)
 {
-	unsigned int rate = 0;
+	unsigned int rate;
 
 	switch (flag) {
 	case IEC958_AES3_CON_FS_22050:
@@ -365,7 +409,8 @@ static unsigned int rk_spdifrx_get_sample_rate(unsigned int flag)
 		rate = 768000;
 		break;
 	default:
-		return 0;
+		rate = 0;
+		break;
 	}
 
 	return rate;
@@ -382,32 +427,54 @@ static irqreturn_t rk_spdifrx_isr(int irq, void *dev_id)
 	u32 intsr;
 	u32 val;
 	u32 count;
+	int ret;
 
-	if (pm_runtime_resume_and_get(spdifrx->dev) < 0)
+	if (pm_runtime_resume_and_get(spdifrx->dev) < 0) {
 		return IRQ_NONE;
+	}
 
-	regmap_read(spdifrx->regmap, SPDIFRX_INTSR, &intsr);
+	ret = regmap_read(spdifrx->regmap, SPDIFRX_INTSR, &intsr);
+	if (ret != 0) {
+		dev_err(spdifrx->dev, "Failed to read INTSR: %d\n", ret);
+		if (pm_runtime_put(spdifrx->dev) < 0) {
+			dev_err(spdifrx->dev, "pm runtime put failed.\n");
+		}
+		return IRQ_NONE;
+	}
 
-	if (intsr & SPDIFRX_INTSR_NSYNCISR_ACTIVE) {
+	if ((intsr & SPDIFRX_INTSR_NSYNCISR_ACTIVE) != 0U) {
 		spdifrx->info.sync = 0;
 		snd_ctl_notify(dai->component->card->snd_card,
 			       SNDRV_CTL_EVENT_MASK_VALUE, &sync_kctl->id);
 		dev_dbg(spdifrx->dev, "NSYNC\n");
-		regmap_write(spdifrx->regmap, SPDIFRX_INTCLR, SPDIFRX_INTCLR_NSYNCICLR);
+		ret = regmap_write(spdifrx->regmap, SPDIFRX_INTCLR, SPDIFRX_INTCLR_NSYNCICLR);
+		if (ret != 0) {
+			dev_err(spdifrx->dev, "Failed to write NSYNC INTCLR: %d\n", ret);
+		}
 	}
 
-	if (intsr & SPDIFRX_INTSR_BTEISR_ACTIVE) {
-		regmap_read(spdifrx->regmap, SPDIFRX_CHNSR1, &val);
+	if ((intsr & SPDIFRX_INTSR_BTEISR_ACTIVE) != 0U) {
+		ret = regmap_read(spdifrx->regmap, SPDIFRX_CHNSR1, &val);
+		if (ret != 0) {
+			dev_err(spdifrx->dev, "Failed to read CHNSR1: %d\n", ret);
+			goto sync;
+		}
 		spdifrx->info.sample_rate_src =
 			rk_spdifrx_get_sample_rate((val & SPDIFRX_CHNSR1_SAMPLE_RATE_MASK) >> 8);
 
-		regmap_read(spdifrx->regmap, SPDIFRX_CDRST, &val);
-		if (spdifrx->cdr_count_avg)
+		ret = regmap_read(spdifrx->regmap, SPDIFRX_CDRST, &val);
+		if (ret != 0) {
+			dev_err(spdifrx->dev, "Failed to read CDRST: %d\n", ret);
+			goto sync;
+		}
+
+		if (spdifrx->cdr_count_avg) {
 			count = ((val & SPDIFRX_CDRST_MINCNT_MASK) +
-				((val & SPDIFRX_CDRST_MAXCNT_MASK) >> 8)) / 4;
-		else
+				((val & SPDIFRX_CDRST_MAXCNT_MASK) >> 8)) / 4U;
+		} else {
 			count = val & SPDIFRX_CDRST_MINCNT_MASK;
-		spdifrx->info.sample_rate_cal = clk_get_rate(spdifrx->mclk) / (count * 128);
+		}
+		spdifrx->info.sample_rate_cal = (unsigned int)clk_get_rate(spdifrx->mclk) / (count * 128U);
 		snd_ctl_notify(dai->component->card->snd_card,
 			       SNDRV_CTL_EVENT_MASK_VALUE, &sample_kctl->id);
 
@@ -415,20 +482,33 @@ static irqreturn_t rk_spdifrx_isr(int irq, void *dev_id)
 		dev_dbg(spdifrx->dev, "cal sample rate: %u Hz\n", spdifrx->info.sample_rate_cal);
 		dev_dbg(spdifrx->dev, "BTEIE\n");
 
-		regmap_write(spdifrx->regmap, SPDIFRX_INTCLR, SPDIFRX_INTCLR_BTECLR);
-		regmap_update_bits(spdifrx->regmap, SPDIFRX_INTEN, SPDIFRX_INTEN_BTEIE_MASK,
-				   SPDIFRX_INTEN_BTEIE_DIS);
+		ret = regmap_write(spdifrx->regmap, SPDIFRX_INTCLR, SPDIFRX_INTCLR_BTECLR);
+		if (ret != 0) {
+			dev_err(spdifrx->dev, "Failed to write BTE INTCLR: %d\n", ret);
+		}
+		ret = regmap_update_bits(spdifrx->regmap, SPDIFRX_INTEN, SPDIFRX_INTEN_BTEIE_MASK,
+					 SPDIFRX_INTEN_BTEIE_DIS);
+		if (ret != 0) {
+			dev_err(spdifrx->dev, "Failed to update BTE INTEN DIS: %d\n", ret);
+		}
 	}
 
-	if (intsr & SPDIFRX_INTSR_SYNCISR_ACTIVE) {
+sync:
+	if ((intsr & SPDIFRX_INTSR_SYNCISR_ACTIVE) != 0U) {
 		spdifrx->info.sync = 1;
 		snd_ctl_notify(dai->component->card->snd_card,
 			       SNDRV_CTL_EVENT_MASK_VALUE, &sync_kctl->id);
 		dev_dbg(spdifrx->dev, "SYNC\n");
-		regmap_write(spdifrx->regmap, SPDIFRX_INTCLR, SPDIFRX_INTCLR_SYNCICLR);
+		ret = regmap_write(spdifrx->regmap, SPDIFRX_INTCLR, SPDIFRX_INTCLR_SYNCICLR);
+		if (ret != 0) {
+			dev_err(spdifrx->dev, "Failed to write SYNC INTCLR: %d\n", ret);
+		}
 	}
 
-	pm_runtime_put(spdifrx->dev);
+	ret = pm_runtime_put(spdifrx->dev);
+	if (ret < 0) {
+		dev_err(spdifrx->dev, "pm runtime put failed.\n");
+	}
 
 	return IRQ_HANDLED;
 }
@@ -441,44 +521,52 @@ static int rk_spdifrx_probe(struct platform_device *pdev)
 	int ret;
 
 	spdifrx = devm_kzalloc(&pdev->dev, sizeof(*spdifrx), GFP_KERNEL);
-	if (!spdifrx)
+	if (!spdifrx) {
 		return -ENOMEM;
+	}
 
 	spdifrx->reset = devm_reset_control_get(&pdev->dev, "spdifrx-m");
 	if (IS_ERR(spdifrx->reset)) {
 		ret = PTR_ERR(spdifrx->reset);
-		if (ret != -ENOENT)
+		if (ret != -ENOENT) {
 			return ret;
+		}
 	}
 
 	spdifrx->hclk = devm_clk_get(&pdev->dev, "hclk");
-	if (IS_ERR(spdifrx->hclk))
+	if (IS_ERR(spdifrx->hclk)) {
 		return PTR_ERR(spdifrx->hclk);
+	}
 
 	spdifrx->mclk = devm_clk_get(&pdev->dev, "mclk");
-	if (IS_ERR(spdifrx->mclk))
+	if (IS_ERR(spdifrx->mclk)) {
 		return PTR_ERR(spdifrx->mclk);
+	}
 
 	spdifrx->irq = platform_get_irq(pdev, 0);
-	if (spdifrx->irq < 0)
+	if (spdifrx->irq < 0) {
 		return spdifrx->irq;
+	}
 
-	ret = devm_request_threaded_irq(&pdev->dev, spdifrx->irq, NULL,
+	ret = devm_request_threaded_irq(&pdev->dev, (unsigned int)spdifrx->irq, NULL,
 					rk_spdifrx_isr,
 					IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
 					dev_name(&pdev->dev), spdifrx);
-	if (ret)
+	if (ret != 0) {
 		return ret;
+	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	regs = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(regs))
+	if (IS_ERR(regs)) {
 		return PTR_ERR(regs);
+	}
 
 	spdifrx->regmap = devm_regmap_init_mmio(&pdev->dev, regs,
 						&rk_spdifrx_regmap_config);
-	if (IS_ERR(spdifrx->regmap))
+	if (IS_ERR(spdifrx->regmap)) {
 		return PTR_ERR(spdifrx->regmap);
+	}
 
 	spdifrx->capture_dma_data.addr = res->start + SPDIFRX_SMPDR;
 	spdifrx->capture_dma_data.addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
@@ -490,12 +578,13 @@ static int rk_spdifrx_probe(struct platform_device *pdev)
 	pm_runtime_enable(&pdev->dev);
 	if (!pm_runtime_enabled(&pdev->dev)) {
 		ret = rk_spdifrx_runtime_resume(&pdev->dev);
-		if (ret)
+		if (ret != 0) {
 			goto err_pm_runtime;
+		}
 	}
 
 	ret = devm_snd_dmaengine_pcm_register(&pdev->dev, NULL, 0);
-	if (ret) {
+	if (ret != 0) {
 		dev_err(&pdev->dev, "Could not register PCM\n");
 		goto err_pm_suspend;
 	}
@@ -503,7 +592,7 @@ static int rk_spdifrx_probe(struct platform_device *pdev)
 	ret = devm_snd_soc_register_component(&pdev->dev,
 					      &rk_spdifrx_component,
 					      &rk_spdifrx_dai, 1);
-	if (ret) {
+	if (ret != 0) {
 		dev_err(&pdev->dev, "Could not register DAI\n");
 		goto err_pm_suspend;
 	}
@@ -511,8 +600,9 @@ static int rk_spdifrx_probe(struct platform_device *pdev)
 	return 0;
 
 err_pm_suspend:
-	if (!pm_runtime_status_suspended(&pdev->dev))
-		rk_spdifrx_runtime_suspend(&pdev->dev);
+	if (!pm_runtime_status_suspended(&pdev->dev)) {
+		(void)rk_spdifrx_runtime_suspend(&pdev->dev);
+	}
 err_pm_runtime:
 	pm_runtime_disable(&pdev->dev);
 
@@ -522,8 +612,9 @@ err_pm_runtime:
 static int rk_spdifrx_remove(struct platform_device *pdev)
 {
 	pm_runtime_disable(&pdev->dev);
-	if (!pm_runtime_status_suspended(&pdev->dev))
-		rk_spdifrx_runtime_suspend(&pdev->dev);
+	if (!pm_runtime_status_suspended(&pdev->dev)) {
+		(void)rk_spdifrx_runtime_suspend(&pdev->dev);
+	}
 
 	return 0;
 }
@@ -544,19 +635,23 @@ static int rockchip_spdifrx_resume(struct device *dev)
 	int ret;
 
 	ret = pm_runtime_get_sync(dev);
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 	ret = regcache_sync(spdifrx->regmap);
-	pm_runtime_put(dev);
+	if (ret < 0) {
+		return ret;
+	}
 
-	return ret;
+	return pm_runtime_put(dev);
 }
+
 #endif
 
 static const struct dev_pm_ops rk_spdifrx_pm_ops = {
-	SET_RUNTIME_PM_OPS(rk_spdifrx_runtime_suspend, rk_spdifrx_runtime_resume,
-			   NULL)
-	SET_SYSTEM_SLEEP_PM_OPS(rockchip_spdifrx_suspend, rockchip_spdifrx_resume)
+	SET_RUNTIME_PM_OPS((rk_spdifrx_runtime_suspend), (rk_spdifrx_runtime_resume),
+			   (NULL))
+	SET_SYSTEM_SLEEP_PM_OPS((rockchip_spdifrx_suspend), (rockchip_spdifrx_resume))
 };
 
 static const struct of_device_id rk_spdifrx_match[] = {
