@@ -16,62 +16,62 @@
 #include <linux/reset.h>
 #include <linux/soc/rockchip/rockchip_decompress.h>
 
-#define DECOM_CTRL		0x0
-#define DECOM_ENR		0x4
-#define DECOM_RADDR		0x8
-#define DECOM_WADDR		0xc
-#define DECOM_UDDSL		0x10
-#define DECOM_UDDSH		0x14
-#define DECOM_TXTHR		0x18
-#define DECOM_RXTHR		0x1c
-#define DECOM_SLEN		0x20
-#define DECOM_STAT		0x24
-#define DECOM_ISR		0x28
-#define DECOM_IEN		0x2c
-#define DECOM_AXI_STAT		0x30
-#define DECOM_TSIZEL		0x34
-#define DECOM_TSIZEH		0x38
-#define DECOM_MGNUM		0x3c
-#define DECOM_FRAME		0x40
-#define DECOM_DICTID		0x44
-#define DECOM_CSL		0x48
-#define DECOM_CSH		0x4c
-#define DECOM_LMTSL		0x50
-#define DECOM_LMTSH		0x54
+#define DECOM_CTRL		0x0U
+#define DECOM_ENR		0x4U
+#define DECOM_RADDR		0x8U
+#define DECOM_WADDR		0xcU
+#define DECOM_UDDSL		0x10U
+#define DECOM_UDDSH		0x14U
+#define DECOM_TXTHR		0x18U
+#define DECOM_RXTHR		0x1cU
+#define DECOM_SLEN		0x20U
+#define DECOM_STAT		0x24U
+#define DECOM_ISR		0x28U
+#define DECOM_IEN		0x2cU
+#define DECOM_AXI_STAT		0x30U
+#define DECOM_TSIZEL		0x34U
+#define DECOM_TSIZEH		0x38U
+#define DECOM_MGNUM		0x3cU
+#define DECOM_FRAME		0x40U
+#define DECOM_DICTID		0x44U
+#define DECOM_CSL		0x48U
+#define DECOM_CSH		0x4cU
+#define DECOM_LMTSL		0x50U
+#define DECOM_LMTSH		0x54U
 
-#define LZ4_HEAD_CSUM_CHECK_EN	BIT(1)
-#define LZ4_BLOCK_CSUM_CHECK_EN	BIT(2)
-#define LZ4_CONT_CSUM_CHECK_EN	BIT(3)
+#define LZ4_HEAD_CSUM_CHECK_EN	(1U << 1)
+#define LZ4_BLOCK_CSUM_CHECK_EN	(1U << 2)
+#define LZ4_CONT_CSUM_CHECK_EN	(1U << 3)
 
-#define DSOLIEN			BIT(19)
-#define ZDICTEIEN		BIT(18)
-#define GCMEIEN			BIT(17)
-#define GIDEIEN			BIT(16)
-#define CCCEIEN			BIT(15)
-#define BCCEIEN			BIT(14)
-#define HCCEIEN			BIT(13)
-#define CSEIEN			BIT(12)
-#define DICTEIEN		BIT(11)
-#define VNEIEN			BIT(10)
-#define WNEIEN			BIT(9)
-#define RDCEIEN			BIT(8)
-#define WRCEIEN			BIT(7)
-#define DISEIEN			BIT(6)
-#define LENEIEN			BIT(5)
-#define LITEIEN			BIT(4)
-#define SQMEIEN			BIT(3)
-#define SLCIEN			BIT(2)
-#define HDEIEN			BIT(1)
-#define DSIEN			BIT(0)
+#define DSOLIEN			(1U << 19)
+#define ZDICTEIEN		(1U << 18)
+#define GCMEIEN			(1U << 17)
+#define GIDEIEN			(1U << 16)
+#define CCCEIEN			(1U << 15)
+#define BCCEIEN			(1U << 14)
+#define HCCEIEN			(1U << 13)
+#define CSEIEN			(1U << 12)
+#define DICTEIEN		(1U << 11)
+#define VNEIEN			(1U << 10)
+#define WNEIEN			(1U << 9)
+#define RDCEIEN			(1U << 8)
+#define WRCEIEN			(1U << 7)
+#define DISEIEN			(1U << 6)
+#define LENEIEN			(1U << 5)
+#define LITEIEN			(1U << 4)
+#define SQMEIEN			(1U << 3)
+#define SLCIEN			(1U << 2)
+#define HDEIEN			(1U << 1)
+#define DSIEN			(1U << 0)
 
-#define DECOM_STOP		BIT(0)
-#define DECOM_COMPLETE		BIT(0)
-#define DECOM_GZIP_MODE		BIT(4)
-#define DECOM_ZLIB_MODE		BIT(5)
-#define DECOM_DEFLATE_MODE	BIT(0)
+#define DECOM_STOP		(1U << 0)
+#define DECOM_COMPLETE		(1U << 0)
+#define DECOM_GZIP_MODE		(1U << 4)
+#define DECOM_ZLIB_MODE		(1U << 5)
+#define DECOM_DEFLATE_MODE	(1U << 0)
 
-#define DECOM_ENABLE		0x1
-#define DECOM_DISABLE		0x0
+#define DECOM_ENABLE		0x1U
+#define DECOM_DISABLE		0x0U
 
 #define DECOM_INT_MASK \
 	(DSOLIEN | ZDICTEIEN | GCMEIEN | GIDEIEN | \
@@ -98,22 +98,19 @@ static bool g_decom_complete;
 static bool g_decom_noblocking;
 static u64 g_decom_data_len;
 
-void __init wait_initrd_hw_decom_done(void)
-{
-	wait_event(g_decom_wait, g_decom_complete);
-}
-
 int rk_decom_wait_done(u32 timeout, u64 *decom_len)
 {
-	int ret;
+	long ret;
 
-	if (!decom_len)
+	if (!decom_len) {
 		return -EINVAL;
+	}
 
-	ret = wait_event_timeout(g_decom_wait, g_decom_complete, timeout * HZ);
-	if (!ret) {
-		if (g_decom)
+	ret = wait_event_timeout(g_decom_wait, g_decom_complete, (long)(timeout * HZ));
+	if (ret == 0) {
+		if (g_decom) {
 			clk_bulk_disable_unprepare(g_decom->num_clocks, g_decom->clocks);
+		}
 
 		return -ETIMEDOUT;
 	}
@@ -133,58 +130,66 @@ int rk_decom_start(u32 mode, phys_addr_t src, phys_addr_t dst, u32 dst_max_size)
 	u32 decom_enr;
 	u32 decom_mode = rk_get_decom_mode(mode);
 
-	wait_event_timeout(decom_init_done, g_decom, HZ);
-	if (!g_decom)
+	(void)wait_event_timeout(decom_init_done, g_decom, HZ);
+	if (!g_decom) {
 		return -EINVAL;
+	}
 
-	if (g_decom->mem_start)
-		pr_info("%s: mode %u src %pa dst %pa max_size %u\n",
+	if (g_decom->mem_start != (phys_addr_t)0) {
+		(void)pr_info("%s: mode %u src %pa dst %pa max_size %u\n",
 			__func__, mode, &src, &dst, dst_max_size);
+	}
 
 	ret = clk_bulk_prepare_enable(g_decom->num_clocks, g_decom->clocks);
-	if (ret)
+	if (ret != 0) {
 		return ret;
+	}
 
-	g_decom_complete   = false;
+	g_decom_complete = (bool)false;
 	g_decom_data_len   = 0;
 	g_decom_noblocking = rk_get_noblocking_flag(mode);
 
 	decom_enr = readl(g_decom->regs + DECOM_ENR);
-	if (decom_enr & 0x1) {
-		pr_err("decompress busy\n");
+	if ((decom_enr & 0x1U) != 0U){
+		(void)pr_err("decompress busy\n");
 		ret = -EBUSY;
 		goto error;
 	}
 
 	if (g_decom->reset) {
-		reset_control_assert(g_decom->reset);
+		(void)reset_control_assert(g_decom->reset);
 		udelay(10);
-		reset_control_deassert(g_decom->reset);
+		(void)reset_control_deassert(g_decom->reset);
 	}
 
 	irq_status = readl(g_decom->regs + DECOM_ISR);
 	/* clear interrupts */
-	if (irq_status)
+	if (irq_status != 0U) {
 		writel(irq_status, g_decom->regs + DECOM_ISR);
+	}
 
 	switch (decom_mode) {
-	case LZ4_MOD:
+	case (u32)LZ4_MOD:
 		writel(LZ4_CONT_CSUM_CHECK_EN |
 		       LZ4_HEAD_CSUM_CHECK_EN |
 		       LZ4_BLOCK_CSUM_CHECK_EN |
-		       LZ4_MOD, g_decom->regs + DECOM_CTRL);
+		       (u32)LZ4_MOD, g_decom->regs + DECOM_CTRL);
 		break;
-	case GZIP_MOD:
+	case (u32)GZIP_MOD:
 		writel(DECOM_DEFLATE_MODE | DECOM_GZIP_MODE,
 		       g_decom->regs + DECOM_CTRL);
 		break;
-	case ZLIB_MOD:
+	case (u32)ZLIB_MOD:
 		writel(DECOM_DEFLATE_MODE | DECOM_ZLIB_MODE,
 		       g_decom->regs + DECOM_CTRL);
 		break;
 	default:
-		pr_err("undefined mode : %d\n", decom_mode);
+		(void)pr_err("undefined mode : %d\n", decom_mode);
 		ret = -EINVAL;
+		break;
+	}
+
+	if (ret < 0) {
 		goto error;
 	}
 
@@ -214,34 +219,35 @@ static irqreturn_t rk_decom_irq_handler(int irq, void *priv)
 	irq_status = readl(rk_dec->regs + DECOM_ISR);
 	/* clear interrupts */
 	writel(irq_status, rk_dec->regs + DECOM_ISR);
-	if (irq_status & DECOM_STOP) {
+	if ((irq_status & DECOM_STOP) != 0U) {
 		decom_status = readl(rk_dec->regs + DECOM_STAT);
-		if (decom_status & DECOM_COMPLETE) {
-			g_decom_complete = true;
+		if ((decom_status & DECOM_COMPLETE) != 0U) {
+			g_decom_complete = (bool)true;
 			g_decom_data_len = readl(rk_dec->regs + DECOM_TSIZEH);
 			g_decom_data_len = (g_decom_data_len << 32) |
 					   readl(rk_dec->regs + DECOM_TSIZEL);
 			wake_up(&g_decom_wait);
-			if (rk_dec->mem_start)
+			if ((rk_dec->mem_start) != (phys_addr_t)0) {
 				dev_info(rk_dec->dev,
 					 "decom completed, decom_data_len = %llu\n",
 					 g_decom_data_len);
+			}
 		} else {
 			dev_info(rk_dec->dev,
 				 "decom failed, irq_status = 0x%x, decom_status = 0x%x, try again !\n",
 				 irq_status, decom_status);
 
 			print_hex_dump(KERN_WARNING, "", DUMP_PREFIX_OFFSET,
-				       32, 4, rk_dec->regs, 0x128, false);
+				       32, 4, rk_dec->regs, 0x128, (bool)false);
 
 			if (g_decom_noblocking) {
 				dev_info(rk_dec->dev, "decom failed and exit in noblocking mode.");
 				writel(DECOM_DISABLE, rk_dec->regs + DECOM_ENR);
 				writel(0, g_decom->regs + DECOM_IEN);
 
-				g_decom_complete  = true;
+				g_decom_complete = (bool)true;
 				g_decom_data_len = 0;
-				g_decom_noblocking = false;
+				g_decom_noblocking = (bool)false;
 				wake_up(&g_decom_wait);
 			} else {
 				writel(DECOM_ENABLE, rk_dec->regs + DECOM_ENR);
@@ -259,14 +265,14 @@ static irqreturn_t rk_decom_irq_thread(int irq, void *priv)
 	if (g_decom_complete) {
 		void *start, *end;
 
-		if (rk_dec->mem_start) {
+		if ((rk_dec->mem_start) != (phys_addr_t)0) {
 			/*
 			 * Now it is safe to free reserve memory that
 			 * store the origin ramdisk file
 			 */
 			start = phys_to_virt(rk_dec->mem_start);
 			end = start + rk_dec->mem_size;
-			free_reserved_area(start, end, -1, "ramdisk gzip archive");
+			(void)free_reserved_area(start, end, -1, "ramdisk gzip archive");
 			rk_dec->mem_start = 0;
 		}
 
@@ -279,16 +285,17 @@ static irqreturn_t rk_decom_irq_thread(int irq, void *priv)
 static int __init rockchip_decom_probe(struct platform_device *pdev)
 {
 	struct rk_decom *rk_dec;
-	struct resource *res = NULL;
+	struct resource *res;
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
 	struct device_node *mem;
 	struct resource reg;
-	int ret = 0;
+	int ret;
 
 	rk_dec = devm_kzalloc(dev, sizeof(*rk_dec), GFP_KERNEL);
-	if (!rk_dec)
+	if (!rk_dec) {
 		return -ENOMEM;
+	}
 
 	rk_dec->dev = dev;
 	rk_dec->irq = platform_get_irq(pdev, 0);
@@ -305,7 +312,7 @@ static int __init rockchip_decom_probe(struct platform_device *pdev)
 
 	ret = of_address_to_resource(mem, 0, &reg);
 	of_node_put(mem);
-	if (ret) {
+	if (ret != 0) {
 		dev_err(dev, "missing \"reg\" property\n");
 		return -ENODEV;
 	}
@@ -322,7 +329,7 @@ static int __init rockchip_decom_probe(struct platform_device *pdev)
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	rk_dec->regs = devm_ioremap_resource(dev, res);
 	if (IS_ERR(rk_dec->regs)) {
-		ret = PTR_ERR(rk_dec->regs);
+		ret = (int)PTR_ERR(rk_dec->regs);
 		goto disable_clk;
 	}
 
@@ -330,15 +337,16 @@ static int __init rockchip_decom_probe(struct platform_device *pdev)
 
 	rk_dec->reset = devm_reset_control_get_exclusive(dev, "dresetn");
 	if (IS_ERR(rk_dec->reset)) {
-		ret = PTR_ERR(rk_dec->reset);
-		if (ret != -ENOENT)
+		ret = (int)PTR_ERR(rk_dec->reset);
+		if (ret != -ENOENT) {
 			return ret;
+		}
 
 		dev_dbg(dev, "no reset control found\n");
 		rk_dec->reset = NULL;
 	}
 
-	ret = devm_request_threaded_irq(dev, rk_dec->irq, rk_decom_irq_handler,
+	ret = devm_request_threaded_irq(dev, (unsigned int)rk_dec->irq, rk_decom_irq_handler,
 					rk_decom_irq_thread, IRQF_ONESHOT,
 					dev_name(dev), rk_dec);
 	if (ret < 0) {
@@ -377,7 +385,7 @@ static int __init rockchip_hw_decompress_init(void)
 
 	node = of_find_matching_node(NULL, rockchip_decom_dt_match);
 	if (node) {
-		of_platform_device_create(node, NULL, NULL);
+		(void)of_platform_device_create(node, NULL, NULL);
 		of_node_put(node);
 		return platform_driver_probe(&rk_decom_driver, rockchip_decom_probe);
 	}
