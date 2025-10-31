@@ -164,6 +164,104 @@
 	};
 
 	/omit-if-no-ref/
+	pcfg_pull_up_drv_level_0_smt: pcfg-pull-up-drv-level-0-smt {
+		bias-pull-up;
+		drive-strength = <0>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_pull_up_drv_level_1_smt: pcfg-pull-up-drv-level-1-smt {
+		bias-pull-up;
+		drive-strength = <1>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_pull_up_drv_level_2_smt: pcfg-pull-up-drv-level-2-smt {
+		bias-pull-up;
+		drive-strength = <2>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_pull_up_drv_level_3_smt: pcfg-pull-up-drv-level-3-smt {
+		bias-pull-up;
+		drive-strength = <3>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_pull_up_drv_level_4_smt: pcfg-pull-up-drv-level-4-smt {
+		bias-pull-up;
+		drive-strength = <4>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_pull_up_drv_level_5_smt: pcfg-pull-up-drv-level-5-smt {
+		bias-pull-up;
+		drive-strength = <5>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_pull_up_drv_level_6_smt: pcfg-pull-up-drv-level-6-smt {
+		bias-pull-up;
+		drive-strength = <6>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_pull_down_drv_level_0_smt: pcfg-pull-down-drv-level-0-smt {
+		bias-pull-down;
+		drive-strength = <0>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_pull_down_drv_level_1_smt: pcfg-pull-down-drv-level-1-smt {
+		bias-pull-down;
+		drive-strength = <1>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_pull_down_drv_level_2_smt: pcfg-pull-down-drv-level-2-smt {
+		bias-pull-down;
+		drive-strength = <2>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_pull_down_drv_level_3_smt: pcfg-pull-down-drv-level-3-smt {
+		bias-pull-down;
+		drive-strength = <3>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_pull_down_drv_level_4_smt: pcfg-pull-down-drv-level-4-smt {
+		bias-pull-down;
+		drive-strength = <4>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_pull_down_drv_level_5_smt: pcfg-pull-down-drv-level-5-smt {
+		bias-pull-down;
+		drive-strength = <5>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_pull_down_drv_level_6_smt: pcfg-pull-down-drv-level-6-smt {
+		bias-pull-down;
+		drive-strength = <6>;
+		input-schmitt-enable;
+	};
+
+	/omit-if-no-ref/
 	pcfg_pull_none_drv_level_0_smt: pcfg-pull-none-drv-level-0-smt {
 		bias-disable;
 		drive-strength = <0>;
@@ -256,5 +354,89 @@
 	pcfg_output_low_pull_none: pcfg-output-low-pull-none {
 		output-low;
 		bias-disable;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_low_drv_level_0: pcfg-output-low-drv-level-0 {
+		output-low;
+		drive-strength = <0>;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_low_drv_level_1: pcfg-output-low-drv-level-1 {
+		output-low;
+		drive-strength = <1>;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_low_drv_level_2: pcfg-output-low-drv-level-2 {
+		output-low;
+		drive-strength = <2>;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_low_drv_level_3: pcfg-output-low-drv-level-3 {
+		output-low;
+		drive-strength = <3>;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_low_drv_level_4: pcfg-output-low-drv-level-4 {
+		output-low;
+		drive-strength = <4>;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_low_drv_level_5: pcfg-output-low-drv-level-5 {
+		output-low;
+		drive-strength = <5>;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_low_drv_level_6: pcfg-output-low-drv-level-6 {
+		output-low;
+		drive-strength = <6>;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_high_drv_level_0: pcfg-output-high-drv-level-0 {
+		output-high;
+		drive-strength = <0>;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_high_drv_level_1: pcfg-output-high-drv-level-1 {
+		output-high;
+		drive-strength = <1>;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_high_drv_level_2: pcfg-output-high-drv-level-2 {
+		output-high;
+		drive-strength = <2>;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_high_drv_level_3: pcfg-output-high-drv-level-3 {
+		output-high;
+		drive-strength = <3>;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_high_drv_level_4: pcfg-output-high-drv-level-4 {
+		output-high;
+		drive-strength = <4>;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_high_drv_level_5: pcfg-output-high-drv-level-5 {
+		output-high;
+		drive-strength = <5>;
+	};
+
+	/omit-if-no-ref/
+	pcfg_output_high_drv_level_6: pcfg-output-high-drv-level-6 {
+		output-high;
+		drive-strength = <6>;
 	};
 };
