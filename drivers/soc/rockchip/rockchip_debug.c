@@ -176,10 +176,18 @@ static int rockchip_debug_dump_edpcsr(struct fiq_debugger_output *output)
 }
 
 #ifdef CONFIG_ARM64
+int get_current_el(void)
+{
+	u64 el;
+
+	el = read_sysreg(CurrentEL);
+	return (el >> 2) & 0x3;
+}
+
 static int rockchip_debug_dump_pmpcsr(struct fiq_debugger_output *output)
 {
 	u64 pmpcsr;
-	int i = 0, j = 0, el, ns;
+	int i = 0, j = 0, el, cur_el, ns;
 	void *pc = NULL;
 	void *prev_pc = NULL;
 	int printed = 0;
@@ -187,6 +195,7 @@ static int rockchip_debug_dump_pmpcsr(struct fiq_debugger_output *output)
 	u32 pu = 0, online = 0;
 
 	rockchip_debug_serror_disable();
+	cur_el = get_current_el();
 
 	while (rockchip_cs_pmu[i]) {
 		online = cpu_online(i);
@@ -225,7 +234,7 @@ static int rockchip_debug_dump_pmpcsr(struct fiq_debugger_output *output)
 			else
 				ns = 0;
 
-			if (el == 2)
+			if (el == cur_el)
 				pmpcsr |= 0xff00000000000000;
 			else
 				pmpcsr &= 0x0fffffffffffffff;
@@ -339,7 +348,7 @@ static int rockchip_panic_notify_pmpcsr(struct notifier_block *nb,
 					unsigned long event, void *p)
 {
 	u64 pmpcsr;
-	int i = 0, j, el, ns;
+	int i = 0, j, el, cur_el, ns;
 	void *pc = NULL;
 	void *prev_pc = NULL;
 	int printed = 0;
@@ -347,7 +356,7 @@ static int rockchip_panic_notify_pmpcsr(struct notifier_block *nb,
 	u32 pu = 0;
 
 	rockchip_debug_serror_disable();
-
+	cur_el = get_current_el();
 	/*
 	 * The panic handler will try to shut down the other CPUs.
 	 * If any of them are still online at this point, this loop attempts
@@ -384,7 +393,7 @@ static int rockchip_panic_notify_pmpcsr(struct notifier_block *nb,
 			else
 				ns = 0;
 
-			if (el == 2)
+			if (el == cur_el)
 				pmpcsr |= 0xff00000000000000;
 			else
 				pmpcsr &= 0x0fffffffffffffff;
