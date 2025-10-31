@@ -161,7 +161,7 @@ config ROCKCHIP_CLK_BOOST
 
 config ROCKCHIP_CLK_INV
 	bool "Rockchip Clk Inverter"
-	default y if !CPU_RV1126 && !CPU_RV1106 && !CPU_RV1103B
+	default y if !CPU_RV1126 && !CPU_RV1106 && !CPU_RV1103B && !CPU_RK3588
 	help
 	  Say y here to enable clk Inverter.
 
@@ -173,7 +173,7 @@ config ROCKCHIP_CLK_OUT
 
 config ROCKCHIP_CLK_PVTM
 	bool "Rockchip Clk Pvtm"
-	default y if !CPU_RV1126 && !CPU_RV1106 && !CPU_RV1103B
+	default y if !CPU_RV1126 && !CPU_RV1106 && !CPU_RV1103B && !CPU_RK3588
 	help
 	  Say y here to enable clk pvtm.
 

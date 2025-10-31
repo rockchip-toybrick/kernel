@@ -39,8 +39,8 @@ struct rockchip_link_clk {
 
 #define GATE_LINK(_name, _pname, _shift)	\
 {						\
-	.name = _name,				\
-	.pname = _pname,			\
+	.name = (_name),				\
+	.pname = (_pname),			\
 	.shift = (_shift),			\
 }
 
@@ -51,8 +51,9 @@ static int register_clocks(struct rockchip_link_clk *priv, struct device *dev)
 	struct clk *clk;
 
 	gate = devm_kzalloc(dev, sizeof(struct clk_gate), GFP_KERNEL);
-	if (!gate)
+	if (!gate) {
 		return -ENOMEM;
+	}
 
 	init.name = priv->name;
 	init.ops = &clk_gate_ops;
@@ -68,8 +69,9 @@ static int register_clocks(struct rockchip_link_clk *priv, struct device *dev)
 	gate->hw.init = &init;
 
 	clk = devm_clk_register(dev, &gate->hw);
-	if (IS_ERR(clk))
+	if (IS_ERR(clk)) {
 		return -EINVAL;
+	}
 
 	return of_clk_add_provider(dev->of_node, of_clk_src_simple_get, clk);
 }
@@ -135,11 +137,12 @@ static const struct rockchip_link_info *
 rockchip_get_link_infos(const struct rockchip_link *link, const char *name)
 {
 	const struct rockchip_link_info *info = link->info;
-	int i = 0;
+	int i;
 
 	for (i = 0; i < link->num; i++) {
-		if (strcmp(info->name, name) == 0)
+		if (strcmp(info->name, name) == 0) {
 			break;
+		}
 		info++;
 	}
 	return info;
@@ -155,13 +158,15 @@ static int rockchip_clk_link_probe(struct platform_device *pdev)
 	int ret;
 
 	match = of_match_node(rockchip_clk_link_of_match, node);
-	if (!match)
+	if (!match) {
 		return -ENXIO;
+	}
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(struct rockchip_link_clk),
 			    GFP_KERNEL);
-	if (!priv)
+	if (!priv) {
 		return -ENOMEM;
+	}
 
 	priv->link = match->data;
 
@@ -169,13 +174,15 @@ static int rockchip_clk_link_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, priv);
 
 	priv->base = of_iomap(node, 0);
-	if (IS_ERR(priv->base))
+	if (IS_ERR(priv->base)) {
 		return PTR_ERR(priv->base);
+	}
 
-	if (of_property_read_string(node, "clock-output-names", &clk_name))
+	if (of_property_read_string(node, "clock-output-names", &clk_name) != 0) {
 		priv->name = node->name;
-	else
+	} else {
 		priv->name = clk_name;
+	}
 
 	link_info = rockchip_get_link_infos(priv->link, priv->name);
 	priv->shift = link_info->shift;
@@ -183,17 +190,20 @@ static int rockchip_clk_link_probe(struct platform_device *pdev)
 
 	pm_runtime_enable(&pdev->dev);
 	ret = pm_clk_create(&pdev->dev);
-	if (ret)
+	if (ret != 0) {
 		goto disable_pm_runtime;
+	}
 
 	ret = pm_clk_add(&pdev->dev, "link");
 
-	if (ret)
+	if (ret != 0) {
 		goto destroy_pm_clk;
+	}
 
 	ret = register_clocks(priv, &pdev->dev);
-	if (ret)
+	if (ret != 0) {
 		goto destroy_pm_clk;
+	}
 
 	return 0;
 

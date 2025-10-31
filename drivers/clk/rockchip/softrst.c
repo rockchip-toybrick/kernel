@@ -25,10 +25,10 @@ static int rockchip_softrst_assert(struct reset_controller_dev *rcdev,
 	struct rockchip_softrst *softrst = container_of(rcdev,
 						     struct rockchip_softrst,
 						     rcdev);
-	int bank = id / softrst->num_per_reg;
-	int offset = id % softrst->num_per_reg;
+	int bank = ((int)id / softrst->num_per_reg);
+	int offset = ((int)id % softrst->num_per_reg);
 
-	if (softrst->flags & ROCKCHIP_SOFTRST_HIWORD_MASK) {
+	if ((softrst->flags & ROCKCHIP_SOFTRST_HIWORD_MASK) != 0U) {
 		writel(BIT(offset) | (BIT(offset) << 16),
 		       softrst->reg_base + (bank * 4));
 	} else {
@@ -52,10 +52,10 @@ static int rockchip_softrst_deassert(struct reset_controller_dev *rcdev,
 	struct rockchip_softrst *softrst = container_of(rcdev,
 						     struct rockchip_softrst,
 						     rcdev);
-	int bank = id / softrst->num_per_reg;
-	int offset = id % softrst->num_per_reg;
+	int bank = (int)id / softrst->num_per_reg;
+	int offset = (int)id % softrst->num_per_reg;
 
-	if (softrst->flags & ROCKCHIP_SOFTRST_HIWORD_MASK) {
+	if ((softrst->flags & ROCKCHIP_SOFTRST_HIWORD_MASK) != 0U) {
 		writel((BIT(offset) << 16), softrst->reg_base + (bank * 4));
 	} else {
 		unsigned long flags;
@@ -85,24 +85,25 @@ void rockchip_register_softrst(struct device_node *np,
 	int ret;
 
 	softrst = kzalloc(sizeof(*softrst), GFP_KERNEL);
-	if (!softrst)
+	if (!softrst) {
 		return;
+	}
 
 	spin_lock_init(&softrst->lock);
 
 	softrst->reg_base = base;
 	softrst->flags = flags;
-	softrst->num_regs = num_regs;
-	softrst->num_per_reg = (flags & ROCKCHIP_SOFTRST_HIWORD_MASK) ? 16
+	softrst->num_regs = (int)num_regs;
+	softrst->num_per_reg = ((flags & ROCKCHIP_SOFTRST_HIWORD_MASK) != 0U) ? 16
 								      : 32;
 
 	softrst->rcdev.owner = THIS_MODULE;
-	softrst->rcdev.nr_resets =  num_regs * softrst->num_per_reg;
+	softrst->rcdev.nr_resets =  num_regs * (unsigned int)softrst->num_per_reg;
 	softrst->rcdev.ops = &rockchip_softrst_ops;
 	softrst->rcdev.of_node = np;
 	ret = reset_controller_register(&softrst->rcdev);
-	if (ret) {
-		pr_err("%s: could not register reset controller, %d\n",
+	if (ret != 0) {
+		CLK_LOG_ERROR("%s: could not register reset controller, %d\n",
 		       __func__, ret);
 		kfree(softrst);
 	}

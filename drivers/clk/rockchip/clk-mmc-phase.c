@@ -22,7 +22,7 @@ struct rockchip_mmc_clock {
 
 #define to_mmc_clock(_hw) container_of(_hw, struct rockchip_mmc_clock, hw)
 
-#define RK3288_MMC_CLKGEN_DIV 2
+#define RK3288_MMC_CLKGEN_DIV 2U
 
 static unsigned long rockchip_mmc_recalc(struct clk_hw *hw,
 					 unsigned long parent_rate)
@@ -31,9 +31,9 @@ static unsigned long rockchip_mmc_recalc(struct clk_hw *hw,
 }
 
 #define ROCKCHIP_MMC_DELAY_SEL BIT(10)
-#define ROCKCHIP_MMC_DEGREE_MASK 0x3
-#define ROCKCHIP_MMC_DELAYNUM_OFFSET 2
-#define ROCKCHIP_MMC_DELAYNUM_MASK (0xff << ROCKCHIP_MMC_DELAYNUM_OFFSET)
+#define ROCKCHIP_MMC_DEGREE_MASK 0x3U
+#define ROCKCHIP_MMC_DELAYNUM_OFFSET 2U
+#define ROCKCHIP_MMC_DELAYNUM_MASK (0xffU << ROCKCHIP_MMC_DELAYNUM_OFFSET)
 
 #define PSECS_PER_SEC 1000000000000LL
 
@@ -41,7 +41,7 @@ static unsigned long rockchip_mmc_recalc(struct clk_hw *hw,
  * Each fine delay is between 44ps-77ps. Assume each fine delay is 60ps to
  * simplify calculations. So 45degs could be anywhere between 33deg and 57.8deg.
  */
-#define ROCKCHIP_MMC_DELAY_ELEMENT_PSEC 60
+#define ROCKCHIP_MMC_DELAY_ELEMENT_PSEC 60U
 
 static int rockchip_mmc_get_phase(struct clk_hw *hw)
 {
@@ -49,27 +49,28 @@ static int rockchip_mmc_get_phase(struct clk_hw *hw)
 	unsigned long rate = clk_hw_get_rate(hw);
 	u32 raw_value;
 	u16 degrees;
-	u32 delay_num = 0;
+	u32 delay_num;
 
 	/* Constant signal, no measurable phase shift */
-	if (!rate)
+	if (rate != 0U) {
 		return 0;
+	}
 
-	raw_value = readl(mmc_clock->reg) >> (mmc_clock->shift);
+	raw_value = readl(mmc_clock->reg) >> (u32)(mmc_clock->shift);
 
-	degrees = (raw_value & ROCKCHIP_MMC_DEGREE_MASK) * 90;
+	degrees = (u16)(raw_value & ROCKCHIP_MMC_DEGREE_MASK) * 90U;
 
-	if (raw_value & ROCKCHIP_MMC_DELAY_SEL) {
+	if ((raw_value & ROCKCHIP_MMC_DELAY_SEL) != 0U) {
 		/* degrees/delaynum * 1000000 */
-		unsigned long factor = (ROCKCHIP_MMC_DELAY_ELEMENT_PSEC / 10) *
-					36 * (rate / 10000);
+		unsigned long factor = (ROCKCHIP_MMC_DELAY_ELEMENT_PSEC / 10U) *
+					36U * (rate / 10000U);
 
 		delay_num = (raw_value & ROCKCHIP_MMC_DELAYNUM_MASK);
 		delay_num >>= ROCKCHIP_MMC_DELAYNUM_OFFSET;
 		degrees += DIV_ROUND_CLOSEST(delay_num * factor, 1000000);
 	}
 
-	return degrees % 360;
+	return ((int)degrees % 360);
 }
 
 static int rockchip_mmc_set_phase(struct clk_hw *hw, int degrees)
@@ -93,12 +94,12 @@ static int rockchip_mmc_set_phase(struct clk_hw *hw, int degrees)
 	 * most likely problem we often face and which makes it difficult
 	 * for people to debug unstable mmc tuning results.
 	 */
-	if (!rate) {
-		pr_err("%s: invalid clk rate\n", __func__);
+	if (rate == 0U) {
+		CLK_LOG_ERROR("%s: invalid clk rate\n", __func__);
 		return -EINVAL;
 	}
 
-	nineties = degrees / 90;
+	nineties = (degrees / 90);
 	remainder = (degrees % 90);
 
 	/*
@@ -130,15 +131,15 @@ static int rockchip_mmc_set_phase(struct clk_hw *hw, int degrees)
 			(rate / 1000) * 36 *
 				(ROCKCHIP_MMC_DELAY_ELEMENT_PSEC / 10));
 
-	delay_num = (u8) min_t(u32, delay, 255);
+	delay_num = (u8) min_t(u32, delay, 255U);
 
-	raw_value = delay_num ? ROCKCHIP_MMC_DELAY_SEL : 0;
-	raw_value |= delay_num << ROCKCHIP_MMC_DELAYNUM_OFFSET;
+	raw_value = (delay_num != 0U) ? ROCKCHIP_MMC_DELAY_SEL : 0U;
+	raw_value |= (u32)delay_num << ROCKCHIP_MMC_DELAYNUM_OFFSET;
 	raw_value |= nineties;
-	writel(HIWORD_UPDATE(raw_value, 0x07ff, mmc_clock->shift),
+	writel(HIWORD_UPDATE(raw_value, 0x07ffU, mmc_clock->shift),
 	       mmc_clock->reg);
 
-	pr_debug("%s->set_phase(%d) delay_nums=%u reg[0x%p]=0x%03x actual_degrees=%d\n",
+	CLK_LOG_DEBUG("%s->set_phase(%d) delay_nums=%u reg[0x%p]=0x%03x actual_degrees=%d\n",
 		clk_hw_get_name(hw), degrees, delay_num,
 		mmc_clock->reg, raw_value>>(mmc_clock->shift),
 		rockchip_mmc_get_phase(hw)
@@ -175,15 +176,17 @@ static int rockchip_mmc_clk_rate_notify(struct notifier_block *nb,
 	 * set the max-frequency to match the boards' ability but we can't go
 	 * over the heads of that, otherwise the tests smoke out the issue.
 	 */
-	if (ndata->old_rate <= ndata->new_rate)
+	if (ndata->old_rate <= ndata->new_rate) {
 		return NOTIFY_DONE;
+	}
 
-	if (event == PRE_RATE_CHANGE)
+	if (event == PRE_RATE_CHANGE) {
 		mmc_clock->cached_phase =
 			rockchip_mmc_get_phase(&mmc_clock->hw);
-	else if (mmc_clock->cached_phase != -EINVAL &&
-		 event == POST_RATE_CHANGE)
+	} else if (mmc_clock->cached_phase != -EINVAL &&
+		 event == POST_RATE_CHANGE) {
 		rockchip_mmc_set_phase(&mmc_clock->hw, mmc_clock->cached_phase);
+	}
 
 	return NOTIFY_DONE;
 }
@@ -198,8 +201,9 @@ struct clk *rockchip_clk_register_mmc(const char *name,
 	int ret;
 
 	mmc_clock = kmalloc(sizeof(*mmc_clock), GFP_KERNEL);
-	if (!mmc_clock)
+	if (!mmc_clock) {
 		return ERR_PTR(-ENOMEM);
+	}
 
 	init.name = name;
 	init.flags = 0;
@@ -220,8 +224,9 @@ struct clk *rockchip_clk_register_mmc(const char *name,
 	mmc_clock->clk_rate_change_nb.notifier_call =
 				&rockchip_mmc_clk_rate_notify;
 	ret = clk_notifier_register(clk, &mmc_clock->clk_rate_change_nb);
-	if (ret)
+	if (ret != 0) {
 		goto err_notifier;
+	}
 
 	return clk;
 err_notifier:

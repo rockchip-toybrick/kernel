@@ -56,18 +56,19 @@ static struct clk *rockchip_clk_register_branch(const char *name,
 			     *gate_ops = NULL;
 	int ret;
 
-	if (num_parents > 1) {
+	if (num_parents > 1U) {
 		mux = kzalloc(sizeof(*mux), GFP_KERNEL);
-		if (!mux)
+		if (!mux) {
 			return ERR_PTR(-ENOMEM);
+		}
 
 		mux->reg = base + muxdiv_offset;
 		mux->shift = mux_shift;
-		mux->mask = BIT(mux_width) - 1;
+		mux->mask = BIT(mux_width) - 1U;
 		mux->flags = mux_flags;
 		mux->table = mux_table;
 		mux->lock = lock;
-		mux_ops = (mux_flags & CLK_MUX_READ_ONLY) ? &clk_mux_ro_ops
+		mux_ops = ((mux_flags & CLK_MUX_READ_ONLY) != 0U) ? &clk_mux_ro_ops
 							: &clk_mux_ops;
 	}
 
@@ -85,7 +86,7 @@ static struct clk *rockchip_clk_register_branch(const char *name,
 		gate_ops = &clk_gate_ops;
 	}
 
-	if (div_width > 0) {
+	if (div_width > 0U) {
 		div = kzalloc(sizeof(*div), GFP_KERNEL);
 		if (!div) {
 			ret = -ENOMEM;
@@ -93,24 +94,26 @@ static struct clk *rockchip_clk_register_branch(const char *name,
 		}
 
 		div->flags = div_flags;
-		if (div_offset)
+		if (div_offset != 0) {
 			div->reg = base + div_offset;
-		else
+		} else {
 			div->reg = base + muxdiv_offset;
+		}
 		div->shift = div_shift;
 		div->width = div_width;
 		div->lock = lock;
 		div->table = div_table;
-		div_ops = (div_flags & CLK_DIVIDER_READ_ONLY)
+		div_ops = ((div_flags & CLK_DIVIDER_READ_ONLY) != 0U)
 						? &clk_divider_ro_ops
 						: &clk_divider_ops;
 	}
-
+	//PRQA S 4443 ++
 	hw = clk_hw_register_composite(NULL, name, parent_names, num_parents,
-				       mux ? &mux->hw : NULL, mux_ops,
-				       div ? &div->hw : NULL, div_ops,
-				       gate ? &gate->hw : NULL, gate_ops,
+				       ((mux != NULL) ? &mux->hw : NULL), mux_ops,
+				       ((div != NULL) ? &div->hw : NULL), div_ops,
+				       ((gate != NULL) ? &gate->hw : NULL), gate_ops,
 				       flags);
+	//PRQA S 4443 ++
 	if (IS_ERR(hw)) {
 		kfree(div);
 		kfree(gate);
@@ -144,20 +147,17 @@ struct rockchip_clk_frac {
 static int rockchip_clk_frac_notifier_cb(struct notifier_block *nb,
 					 unsigned long event, void *data)
 {
-	struct clk_notifier_data *ndata = data;
 	struct rockchip_clk_frac *frac = to_rockchip_clk_frac_nb(nb);
 	struct clk_mux *frac_mux = &frac->mux;
 	int ret = 0;
 
-	pr_debug("%s: event %lu, old_rate %lu, new_rate: %lu\n",
-		 __func__, event, ndata->old_rate, ndata->new_rate);
 	if (event == PRE_RATE_CHANGE) {
 		frac->rate_change_idx =
 				frac->mux_ops->get_parent(&frac_mux->hw);
 		if (frac->rate_change_idx != frac->mux_frac_idx) {
 			frac->mux_ops->set_parent(&frac_mux->hw,
-						  frac->mux_frac_idx);
-			frac->rate_change_remuxed = 1;
+						  (u8)frac->mux_frac_idx);
+			frac->rate_change_remuxed = (bool)1;
 		}
 	} else if (event == POST_RATE_CHANGE) {
 		/*
@@ -168,9 +168,11 @@ static int rockchip_clk_frac_notifier_cb(struct notifier_block *nb,
 		 */
 		if (frac->rate_change_remuxed) {
 			frac->mux_ops->set_parent(&frac_mux->hw,
-						  frac->rate_change_idx);
-			frac->rate_change_remuxed = 0;
+						  (u8)frac->rate_change_idx);
+			frac->rate_change_remuxed = (bool)0;
 		}
+	} else {
+		return 0;
 	}
 
 	return notifier_from_errno(ret);
@@ -189,8 +191,8 @@ static void rockchip_fractional_approximation(struct clk_hw *hw,
 	struct clk_hw *p_parent;
 	unsigned long scale;
 
-	if (rate == 0) {
-		pr_warn("%s p_rate(%ld), rate(%ld), maybe invalid frequency setting!\n",
+	if (rate == 0U) {
+		CLK_LOG_WARN("%s p_rate(%ld), rate(%ld), maybe invalid frequency setting!\n",
 			clk_hw_get_name(hw), *parent_rate, rate);
 		*m = 0;
 		*n = 1;
@@ -198,7 +200,7 @@ static void rockchip_fractional_approximation(struct clk_hw *hw,
 	}
 
 	p_rate = clk_hw_get_rate(clk_hw_get_parent(hw));
-	if ((rate * 20 > p_rate) && (p_rate % rate != 0)) {
+	if (((rate * 20U) > p_rate) && ((p_rate % rate) != 0U)) {
 		p_parent = clk_hw_get_parent(clk_hw_get_parent(hw));
 		if (!p_parent) {
 			*parent_rate = p_rate;
@@ -207,22 +209,24 @@ static void rockchip_fractional_approximation(struct clk_hw *hw,
 			*parent_rate = p_parent_rate;
 		}
 
-		if (*parent_rate < rate * 20) {
+		if (*parent_rate < (rate * 20U)) {
 			/*
 			 * Fractional frequency divider to do
 			 * integer frequency divider does not
 			 * need 20 times the limit.
 			 */
-			if (!(*parent_rate % rate)) {
+			if ((*parent_rate % rate) == 0U) {
 				*m = 1;
 				*n = *parent_rate / rate;
 				return;
-			} else if (!(fd->flags & CLK_FRAC_DIVIDER_NO_LIMIT)) {
-				pr_warn("%s p_rate(%ld) is low than rate(%ld)*20, use integer or half-div\n",
+			} else if ((fd->flags & CLK_FRAC_DIVIDER_NO_LIMIT) == 0U) {
+				CLK_LOG_WARN("%s p_rate(%ld) is low than rate(%ld)*20, use integer or half-div\n",
 					clk_hw_get_name(hw),
 					*parent_rate, rate);
 				*m = 0;
 				*n = 1;
+				return;
+			} else {
 				return;
 			}
 		}
@@ -233,16 +237,17 @@ static void rockchip_fractional_approximation(struct clk_hw *hw,
 	 * for m and n. In the result it will be the nearest rate left shifted
 	 * by (scale - fd->nwidth) bits.
 	 */
-	if (*parent_rate == 0) {
-		pr_warn("%s p_rate(%ld), rate(%ld), maybe invalid frequency setting!\n",
+	if (*parent_rate == 0U) {
+		CLK_LOG_WARN("%s p_rate(%ld), rate(%ld), maybe invalid frequency setting!\n",
 			clk_hw_get_name(hw), *parent_rate, rate);
 		*m = 0;
 		*n = 1;
 		return;
 	}
-	scale = fls_long(*parent_rate / rate - 1);
-	if (scale > fd->nwidth)
+	scale = fls_long((*parent_rate / rate) - 1U);
+	if (scale > fd->nwidth) {
 		rate <<= scale - fd->nwidth;
+	}
 
 	rational_best_approximation(rate, *parent_rate,
 			GENMASK(fd->mwidth - 1, 0), GENMASK(fd->nwidth - 1, 0),
@@ -260,21 +265,23 @@ static struct clk *rockchip_clk_register_frac_branch(
 	struct clk_hw *hw;
 	struct rockchip_clk_frac *frac;
 	struct clk_gate *gate = NULL;
-	struct clk_fractional_divider *div = NULL;
-	const struct clk_ops *div_ops = NULL, *gate_ops = NULL;
+	struct clk_fractional_divider *div;
+	const struct clk_ops *div_ops, *gate_ops;
 
-	if (muxdiv_offset < 0)
+	if (muxdiv_offset < 0) {
 		return ERR_PTR(-EINVAL);
+	}
 
 	if (child && child->branch_type != branch_mux) {
-		pr_err("%s: fractional child clock for %s can only be a mux\n",
+		CLK_LOG_ERROR("%s: fractional child clock for %s can only be a mux\n",
 		       __func__, name);
 		return ERR_PTR(-EINVAL);
 	}
 
 	frac = kzalloc(sizeof(*frac), GFP_KERNEL);
-	if (!frac)
+	if (!frac) {
 		return ERR_PTR(-ENOMEM);
+	}
 
 	if (gate_offset >= 0) {
 		gate = &frac->gate;
@@ -301,7 +308,7 @@ static struct clk *rockchip_clk_register_frac_branch(
 	hw = clk_hw_register_composite(NULL, name, parent_names, num_parents,
 				       NULL, NULL,
 				       &div->hw, div_ops,
-				       gate ? &gate->hw : NULL, gate_ops,
+				       (gate != NULL) ? &gate->hw : NULL, gate_ops,
 				       flags | CLK_SET_RATE_UNGATE);
 	if (IS_ERR(hw)) {
 		kfree(frac);
@@ -323,8 +330,9 @@ static struct clk *rockchip_clk_register_frac_branch(
 		frac_mux->shift = child->mux_shift;
 		frac_mux->mask = BIT(child->mux_width) - 1;
 		frac_mux->flags = child->mux_flags;
-		if (child->mux_table)
+		if (child->mux_table) {
 			frac_mux->table = child->mux_table;
+		}
 		frac_mux->lock = lock;
 		frac_mux->hw.init = &init;
 
@@ -344,14 +352,13 @@ static struct clk *rockchip_clk_register_frac_branch(
 
 		/* notifier on the fraction divider to catch rate changes */
 		if (frac->mux_frac_idx >= 0) {
-			pr_debug("%s: found fractional parent in mux at pos %d\n",
-				 __func__, frac->mux_frac_idx);
 			ret = clk_notifier_register(hw->clk, &frac->clk_nb);
-			if (ret)
-				pr_err("%s: failed to register clock notifier for %s\n",
+			if (ret != 0) {
+				CLK_LOG_ERROR("%s: failed to register clock notifier for %s\n",
 						__func__, name);
+			}
 		} else {
-			pr_warn("%s: could not find %s as parent of %s, rate changes may not work\n",
+			CLK_LOG_WARN("%s: could not find %s as parent of %s, rate changes may not work\n",
 				__func__, name, child->name);
 		}
 	}
@@ -366,8 +373,8 @@ static struct clk *rockchip_clk_register_factor_branch(const char *name,
 		unsigned long flags, spinlock_t *lock)
 {
 	struct clk_hw *hw;
-	struct clk_gate *gate = NULL;
-	struct clk_fixed_factor *fix = NULL;
+	struct clk_gate *gate;
+	struct clk_fixed_factor *fix;
 
 	/* without gate, register a simple factor clock */
 	if (gate_offset == 0) {
@@ -377,8 +384,9 @@ static struct clk *rockchip_clk_register_factor_branch(const char *name,
 	}
 
 	gate = kzalloc(sizeof(*gate), GFP_KERNEL);
-	if (!gate)
+	if (!gate) {
 		return ERR_PTR(-ENOMEM);
+	}
 
 	gate->flags = gate_flags;
 	gate->reg = base + gate_offset;
@@ -416,19 +424,22 @@ struct rockchip_clk_provider *rockchip_clk_init(struct device_node *np,
 	int i;
 
 	ctx = kzalloc(sizeof(struct rockchip_clk_provider), GFP_KERNEL);
-	if (!ctx)
+	if (!ctx) {
 		return ERR_PTR(-ENOMEM);
+	}
 
 	clk_table = kcalloc(nr_clks, sizeof(struct clk *), GFP_KERNEL);
-	if (!clk_table)
+	if (!clk_table) {
 		goto err_free;
+	}
 
-	for (i = 0; i < nr_clks; ++i)
+	for (i = 0; i < (int)nr_clks; ++i) {
 		clk_table[i] = ERR_PTR(-ENOENT);
+	}
 
 	ctx->reg_base = base;
 	ctx->clk_data.clks = clk_table;
-	ctx->clk_data.clk_num = nr_clks;
+	ctx->clk_data.clk_num = (unsigned int)nr_clks;
 	ctx->cru_node = np;
 	spin_lock_init(&ctx->lock);
 
@@ -453,16 +464,18 @@ void rockchip_clk_of_add_provider(struct device_node *np,
 				  struct rockchip_clk_provider *ctx)
 {
 	if (of_clk_add_provider(np, of_clk_src_onecell_get,
-				&ctx->clk_data))
-		pr_err("%s: could not register clk provider\n", __func__);
+				&ctx->clk_data) != 0) {
+		CLK_LOG_ERROR("%s: could not register clk provider\n", __func__);
+	}
 }
 EXPORT_SYMBOL_GPL(rockchip_clk_of_add_provider);
 
 void rockchip_clk_add_lookup(struct rockchip_clk_provider *ctx,
 			     struct clk *clk, unsigned int id)
 {
-	if (ctx->clk_data.clks && id)
+	if (ctx->clk_data.clks && (id != 0U)) {
 		ctx->clk_data.clks[id] = clk;
+	}
 }
 EXPORT_SYMBOL_GPL(rockchip_clk_add_lookup);
 
@@ -473,7 +486,7 @@ void rockchip_clk_register_plls(struct rockchip_clk_provider *ctx,
 	struct clk *clk;
 	int idx;
 
-	for (idx = 0; idx < nr_pll; idx++, list++) {
+	for (idx = 0; idx < (int)nr_pll; idx++) {
 		clk = rockchip_clk_register_pll(ctx, list->type, list->name,
 				list->parent_names, list->num_parents,
 				list->con_offset, grf_lock_offset,
@@ -481,12 +494,13 @@ void rockchip_clk_register_plls(struct rockchip_clk_provider *ctx,
 				list->mode_shift, list->rate_table,
 				list->flags, list->pll_flags);
 		if (IS_ERR(clk)) {
-			pr_err("%s: failed to register clock %s\n", __func__,
+			CLK_LOG_ERROR("%s: failed to register clock %s\n", __func__,
 				list->name);
 			continue;
 		}
 
 		rockchip_clk_add_lookup(ctx, clk, list->id);
+		list++;
 	}
 }
 EXPORT_SYMBOL_GPL(rockchip_clk_register_plls);
@@ -499,29 +513,31 @@ void rockchip_clk_register_branches(struct rockchip_clk_provider *ctx,
 	unsigned int idx;
 	unsigned long flags;
 
-	for (idx = 0; idx < nr_clk; idx++, list++) {
+	for (idx = 0U; idx < nr_clk; idx++) {
 		flags = list->flags;
 
 		/* catch simple muxes */
 		switch (list->branch_type) {
 		case branch_mux:
-			if (list->mux_table)
+			if (list->mux_table) {
 				clk = clk_register_mux_table(NULL, list->name,
 					list->parent_names, list->num_parents,
 					flags,
 					ctx->reg_base + list->muxdiv_offset,
 					list->mux_shift,
-					BIT(list->mux_width) - 1,
+					(BIT(list->mux_width) - 1U),
 					list->mux_flags, list->mux_table,
 					&ctx->lock);
-			else
+			} else {
 				clk = clk_register_mux(NULL, list->name,
 					list->parent_names, list->num_parents,
 					flags,
 					ctx->reg_base + list->muxdiv_offset,
 					list->mux_shift, list->mux_width,
 					list->mux_flags, &ctx->lock);
+			}
 			break;
+#ifndef CONFIG_CLK_RK3588
 		case branch_muxgrf:
 			clk = rockchip_clk_register_muxgrf(list->name,
 				list->parent_names, list->num_parents,
@@ -536,8 +552,9 @@ void rockchip_clk_register_branches(struct rockchip_clk_provider *ctx,
 				list->mux_shift, list->mux_width,
 				list->mux_flags);
 			break;
+#endif
 		case branch_divider:
-			if (list->div_table)
+			if (list->div_table) {
 				clk = clk_register_divider_table(NULL,
 					list->name, list->parent_names[0],
 					flags,
@@ -545,12 +562,13 @@ void rockchip_clk_register_branches(struct rockchip_clk_provider *ctx,
 					list->div_shift, list->div_width,
 					list->div_flags, list->div_table,
 					&ctx->lock);
-			else
+			} else {
 				clk = clk_register_divider(NULL, list->name,
 					list->parent_names[0], flags,
 					ctx->reg_base + list->muxdiv_offset,
 					list->div_shift, list->div_width,
 					list->div_flags, &ctx->lock);
+			}
 			break;
 		case branch_fraction_divider:
 			clk = rockchip_clk_register_frac_branch(ctx, list->name,
@@ -561,6 +579,7 @@ void rockchip_clk_register_branches(struct rockchip_clk_provider *ctx,
 				list->gate_flags, flags, list->child,
 				&ctx->lock);
 			break;
+#ifndef CONFIG_CLK_RK3588
 		case branch_fraction_divider_v2:
 			clk = clk_register_fractional_divider_v2(NULL, list->name,
 				list->parent_names[0], flags,
@@ -571,6 +590,7 @@ void rockchip_clk_register_branches(struct rockchip_clk_provider *ctx,
 				list->div_flags,
 				&ctx->lock);
 			break;
+#endif
 		case branch_half_divider:
 			clk = rockchip_clk_register_halfdiv(list->name,
 				list->parent_names, list->num_parents,
@@ -644,22 +664,26 @@ void rockchip_clk_register_branches(struct rockchip_clk_provider *ctx,
 				list->div_width, list->div_flags,
 				ctx->reg_base);
 			break;
+		default:
+			clk = NULL;
+			break;	
 		}
 
 		/* none of the cases above matched */
 		if (!clk) {
-			pr_err("%s: unknown clock type %d\n",
+			CLK_LOG_ERROR("%s: unknown clock type %d\n",
 			       __func__, list->branch_type);
 			continue;
 		}
 
 		if (IS_ERR(clk)) {
-			pr_err("%s: failed to register clock %s: %ld\n",
+			CLK_LOG_ERROR("%s: failed to register clock %s: %ld\n",
 			       __func__, list->name, PTR_ERR(clk));
 			continue;
 		}
 
 		rockchip_clk_add_lookup(ctx, clk, list->id);
+ 		list++;
 	}
 }
 EXPORT_SYMBOL_GPL(rockchip_clk_register_branches);
@@ -680,7 +704,7 @@ void rockchip_clk_register_armclk(struct rockchip_clk_provider *ctx,
 					   reg_data, rates, nrates,
 					   ctx->reg_base, &ctx->lock);
 	if (IS_ERR(clk)) {
-		pr_err("%s: failed to register clock %s: %ld\n",
+		CLK_LOG_ERROR("%s: failed to register clock %s: %ld\n",
 		       __func__, name, PTR_ERR(clk));
 		return;
 	}
@@ -704,7 +728,7 @@ void rockchip_clk_register_armclk_v2(struct rockchip_clk_provider *ctx,
 					      list->div_width, list->div_flags,
 					      list->flags, &ctx->lock, rates, nrates);
 	if (IS_ERR(clk)) {
-		pr_err("%s: failed to register clock %s: %ld\n",
+		CLK_LOG_ERROR("%s: failed to register clock %s: %ld\n",
 		       __func__, list->name, PTR_ERR(clk));
 		return;
 	}
@@ -719,8 +743,9 @@ EXPORT_SYMBOL(rk_dump_cru);
 static int rk_clk_panic(struct notifier_block *this,
 			unsigned long ev, void *ptr)
 {
-	if (rk_dump_cru)
+	if (rk_dump_cru != NULL) {
 		rk_dump_cru();
+	}
 	return NOTIFY_DONE;
 }
 
@@ -734,8 +759,9 @@ static void (*cb_restart)(void);
 static int rockchip_restart_notify(struct notifier_block *this,
 				   unsigned long mode, void *cmd)
 {
-	if (cb_restart)
+	if (cb_restart != NULL) {
 		cb_restart();
+	}
 
 	writel(0xfdb9, rst_base + reg_restart);
 	return NOTIFY_DONE;
@@ -757,9 +783,10 @@ rockchip_register_restart_notifier(struct rockchip_clk_provider *ctx,
 	reg_restart = reg;
 	cb_restart = cb;
 	ret = register_restart_handler(&rockchip_restart_handler);
-	if (ret)
-		pr_err("%s: cannot register restart handler, %d\n",
+	if (ret != 0) {
+		CLK_LOG_ERROR("%s: cannot register restart handler, %d\n",
 		       __func__, ret);
+	}
 	atomic_notifier_chain_register(&panic_notifier_list,
 				       &rk_clk_panic_block);
 }
@@ -773,18 +800,20 @@ int rockchip_clk_protect(struct rockchip_clk_provider *ctx,
 			 unsigned int *clocks, unsigned int nclocks)
 {
 	struct clk *clk = NULL;
-	int i = 0;
+	int i;
 
-	if (protect_clocks || !ctx || !clocks || !ctx->clk_data.clks)
+	if (protect_clocks || !ctx || !clocks || !ctx->clk_data.clks) {
 		return 0;
+	}
 
 	protect_clocks = kcalloc(nclocks, sizeof(void *), GFP_KERNEL);
-	if (!protect_clocks)
+	if (!protect_clocks) {
 		return -ENOMEM;
+	}
 
 	for (i = 0; i < nclocks; i++) {
 		if (clocks[i] >= ctx->clk_data.clk_num) {
-			pr_err("%s: invalid clock id %u\n", __func__, clocks[i]);
+			CLK_LOG_ERROR("%s: invalid clock id %u\n", __func__, clocks[i]);
 			continue;
 		}
 		clk = ctx->clk_data.clks[clocks[i]];
