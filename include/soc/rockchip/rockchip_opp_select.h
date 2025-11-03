@@ -6,7 +6,7 @@
 #ifndef __SOC_ROCKCHIP_OPP_SELECT_H
 #define __SOC_ROCKCHIP_OPP_SELECT_H
 
-#define VOLT_RM_TABLE_END	~1
+#define VOLT_RM_TABLE_END	~1U
 
 /*
  * [0]:      set intermediate rate
@@ -86,14 +86,14 @@ struct rockchip_opp_info {
 #if IS_ENABLED(CONFIG_ROCKCHIP_OPP)
 int rockchip_of_get_leakage(struct device *dev, char *lkg_name, int *leakage);
 void rockchip_of_get_lkg_sel(struct device *dev, struct device_node *np,
-			     char *lkg_name, int process,
+			     const char *lkg_name, int process,
 			     int *volt_sel, int *scale_sel);
 void rockchip_pvtpll_calibrate_opp(struct rockchip_opp_info *info);
 void rockchip_pvtpll_add_length(struct rockchip_opp_info *info);
 int rockchip_pvtpll_set_volt_sel(struct rockchip_opp_info *info, int volt_sel);
 void rockchip_init_pvtpll_table(struct rockchip_opp_info *info, int bin);
 void rockchip_of_get_pvtm_sel(struct device *dev, struct device_node *np,
-			      char *reg_name, int bin, int process,
+			      const char *reg_name, int bin, int process,
 			      int *volt_sel, int *scale_sel);
 void rockchip_of_get_bin_sel(struct device *dev, struct device_node *np,
 			     int bin, int *scale_sel);
@@ -104,13 +104,13 @@ int rockchip_nvmem_cell_read_u8(struct device_node *np, const char *cell_id,
 int rockchip_nvmem_cell_read_u16(struct device_node *np, const char *cell_id,
 				 u16 *val);
 int rockchip_get_volt_rm_table(struct device *dev, struct device_node *np,
-			       char *porp_name, struct volt_rm_table **table);
+			       const char *porp_name, struct volt_rm_table **table);
 void rockchip_get_opp_data(const struct of_device_id *matches,
 			   struct rockchip_opp_info *info);
 int rockchip_get_soc_info(struct device *dev, struct device_node *np, int *bin,
 			  int *process);
-void rockchip_get_scale_volt_sel(struct device *dev, char *lkg_name,
-				 char *reg_name, int bin, int process,
+void rockchip_get_scale_volt_sel(struct device *dev, const char *lkg_name,
+				 const char *reg_name, int bin, int process,
 				 int *scale, int *volt_sel);
 struct opp_table *rockchip_set_opp_prop_name(struct device *dev, int process,
 					     int volt_sel);
@@ -126,7 +126,7 @@ int rockchip_set_read_margin(struct device *dev,
 			     bool is_set_rm);
 int rockchip_init_read_margin(struct device *dev,
 			      struct rockchip_opp_info *opp_info,
-			      char *reg_name);
+			      const char *reg_name);
 int rockchip_set_intermediate_rate(struct device *dev,
 				   struct rockchip_opp_info *opp_info,
 				   struct clk *clk, unsigned long old_freq,
