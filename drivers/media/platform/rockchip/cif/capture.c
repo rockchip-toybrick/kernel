@@ -6369,6 +6369,7 @@ void rkcif_do_stop_stream(struct rkcif_stream *stream,
 				for (i = 0; i < capture_info->multi_dev.dev_num - 1; i++)
 					dev->other_intstat[i] = 0;
 			}
+			can_reset = true;
 		}
 		if (dev->can_be_reset && can_reset) {
 			dev->can_be_reset = false;
