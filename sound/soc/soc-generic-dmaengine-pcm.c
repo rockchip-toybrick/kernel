@@ -15,6 +15,7 @@
 
 #include <sound/dmaengine_pcm.h>
 
+#define DMA_ROUTE_BUFFER_SIZE      64
 static unsigned int prealloc_buffer_size_kbytes = 512;
 module_param(prealloc_buffer_size_kbytes, uint, 0444);
 MODULE_PARM_DESC(prealloc_buffer_size_kbytes, "Preallocate DMA buffer size (KB).");
@@ -228,6 +229,125 @@ static bool dmaengine_pcm_can_report_residue(struct device *dev,
 	return true;
 }
 
+static void dmaengine_pcm_dma_complete_route(void *arg)
+{
+
+}
+
+int dmaengine_pcm_dma_route_ctrl(struct snd_soc_component *component,
+				  int stream, bool en)
+{
+	struct dmaengine_pcm *pcm = soc_component_to_pcm(component);
+	struct dmaengine_dma_route *route_dma;
+	struct dma_chan *chan;
+	struct dma_async_tx_descriptor *desc;
+	enum dma_transfer_direction direction;
+	int ret;
+
+	if (stream < SNDRV_PCM_STREAM_PLAYBACK  || stream > SNDRV_PCM_STREAM_CAPTURE)
+		return -EINVAL;
+
+	if (stream == SNDRV_PCM_STREAM_PLAYBACK)
+		route_dma = &pcm->route_dma[SNDRV_PCM_STREAM_CAPTURE];
+	else
+		route_dma = &pcm->route_dma[stream];
+
+	chan = pcm->chan[stream];
+	if (!chan) {
+		dev_err(component->dev, "DMA channel for stream %d is NULL\n", stream);
+		return 0;
+	}
+
+	if (!en)
+		return dmaengine_terminate_async(chan);
+
+	pr_debug("%s: dma_addr=0x%lx, buffer_size=%d, chan %p, stream %d\n",
+				__func__,
+				(unsigned long)route_dma->dma_addr, DMA_ROUTE_BUFFER_SIZE,
+				chan, stream);
+
+	direction = stream ? DMA_DEV_TO_MEM : DMA_MEM_TO_DEV;
+
+	desc = dmaengine_prep_dma_cyclic(chan, route_dma->dma_addr,
+					 DMA_ROUTE_BUFFER_SIZE,
+					 DMA_ROUTE_BUFFER_SIZE,
+					 direction,
+					 DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+	if (!desc) {
+		dev_err(component->dev, "Failed to get dma desc\n");
+		return -ENOMEM;
+	}
+
+	desc->callback = dmaengine_pcm_dma_complete_route;
+	desc->callback_param = NULL;
+	ret = dmaengine_submit(desc);
+	if (ret < 0) {
+		dev_err(component->dev, "DMA submission error: %d\n", ret);
+		return -ENOMEM;
+	}
+	dma_async_issue_pending(chan);
+
+	return 0;
+}
+
+static int dmaengine_pcm_dma_route_new(struct snd_soc_component *component,
+					struct snd_soc_pcm_runtime *rtd)
+{
+	struct dmaengine_pcm *pcm = soc_component_to_pcm(component);
+	struct snd_dmaengine_dai_dma_data *dma_data;
+	struct snd_pcm_substream *substream;
+	struct dma_chan *chan;
+	struct dma_slave_config slave_config;
+	struct device *dev;
+	dma_addr_t dma_addr;
+	unsigned char *dma_area;
+	unsigned int i;
+	int ret;
+
+	for_each_pcm_streams(i) {
+		substream = rtd->pcm->streams[i].substream;
+		if (!substream)
+			continue;
+		dev = dmaengine_dma_dev(pcm, substream);
+		chan = pcm->chan[i];
+
+		dma_area = dma_alloc_coherent(dev, DMA_ROUTE_BUFFER_SIZE,
+					      &dma_addr, GFP_KERNEL);
+		if (!dma_area)
+			return -ENOMEM;
+
+		memset(dma_area, 0x0, DMA_ROUTE_BUFFER_SIZE);
+
+		pcm->route_dma[i].dma_addr = dma_addr;
+		pcm->route_dma[i].dma_area = dma_area;
+
+		memset(&slave_config, 0, sizeof(slave_config));
+
+		dma_data = snd_soc_dai_get_dma_data(asoc_rtd_to_cpu(rtd, 0),
+						    substream);
+		snd_dmaengine_pcm_set_config_from_dai_data(substream, dma_data,
+							   &slave_config);
+
+		/*
+		 * Use the max-16w to cover all 2^n cases, maybe better
+		 * per channels and fmt, at the moment, we use the simple
+		 * way.
+		 */
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			slave_config.direction = DMA_MEM_TO_DEV;
+			slave_config.dst_maxburst = 16;
+		} else {
+			slave_config.direction = DMA_DEV_TO_MEM;
+			slave_config.src_maxburst = 16;
+		}
+
+		ret = dmaengine_slave_config(chan, &slave_config);
+		if (ret)
+			return ret;
+	}
+	return 0;
+}
+
 static int dmaengine_pcm_new(struct snd_soc_component *component,
 			     struct snd_soc_pcm_runtime *rtd)
 {
@@ -238,6 +358,7 @@ static int dmaengine_pcm_new(struct snd_soc_component *component,
 	size_t prealloc_buffer_size;
 	size_t max_buffer_size;
 	unsigned int i;
+	int ret;
 
 	if (config && config->prealloc_buffer_size) {
 		prealloc_buffer_size = config->prealloc_buffer_size;
@@ -246,6 +367,9 @@ static int dmaengine_pcm_new(struct snd_soc_component *component,
 		prealloc_buffer_size = prealloc_buffer_size_kbytes * 1024;
 		max_buffer_size = SIZE_MAX;
 	}
+	ret = dmaengine_pcm_dma_route_new(component, rtd);
+	if (ret!=0)
+		return ret;
 
 	for_each_pcm_streams(i) {
 		substream = rtd->pcm->streams[i].substream;

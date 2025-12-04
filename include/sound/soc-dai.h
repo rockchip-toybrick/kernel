@@ -410,6 +410,13 @@ struct snd_soc_dapm_widget *snd_soc_dai_get_widget(
 		dai->playback_widget : dai->capture_widget;
 }
 
+static inline void *snd_soc_dai_get_dma_data_route(const struct snd_soc_dai *dai,
+						const int stream)
+{
+	return (stream == SNDRV_PCM_STREAM_PLAYBACK) ?
+		dai->playback_dma_data : dai->capture_dma_data;
+}
+
 static inline void *snd_soc_dai_get_dma_data(const struct snd_soc_dai *dai,
 					     const struct snd_pcm_substream *ss)
 {

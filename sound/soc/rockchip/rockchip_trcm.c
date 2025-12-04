@@ -21,22 +21,15 @@
 #include "rockchip_trcm.h"
 
 #define DMA_GUARD_BUFFER_SIZE		64
+#define DMA_ROUTE_BUFFER_SIZE		2048
 
 static unsigned int prealloc_buffer_size_kbytes = 512;
 module_param(prealloc_buffer_size_kbytes, uint, 0444);
 MODULE_PARM_DESC(prealloc_buffer_size_kbytes, "Preallocate DMA buffer size (KB).");
 
-struct dmaengine_dma_guard {
-	dma_addr_t dma_addr;
-	unsigned char *dma_area;
-};
-
-struct dmaengine_trcm {
-	struct device *dev;
-	struct dma_chan *chan[SNDRV_PCM_STREAM_LAST + 1];
-	struct dmaengine_dma_guard guard[SNDRV_PCM_STREAM_LAST + 1];
-	struct snd_soc_component component;
-	bool always_on;
+struct dma_route_callback_data {
+	struct dmaengine_trcm *trcm;
+	int stream;
 };
 
 struct dmaengine_trcm_runtime_data {
@@ -67,7 +60,7 @@ static inline snd_pcm_sframes_t trcm_bytes_to_frames(struct dmaengine_trcm_runti
 	return size / prtd->frame_bytes;
 }
 
-static inline struct dmaengine_trcm *soc_component_to_trcm(struct snd_soc_component *p)
+inline struct dmaengine_trcm *soc_component_to_trcm(struct snd_soc_component *p)
 {
 	return container_of(p, struct dmaengine_trcm, component);
 }
@@ -260,6 +253,85 @@ static int dmaengine_trcm_prepare_and_submit(struct snd_pcm_substream *substream
 	return 0;
 }
 
+static void dmaengine_trcm_dma_complete_route(void *arg)
+{
+
+}
+
+int dmaengine_trcm_dma_route_ctrl(struct snd_soc_component *component,
+				  int stream, bool en)
+{
+	struct dmaengine_trcm *trcm = soc_component_to_trcm(component);
+	struct dmaengine_dma_route *route_dma;
+	struct dma_chan *chan;
+	struct dma_async_tx_descriptor *desc;
+	enum dma_transfer_direction direction;
+	struct dma_route_callback_data *cb_data = kmalloc(sizeof(*cb_data), GFP_KERNEL);
+	int ret;
+
+	if (stream < SNDRV_PCM_STREAM_PLAYBACK  || stream > SNDRV_PCM_STREAM_CAPTURE)
+		return -EINVAL;
+
+	if (!cb_data)
+		return -ENOMEM;
+
+	cb_data->trcm = trcm;
+	cb_data->stream = stream;
+	chan = trcm->chan[stream];
+
+	if (!chan) {
+		kfree(cb_data);
+		dev_err(component->dev, "DMA channel for stream %d is NULL\n", stream);
+		return -ENODEV;
+	}
+
+	if (stream == SNDRV_PCM_STREAM_PLAYBACK)
+		route_dma = &trcm->route_dma[SNDRV_PCM_STREAM_CAPTURE];
+	else
+		route_dma = &trcm->route_dma[stream];
+
+	if (!en) {
+		kfree(cb_data);
+		return dmaengine_terminate_async(chan);
+	}
+
+	ret = dmaengine_terminate_async(chan);
+	if (ret < 0) {
+		kfree(cb_data);
+		pr_err("DMA terminate fail");
+		return -ENODEV;
+	}
+
+	pr_debug("%s: dma_addr=0x%lx, buffer_size=%d, chan %p, stream %d\n",
+			__func__,
+			(unsigned long)route_dma->dma_addr,
+			DMA_ROUTE_BUFFER_SIZE,
+			chan, stream);
+	direction = stream ? DMA_DEV_TO_MEM : DMA_MEM_TO_DEV;
+
+	desc = dmaengine_prep_dma_cyclic(chan, route_dma->dma_addr,
+					 DMA_ROUTE_BUFFER_SIZE,
+					 DMA_ROUTE_BUFFER_SIZE,
+					 direction,
+					 DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+	if (!desc) {
+		kfree(cb_data);
+		dev_err(component->dev, "Failed to get dma desc\n");
+		return -ENOMEM;
+	}
+
+	desc->callback = dmaengine_trcm_dma_complete_route;
+	desc->callback_param = cb_data;
+	ret = dmaengine_submit(desc);
+	if (ret < 0) {
+		dev_err(component->dev, "DMA submission error: %d\n", ret);
+		return -ENOMEM;
+	}
+	dma_async_issue_pending(chan);
+
+	return 0;
+}
+
 int dmaengine_trcm_dma_guard_ctrl(struct snd_soc_component *component,
 				  int stream, bool en)
 {
@@ -347,6 +419,48 @@ static int dmaengine_trcm_trigger(struct snd_soc_component *component,
 	return 0;
 }
 
+
+static int dmaengine_trcm_dma_route_new(struct snd_soc_component *component,
+					struct snd_soc_pcm_runtime *rtd)
+{
+	struct dmaengine_trcm *trcm = soc_component_to_trcm(component);
+	//struct snd_dmaengine_dai_dma_data *dma_data;
+	struct snd_pcm_substream *substream;
+	//struct snd_soc_dai *dai;
+	struct dma_chan *chan;
+	//struct dma_slave_config slave_config;
+	struct device *dev;
+	dma_addr_t dma_addr;
+	unsigned char *dma_area;
+
+	unsigned int i;
+	//int ret;
+
+	for_each_pcm_streams(i) {
+		substream = rtd->pcm->streams[i].substream;
+		if (!substream)
+			continue;
+		dev = dmaengine_dma_dev(trcm, substream);
+		chan = trcm->chan[i];
+
+		dma_area = dma_alloc_coherent(dev, DMA_ROUTE_BUFFER_SIZE,
+					      &dma_addr, GFP_KERNEL);
+		if (!dma_area)
+			return -ENOMEM;
+
+		memset(dma_area, 0x0, DMA_ROUTE_BUFFER_SIZE);
+
+		trcm->route_dma[i].dma_addr = dma_addr;
+		trcm->route_dma[i].dma_area = dma_area;
+		pr_debug("%s: dma_addr=0x%lx, buffer_size=%d, chan %p, stream %d\n",
+						__func__,
+						(unsigned long)dma_addr, DMA_ROUTE_BUFFER_SIZE,
+						chan, substream->stream);
+	}
+
+	return 0;
+}
+
 static int dmaengine_trcm_dma_guard_new(struct snd_soc_component *component,
 					struct snd_soc_pcm_runtime *rtd)
 {
@@ -378,7 +492,10 @@ static int dmaengine_trcm_dma_guard_new(struct snd_soc_component *component,
 
 		trcm->guard[i].dma_addr = dma_addr;
 		trcm->guard[i].dma_area = dma_area;
-
+		pr_debug("%s: dma_addr=0x%lx, buffer_size=%d, chan %p, stream %d\n",
+						__func__,
+						(unsigned long)dma_addr, DMA_GUARD_BUFFER_SIZE,
+						chan, substream->stream);
 		memset(&slave_config, 0, sizeof(slave_config));
 
 		dma_data = snd_soc_dai_get_dma_data(asoc_rtd_to_cpu(rtd, 0),
@@ -440,6 +557,10 @@ static int dmaengine_trcm_new(struct snd_soc_component *component,
 	max_buffer_size = SIZE_MAX;
 
 	ret = dmaengine_trcm_dma_guard_new(component, rtd);
+	if (ret)
+		return ret;
+
+	ret = dmaengine_trcm_dma_route_new(component, rtd);
 	if (ret)
 		return ret;
 

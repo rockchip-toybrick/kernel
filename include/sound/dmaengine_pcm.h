@@ -167,8 +167,14 @@ int snd_dmaengine_pcm_prepare_slave_config(struct snd_pcm_substream *substream,
 
 #define SND_DMAENGINE_PCM_DRV_NAME "snd_dmaengine_pcm"
 
+struct dmaengine_dma_route {
+	dma_addr_t dma_addr;
+	unsigned char *dma_area;
+};
+
 struct dmaengine_pcm {
 	struct dma_chan *chan[SNDRV_PCM_STREAM_LAST + 1];
+	struct dmaengine_dma_route route_dma[SNDRV_PCM_STREAM_LAST + 1];
 	const struct snd_dmaengine_pcm_config *config;
 	struct snd_soc_component component;
 	unsigned int flags;
@@ -178,4 +184,6 @@ static inline struct dmaengine_pcm *soc_component_to_pcm(struct snd_soc_componen
 {
 	return container_of(p, struct dmaengine_pcm, component);
 }
+
+int dmaengine_pcm_dma_route_ctrl(struct snd_soc_component *component, int stream, bool en);
 #endif
