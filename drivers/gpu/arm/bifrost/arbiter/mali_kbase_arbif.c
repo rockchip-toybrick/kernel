@@ -108,7 +108,6 @@ static void on_gpu_stop(struct device *dev)
 	}
 
 	KBASE_TLSTREAM_TL_ARBITER_STOP_REQUESTED(kbdev, kbdev);
-	KBASE_KTRACE_ADD(kbdev, ARB_GPU_STOP_REQUESTED, NULL, 0);
 	kbase_arbiter_pm_vm_event(kbdev, KBASE_VM_GPU_STOP_EVT);
 }
 
@@ -134,7 +133,6 @@ static void on_gpu_granted(struct device *dev)
 	}
 
 	KBASE_TLSTREAM_TL_ARBITER_GRANTED(kbdev, kbdev);
-	KBASE_KTRACE_ADD(kbdev, ARB_GPU_GRANTED, NULL, 0);
 	kbase_arbiter_pm_vm_event(kbdev, KBASE_VM_GPU_GRANTED_EVT);
 }
 
@@ -158,8 +156,7 @@ static void on_gpu_lost(struct device *dev)
 		dev_err(dev, "%s(): kbdev is NULL", __func__);
 		return;
 	}
-	KBASE_TLSTREAM_TL_ARBITER_LOST(kbdev, kbdev);
-	KBASE_KTRACE_ADD(kbdev, ARB_GPU_LOST, NULL, 0);
+
 	kbase_arbiter_pm_vm_event(kbdev, KBASE_VM_GPU_LOST_EVT);
 }
 
@@ -181,7 +178,7 @@ static int kbase_arbif_of_init(struct kbase_device *kbdev)
 	if (!arbiter_if_node)
 		arbiter_if_node = of_parse_phandle(kbdev->dev->of_node, "arbiter_if", 0);
 	if (!arbiter_if_node) {
-		dev_dbg(kbdev->dev, "No arbiter_if in Device Tree");
+		dev_dbg(kbdev->dev, "No arbiter_if in Device Tree\n");
 		/* no arbiter interface defined in device tree */
 		kbdev->arb.arb_dev = NULL;
 		kbdev->arb.arb_if = NULL;
@@ -190,19 +187,19 @@ static int kbase_arbif_of_init(struct kbase_device *kbdev)
 
 	pdev = of_find_device_by_node(arbiter_if_node);
 	if (!pdev) {
-		dev_err(kbdev->dev, "Failed to find arbiter_if device");
+		dev_err(kbdev->dev, "Failed to find arbiter_if device\n");
 		return -EPROBE_DEFER;
 	}
 
 	if (!pdev->dev.driver || !try_module_get(pdev->dev.driver->owner)) {
-		dev_err(kbdev->dev, "arbiter_if driver not available");
+		dev_err(kbdev->dev, "arbiter_if driver not available\n");
 		put_device(&pdev->dev);
 		return -EPROBE_DEFER;
 	}
 	kbdev->arb.arb_dev = &pdev->dev;
 	arb_if = platform_get_drvdata(pdev);
 	if (!arb_if) {
-		dev_err(kbdev->dev, "arbiter_if driver not ready");
+		dev_err(kbdev->dev, "arbiter_if driver not ready\n");
 		module_put(pdev->dev.driver->owner);
 		put_device(&pdev->dev);
 		return -EPROBE_DEFER;
@@ -246,10 +243,6 @@ int kbase_arbif_init(struct kbase_device *kbdev)
 	/* Tries to init with 'arbiter-if' if present in devicetree */
 	err = kbase_arbif_of_init(kbdev);
 
-	if (err == -ENODEV) {
-		/* devicetree does not support arbitration */
-		return -EPERM;
-	}
 
 	if (err)
 		return err;
@@ -267,19 +260,19 @@ int kbase_arbif_init(struct kbase_device *kbdev)
 	arb_if = kbdev->arb.arb_if;
 
 	if (arb_if == NULL) {
-		dev_err(kbdev->dev, "No arbiter interface present");
+		dev_err(kbdev->dev, "No arbiter interface present\n");
 		goto failure_term;
 	}
 
 	if (!arb_if->vm_ops.vm_arb_register_dev) {
-		dev_err(kbdev->dev, "arbiter_if registration callback not present");
+		dev_err(kbdev->dev, "arbiter_if registration callback not present\n");
 		goto failure_term;
 	}
 
 	/* register kbase arbiter_if callbacks */
 	err = arb_if->vm_ops.vm_arb_register_dev(arb_if, kbdev->dev, &ops);
 	if (err) {
-		dev_err(kbdev->dev, "Failed to register with arbiter. (err = %d)", err);
+		dev_err(kbdev->dev, "Failed to register with arbiter. (err = %d)\n", err);
 		goto failure_term;
 	}
 
@@ -340,7 +333,6 @@ void kbase_arbif_gpu_request(struct kbase_device *kbdev)
 
 	if (arb_if && arb_if->vm_ops.vm_arb_gpu_request) {
 		KBASE_TLSTREAM_TL_ARBITER_REQUESTED(kbdev, kbdev);
-		KBASE_KTRACE_ADD(kbdev, ARB_GPU_REQUESTED, NULL, 0);
 		arb_if->vm_ops.vm_arb_gpu_request(arb_if);
 	}
 }
@@ -357,11 +349,8 @@ void kbase_arbif_gpu_stopped(struct kbase_device *kbdev, u8 gpu_required)
 
 	if (arb_if && arb_if->vm_ops.vm_arb_gpu_stopped) {
 		KBASE_TLSTREAM_TL_ARBITER_STOPPED(kbdev, kbdev);
-		KBASE_KTRACE_ADD(kbdev, ARB_GPU_STOPPED, NULL, 0);
-		if (gpu_required) {
+		if (gpu_required)
 			KBASE_TLSTREAM_TL_ARBITER_REQUESTED(kbdev, kbdev);
-			KBASE_KTRACE_ADD(kbdev, ARB_GPU_REQUESTED, NULL, 0);
-		}
 		arb_if->vm_ops.vm_arb_gpu_stopped(arb_if, gpu_required);
 	}
 }
