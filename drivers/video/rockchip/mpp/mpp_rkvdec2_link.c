@@ -732,6 +732,8 @@ static void rkvdec2_link_free_task(struct kref *ref)
 	}
 	mpp = session->mpp;
 	list_del_init(&task->queue_link);
+	if (cancel_delayed_work_sync(&task->timeout_work) != true)
+		mpp_err("timeout already executed");
 
 	rkvdec2_free_task(session, task);
 	/* Decrease reference count */

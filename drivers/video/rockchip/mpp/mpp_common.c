@@ -520,6 +520,8 @@ void mpp_free_task(struct kref *ref)
 		       session->device_type, session->index, task->task_index,
 		       task->state, atomic_read(&task->abort_request));
 
+	if (cancel_delayed_work_sync(&task->timeout_work) != true)
+		mpp_err("timeout already executed");
 	mpp = mpp_get_task_used_device(task, session);
 	if (mpp->dev_ops->free_task)
 		mpp->dev_ops->free_task(session, task);
