@@ -37,7 +37,7 @@
 /*define elan device name*/
 #define ELAN_TS_NAME "elan_ts"
 
-#define MIN(x,y) ((((x) - (y)) < 0) ? (x) : (y))
+//#define MIN(x,y) ((((x) - (y)) < 0) ? (x) : (y))
 #define FLASH_PAGE_PER_TIMES	(30)
 #define FW_PAGE_SIZE			(132)
 #define IAP_CMD_HEADER_LEN		(9)
