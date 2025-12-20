@@ -285,8 +285,10 @@ loop:
 	cur_trans = fs_info->running_transaction;
 	if (cur_trans) {
 		if (TRANS_ABORTED(cur_trans)) {
+			const int abort_error = cur_trans->aborted;
+
 			spin_unlock(&fs_info->trans_lock);
-			return cur_trans->aborted;
+			return abort_error;
 		}
 		if (btrfs_blocked_trans_types[cur_trans->state] & type) {
 			spin_unlock(&fs_info->trans_lock);
@@ -1648,8 +1650,6 @@ static noinline int create_pending_snapshot(struct btrfs_trans_handle *trans,
 		goto fail;
 	}
 
-	btrfs_set_lock_blocking_write(old);
-
 	ret = btrfs_copy_root(trans, root, old, &tmp, objectid);
 	/* clean up in any case */
 	btrfs_tree_unlock(old);
@@ -1660,7 +1660,7 @@ static noinline int create_pending_snapshot(struct btrfs_trans_handle *trans,
 	}
 	/* see comments in should_cow_block() */
 	set_bit(BTRFS_ROOT_FORCE_COW, &root->state);
-	smp_wmb();
+	smp_mb__after_atomic();
 
 	btrfs_set_root_node(new_root_item, tmp);
 	/* record when the snapshot was created in key.offset */
@@ -2045,7 +2045,7 @@ static inline int btrfs_start_delalloc_flush(struct btrfs_trans_handle *trans)
 		list_for_each_entry(pending, head, list) {
 			int ret;
 
-			ret = btrfs_start_delalloc_snapshot(pending->root);
+			ret = btrfs_start_delalloc_snapshot(pending->root, false);
 			if (ret)
 				return ret;
 		}

@@ -1500,7 +1500,7 @@ static struct xol_area *__create_xol_area(unsigned long vaddr)
 
 	area->xol_mapping.name = "[uprobes]";
 	area->xol_mapping.pages = area->pages;
-	area->pages[0] = alloc_page(GFP_HIGHUSER);
+	area->pages[0] = alloc_page(GFP_HIGHUSER | __GFP_ZERO);
 	if (!area->pages[0])
 		goto free_bitmap;
 	area->pages[1] = NULL;
@@ -2245,6 +2245,13 @@ static void handle_swbp(struct pt_regs *regs)
 		goto out;
 
 	handler_chain(uprobe, regs);
+
+	/*
+	 * If user decided to take execution elsewhere, it makes little sense
+	 * to execute the original instruction, so let's skip it.
+	 */
+	if (instruction_pointer(regs) != bp_vaddr)
+		goto out;
 
 	if (arch_uprobe_skip_sstep(&uprobe->arch, regs))
 		goto out;
