@@ -163,6 +163,8 @@ int px30_workaround_combo_init(struct mpp_dev *mpp)
 		void __iomem *base;
 
 		iommu = devm_kzalloc(mpp->srv->dev, sizeof(*iommu), GFP_KERNEL);
+		if (!iommu)
+			return -ENOMEM;
 		for (i = 0; i < pdev->num_resources; i++) {
 			res = platform_get_resource(pdev, IORESOURCE_MEM, i);
 			if (!res)
