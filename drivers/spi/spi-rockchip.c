@@ -18,6 +18,9 @@
 #include <linux/spi/spi.h>
 #include <linux/pm_runtime.h>
 #include <linux/scatterlist.h>
+#include <linux/ioctl.h>
+#include <linux/uaccess.h>
+#include <uapi/linux/rk-spi.h>
 
 #define DRIVER_NAME "rockchip-spi"
 
@@ -908,6 +911,35 @@ static int rockchip_spi_setup(struct spi_device *spi)
 	return 0;
 }
 
+static long rockchip_spi_misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	struct miscdevice *misc = filp->private_data;
+	struct spi_controller *ctlr = dev_get_drvdata(misc->parent);
+	struct rockchip_spi *rs = spi_controller_get_devdata(ctlr);
+	u32 rsd_value;
+
+	switch (cmd) {
+	case ROCKCHIP_SPI_SET_RSD:
+		if (get_user(rsd_value, (u32 __user *)arg))
+			return -EFAULT;
+
+		if (rsd_value > CR0_RSD_MAX) {
+			dev_warn(rs->dev, "Invalid RSD value %u, max is %u\n",
+				rsd_value, CR0_RSD_MAX);
+			return -EINVAL;
+		}
+
+		rs->rsd = (u8)rsd_value;
+		break;
+
+	default:
+		dev_warn(rs->dev, "Unknown ioctl command: 0x%x\n", cmd);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int rockchip_spi_misc_open(struct inode *inode, struct file *filp)
 {
 	struct miscdevice *misc = filp->private_data;
@@ -960,7 +992,44 @@ static const struct file_operations rockchip_spi_misc_fops = {
 	.open		= rockchip_spi_misc_open,
 	.release	= rockchip_spi_misc_release,
 	.mmap		= rockchip_spi_mmap,
+	.unlocked_ioctl = rockchip_spi_misc_ioctl,
+	.compat_ioctl	= compat_ptr_ioctl,
 };
+
+static ssize_t rsd_show(struct device *dev,
+						struct device_attribute *attr, char *buf)
+{
+	struct spi_controller *ctlr = dev_get_drvdata(dev);
+	struct rockchip_spi *rs = spi_controller_get_devdata(ctlr);
+	u32 cr0;
+
+	pm_runtime_get_sync(rs->dev);
+	cr0 = readl_relaxed(rs->regs + ROCKCHIP_SPI_CTRLR0);
+	dev_info(dev, "ROCKCHIP_SPI_CTRLR0 0x%x\n", cr0);
+	pm_runtime_put(rs->dev);
+
+	return snprintf(buf, sizeof(buf), "%u\n", rs->rsd);
+}
+
+static ssize_t rsd_store(struct device *dev,
+						struct device_attribute *attr,
+						const char *buf, size_t count)
+{
+	struct spi_controller *ctlr = dev_get_drvdata(dev);
+	struct rockchip_spi *rs = spi_controller_get_devdata(ctlr);
+	unsigned long val;
+
+	if (kstrtoul(buf, 0, &val) < 0)
+		return -EINVAL;
+
+	if (val > 3)
+		val = 0;
+
+	rs->rsd = (u8)val;
+	return count;
+}
+
+static DEVICE_ATTR_RW(rsd);
 
 static int rockchip_spi_probe(struct platform_device *pdev)
 {
@@ -1237,6 +1306,10 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 
 	dev_info(rs->dev, "probed, poll=%d, rsd=%d, cs-inactive=%d, ready=%d\n",
 		 rs->poll, rs->rsd, rs->cs_inactive, rs->ready ? 1 : 0);
+
+	ret = device_create_file(&pdev->dev, &dev_attr_rsd);
+	if (ret)
+		dev_err(&pdev->dev, "cannot create rsd attribute\n");
 
 	return 0;
 
