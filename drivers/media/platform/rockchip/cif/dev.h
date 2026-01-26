@@ -665,6 +665,7 @@ struct rkcif_stream {
 	bool				is_fb_first_frame;
 	bool				is_pause_stream;
 	bool				is_hold_stream_off;
+	bool				is_detect_lack_buf;
 };
 
 struct rkcif_lvds_subdev {
