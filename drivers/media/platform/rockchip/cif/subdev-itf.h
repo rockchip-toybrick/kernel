@@ -29,6 +29,7 @@
 #define TOISP_CH_MAX 3
 
 #define SDITF_PIXEL_RATE_MAX (1000000000)
+#define SDITF_FREE_BUF_DELAY (2)
 
 struct capture_info {
 	unsigned int offset_x;
@@ -125,9 +126,11 @@ struct sditf_priv {
 	u32 cur_gain;
 	int one_to_multi_id;
 	u32 hdr_wrap_line;
+	int free_buf_delay_cnt;
 	bool is_toisp_off;
 	bool is_buf_init;
 	bool is_multi_online;
+	bool is_free_thunderboot_buf;
 };
 
 extern struct platform_driver rkcif_subdev_driver;

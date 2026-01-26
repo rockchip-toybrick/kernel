@@ -11064,8 +11064,6 @@ static void rkcif_line_wake_up_rdbk(struct rkcif_stream *stream, int mipi_id)
 		if (stream->cifdev->is_thunderboot &&
 		    (stream->frame_idx - 1) == stream->last_rx_buf_idx &&
 		     stream->cifdev->is_rdbk_to_online) {
-			stream->cur_stream_mode &= ~RKCIF_STREAM_MODE_TOISP_RDBK;
-			stream->cur_stream_mode |= RKCIF_STREAM_MODE_TOISP;
 			stream->cifdev->wait_line = 0;
 			v4l2_dbg(3, rkcif_debug, &stream->cifdev->v4l2_dev,
 				 "stream[%d] frame_idx %d, last_rx_buf_idx %d cur dma buf %x,  change to online\n",
@@ -12970,6 +12968,65 @@ static int rkcif_get_sof_and_exp_info(struct rkcif_device *cif_dev,
 	return 0;
 }
 
+static void rkcif_release_unnecessary_buf_for_online(struct rkcif_stream *stream,
+						     struct rkcif_rx_buffer *buf)
+{
+	struct rkcif_device *dev = stream->cifdev;
+	struct sditf_priv *priv = dev->sditf[0];
+	struct rkcif_rx_buffer *rx_buf = NULL;
+	unsigned long flags;
+	int i = 0;
+
+	spin_lock_irqsave(&stream->vbq_lock, flags);
+	if (!buf)
+		buf = stream->last_buf_toisp;
+	stream->curr_buf_toisp = NULL;
+	stream->next_buf_toisp = NULL;
+	INIT_LIST_HEAD(&stream->rx_buf_head);
+	spin_unlock_irqrestore(&stream->vbq_lock, flags);
+	spin_lock_irqsave(&priv->cif_dev->buffree_lock, flags);
+	for (i = 0; i < stream->rx_buf_num; i++) {
+		rx_buf = &stream->rx_buf[i];
+		if (rx_buf && (!rx_buf->dummy.is_free) && rx_buf != buf) {
+			list_add_tail(&rx_buf->list_free, &priv->buf_free_list);
+			stream->total_buf_num--;
+			atomic_dec(&stream->buf_cnt);
+		}
+	}
+	spin_unlock_irqrestore(&priv->cif_dev->buffree_lock, flags);
+	schedule_work(&priv->buffree_work.work);
+	v4l2_dbg(1, rkcif_debug, &stream->cifdev->v4l2_dev,
+		 "stream[%d] free rx_buf\n", stream->id);
+	if (buf)
+		v4l2_dbg(1, rkcif_debug, &stream->cifdev->v4l2_dev,
+			"stream[%d] reserved buf 0x%x\n", stream->id, (u32)buf->dummy.dma_addr);
+}
+
+static void rkcif_thunderboot_free_rx_buffer(struct rkcif_device *cif_dev)
+{
+	struct rkcif_stream *stream;
+	int i, stream_cnt;
+
+	if (cif_dev->hdr.hdr_mode == HDR_X2)
+		stream_cnt = 2;
+	else if (cif_dev->hdr.hdr_mode == HDR_X3)
+		stream_cnt = 3;
+	else
+		stream_cnt = 1;
+	for (i = 0; i < stream_cnt; i++) {
+		stream = &cif_dev->stream[i];
+		if (cif_dev->hdr.hdr_mode == NO_HDR ||
+		    (cif_dev->hdr.hdr_mode == HDR_X2 && stream->id == 1) ||
+		    (cif_dev->hdr.hdr_mode == HDR_X3 && stream->id == 2))
+			rkcif_free_rx_buf(stream, stream->rx_buf_num);
+		else
+			rkcif_release_unnecessary_buf_for_online(stream,
+								 stream->curr_buf_toisp);
+		rkcif_modify_line_int(stream, false);
+		stream->is_line_wake_up = false;
+	}
+}
+
 static void rkcif_toisp_check_stop_status(struct sditf_priv *priv,
 					  unsigned int intstat_glb,
 					  int index)
@@ -13001,6 +13058,19 @@ static void rkcif_toisp_check_stop_status(struct sditf_priv *priv,
 				stream = &priv->cif_dev->stream[0];
 			else
 				stream = &priv->cif_dev->stream[src_id % 4];
+
+			if (priv->is_free_thunderboot_buf &&
+			    (stream->cifdev->hdr.hdr_mode == NO_HDR ||
+			     (stream->cifdev->hdr.hdr_mode == HDR_X2 && stream->id == 1) ||
+			     (stream->cifdev->hdr.hdr_mode == HDR_X3 && stream->id == 2))) {
+				if (priv->free_buf_delay_cnt) {
+					priv->free_buf_delay_cnt--;
+				} else {
+					rkcif_thunderboot_free_rx_buffer(stream->cifdev);
+					priv->is_free_thunderboot_buf = false;
+				}
+			}
+
 			if (stream->stopping) {
 				v4l2_dbg(3, rkcif_debug, &priv->cif_dev->v4l2_dev,
 					 "stream[%d] stop\n",
