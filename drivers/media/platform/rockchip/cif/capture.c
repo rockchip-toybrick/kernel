@@ -13357,7 +13357,8 @@ static void rkcif_deal_sof(struct rkcif_device *cif_dev)
 					  detect_stream->id,
 					  rkcif_get_sof(cif_dev),
 					  detect_stream->frame_idx);
-			if (rkcif_check_frame_active(cif_dev))
+			if (rkcif_check_frame_active(cif_dev) &&
+			    (!detect_stream->cifdev->is_in_flip))
 				detect_stream->frame_idx++;
 		}
 		spin_unlock_irqrestore(&detect_stream->vbq_lock, flags);
