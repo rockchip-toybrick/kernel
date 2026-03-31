@@ -34,8 +34,8 @@ struct drm_device;
 struct drm_connector;
 struct iommu_domain;
 
-#define VOP_COLOR_KEY_NONE	(0ULL << 31ULL)
-#define VOP_COLOR_KEY_MASK	(1ULL << 31ULL)
+#define VOP_COLOR_KEY_NONE	(0 << 31)
+#define VOP_COLOR_KEY_MASK	(1 << 31)
 
 #define VOP_OUTPUT_IF_RGB	BIT(0)
 #define VOP_OUTPUT_IF_BT1120	BIT(1)
@@ -78,7 +78,7 @@ struct iommu_domain;
 #define HDMI_EOTF_HDR10PLUS	0x10
 #define HDMI_EOTF_HDRVIVID	0x11
 #define HDMI_EOTF_DOVI		0x12
-#define DOVI_VSDB_LEN		26U
+#define DOVI_VSDB_LEN		26
 
 enum rockchip_drm_debug_category {
 	VOP_DEBUG_PLANE		= BIT(0),
@@ -254,7 +254,7 @@ struct rockchip_crtc_state {
 	int output_type;
 	int output_mode;
 	int output_bpc;
-	unsigned int output_flags;
+	int output_flags;
 	bool enable_afbc;
 	/**
 	 * @splice_mode: enabled when display a hdisplay > 4096 on rk3588
@@ -328,10 +328,8 @@ struct rockchip_crtc_state {
 	int vrr_type;
 };
 
-static inline struct rockchip_crtc_state *to_rockchip_crtc_state(const struct drm_crtc_state *s)
-{
-	return container_of(s, struct rockchip_crtc_state, base);
-}
+#define to_rockchip_crtc_state(s) \
+		container_of(s, struct rockchip_crtc_state, base)
 
 struct rockchip_drm_vcnt {
 	struct drm_pending_vblank_event *event;
@@ -583,6 +581,13 @@ struct rockchip_drm_private {
 	struct loader_cubic_lut cubic_lut[ROCKCHIP_MAX_CRTC];
 };
 
+struct rockchip_drm_hdmi21_data {
+	u8 max_frl_rate_per_lane;
+	u8 max_lanes;
+	bool allm_supported;
+	struct rockchip_drm_dsc_cap dsc_cap;
+};
+
 void rockchip_connector_update_vfp_for_vrr(struct drm_crtc *crtc, struct drm_display_mode *mode,
 					   int vfp);
 int rockchip_drm_dma_attach_device(struct drm_device *drm_dev,
@@ -631,11 +636,12 @@ uint32_t rockchip_drm_get_bpp(const struct drm_format_info *info);
 uint32_t rockchip_drm_get_cycles_per_pixel(uint32_t bus_format);
 int rockchip_drm_get_yuv422_format(struct drm_connector *connector,
 				   struct edid *edid);
-int rockchip_drm_parse_cea_ext(struct rockchip_drm_dsc_cap *dsc_cap,
-			       u8 *max_frl_rate_per_lane, u8 *max_lanes, u8 *add_func,
+int rockchip_drm_parse_cea_ext(struct rockchip_drm_hdmi21_data *hdmi21_data,
+			       struct drm_display_info *info,
 			       const struct edid *edid);
 int rockchip_drm_parse_dovi(u8 *sink_data, const struct edid *edid);
 int rockchip_drm_parse_colorimetry_data_block(u8 *colorimetry, const struct edid *edid);
+u8 rockchip_drm_parse_hdr10_plus_vsdb(const struct edid *edid);
 long rockchip_drm_dclk_round_rate(u32 version, struct clk *dclk, unsigned long rate);
 int rockchip_drm_dclk_set_rate(u32 version, struct clk *dclk, unsigned long rate);
 const char *rockchip_drm_modifier_to_string(uint64_t modifier);

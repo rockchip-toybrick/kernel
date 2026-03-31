@@ -151,6 +151,7 @@
 #define HDMI_EARC_MODE			BIT(29)
 #define DATA_RATE_MASK			0xFFFFFFF
 
+#define HDMI14_MAX_RATE                 340000
 #define HDMI20_MAX_RATE			600000
 #define HDMI_8K60_RATE			2376000
 
@@ -227,6 +228,7 @@ struct rockchip_hdmi {
 	u8 id;
 	bool hpd_stat;
 	bool is_hdmi_qp;
+	bool force_disable_dsc;
 
 	unsigned long bus_format;
 	unsigned long output_bus_format;
@@ -249,11 +251,13 @@ struct rockchip_hdmi {
 	struct drm_property *mode_color_capacity;
 	struct drm_property *hdr_panel_dovi_vsdb;
 	struct drm_property *vsif_data;
+	struct drm_property *hdr10_plus_vsdb;
 
 	struct drm_property_blob *mode_color_caps_ptr;
 	struct drm_property_blob *hdr_panel_blob_ptr;
 	struct drm_property_blob *hdr_panel_dovi_vsdb_ptr;
 	struct drm_property_blob *vsif_data_ptr;
+	struct drm_property_blob *hdr10_plus_vsdb_ptr;
 
 	unsigned int colordepth;
 	unsigned int colorimetry;
@@ -264,13 +268,10 @@ struct rockchip_hdmi {
 	struct rockchip_drm_sub_dev sub_dev;
 
 	u64 force_frl_rate;
-	u8 max_frl_rate_per_lane;
-	u8 max_lanes;
-	u8 add_func;
 	u8 edid_colorimetry;
 	u8 hdcp_status;
 	u8 dovi_vsdb[DOVI_VSDB_LEN];
-	struct rockchip_drm_dsc_cap dsc_cap;
+	struct hdr10_plus_vsdb hdr10_plus_data;
 	struct dw_hdmi_link_config link_cfg;
 	struct gpio_desc *enable_gpio;
 
@@ -283,6 +284,7 @@ struct rockchip_hdmi {
 	struct mode_color_caps *mode_color_caps;
 	bool timing_force_output;
 	struct drm_display_mode force_mode;
+	struct rockchip_drm_hdmi21_data hdmi21_data;
 	u32 force_bus_format;
 };
 
@@ -518,7 +520,6 @@ enum COLUMN_INDEX_BPC {
 	MAX_COLUMN_INDEX
 };
 
-#define PPS_TABLE_LEN 8
 #define PPS_BPP_LEN 4
 #define PPS_BPC_LEN 2
 
@@ -537,7 +538,7 @@ struct pps_data {
  * Selected Rate Control Related Parameter Recommended Values
  * from DSC_v1.11 spec & C Model release: DSC_model_20161212
  */
-static struct pps_data pps_datas[PPS_TABLE_LEN] = {
+static struct pps_data pps_datas[] = {
 	{
 		/* 7680x4320/960X96 rgb 8bpc 12bpp */
 		7680, 4320, 960, 96, 1, 8, 192,
@@ -627,6 +628,28 @@ static struct pps_data pps_datas[PPS_TABLE_LEN] = {
 		},
 	},
 	{
+		/* 7680x4320/960X96 rgb 8bpc 8bpp */
+		7680, 4320, 960, 96, 1, 8, 128,
+		{
+			0x12, 0x00, 0x00, 0x8d, 0x30, 0x80, 0x10, 0xe0,
+			0x1e, 0x00, 0x00, 0x60, 0x03, 0xc0, 0x03, 0xc0,
+			0x02, 0x00, 0x03, 0x58, 0x00, 0x20, 0x0a, 0x63,
+			0x00, 0x0d, 0x00, 0x0f, 0x01, 0x44, 0x00, 0x99,
+			0x18, 0x00, 0x10, 0xf0, 0x03, 0x0c, 0x20, 0x00,
+			0x06, 0x0b, 0x0b, 0x33, 0x0e, 0x1c, 0x2a, 0x38,
+			0x46, 0x54, 0x62, 0x69, 0x70, 0x77, 0x79, 0x7b,
+			0x7d, 0x7e, 0x01, 0x02, 0x01, 0x00, 0x09, 0x40,
+			0x09, 0xbe, 0x19, 0xfc, 0x19, 0xfa, 0x19, 0xf8,
+			0x1a, 0x38, 0x1a, 0x78, 0x22, 0xb6, 0x2a, 0xb6,
+			0x2a, 0xf6, 0x2a, 0xf4, 0x43, 0x34, 0x63, 0x74,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+		},
+	},
+	{
 		/* 7680x4320/960X96 rgb 10bpc 12bpp */
 		7680, 4320, 960, 96, 1, 10, 192,
 		{
@@ -707,6 +730,28 @@ static struct pps_data pps_datas[PPS_TABLE_LEN] = {
 			0x2a, 0xbe, 0x3a, 0xfc, 0x3a, 0xfa, 0x3a, 0xf8,
 			0x3b, 0x38, 0x3b, 0x78, 0x3b, 0x76, 0x4b, 0xb6,
 			0x4b, 0xb6, 0x4b, 0xf4, 0x63, 0xf4, 0x84, 0x74,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+		},
+	},
+	{
+		/* 7680x4320/960X96 rgb 10bpc 8bpp */
+		7680, 4320, 960, 96, 1, 10, 128,
+		{
+			0x12, 0x00, 0x00, 0xad, 0x30, 0x80, 0x10, 0xe0,
+			0x1e, 0x00, 0x00, 0x60, 0x03, 0xc0, 0x03, 0xc0,
+			0x02, 0x00, 0x03, 0x58, 0x00, 0x20, 0x0a, 0x63,
+			0x00, 0x0d, 0x00, 0x0f, 0x01, 0x44, 0x00, 0x99,
+			0x18, 0x00, 0x10, 0xf0, 0x07, 0x10, 0x20, 0x00,
+			0x06, 0x0f, 0x0f, 0x33, 0x0e, 0x1c, 0x2a, 0x38,
+			0x46, 0x54, 0x62, 0x69, 0x70, 0x77, 0x79, 0x7b,
+			0x7d, 0x7e, 0x02, 0x02, 0x22, 0x00, 0x2a, 0x40,
+			0x2a, 0xbe, 0x3a, 0xfc, 0x3a, 0xfa, 0x3a, 0xf8,
+			0x3b, 0x38, 0x3b, 0x78, 0x43, 0xb6, 0x4b, 0xb6,
+			0x4b, 0xf6, 0x4b, 0xf4, 0x64, 0x34, 0x84, 0x74,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -925,6 +970,38 @@ rockchip_hdmi_find_by_id(struct device_driver *drv, unsigned int id)
 	return dev_get_drvdata(dev);
 }
 
+static bool rockchip_hdmi_check_dsc_rate_supported(struct rockchip_hdmi *hdmi,
+						   u64 tmdsclk, u8 bpp)
+{
+	u64 data_rate, dsc_rate;
+	u64 frl_rate, dsc_frl_rate;
+
+	frl_rate = (u64)hdmi->hdmi21_data.max_lanes *
+		hdmi->hdmi21_data.max_frl_rate_per_lane * 1000000000;
+	dsc_frl_rate = (u64)hdmi->hdmi21_data.dsc_cap.max_lanes *
+		hdmi->hdmi21_data.dsc_cap.max_frl_rate_per_lane * 1000000000;
+	data_rate = (u64)tmdsclk * bpp;
+	data_rate = DIV_ROUND_UP_ULL(data_rate * 18, 16);
+	/* compression ratio needs to be greater than 0.375. */
+	dsc_rate = DIV_ROUND_UP_ULL(data_rate * 9, 24);
+
+	if ((data_rate > frl_rate) && (dsc_rate < dsc_frl_rate))
+		return true;
+
+	return false;
+}
+
+static bool rockchip_hdmi_if_dsc_enable(struct rockchip_hdmi *hdmi, unsigned int tmdsclk)
+{
+	u8 bpp = hdmi_bus_fmt_color_depth(hdmi->bus_format) * 3;
+
+	/* rk3588 dsc can't support yuv420/422 dsc */
+	if (hdmi_bus_fmt_is_yuv420(hdmi->bus_format) || hdmi_bus_fmt_is_yuv422(hdmi->bus_format))
+		return false;
+
+	return rockchip_hdmi_check_dsc_rate_supported(hdmi, tmdsclk, bpp);
+}
+
 static void hdmi_select_link_config(struct rockchip_hdmi *hdmi,
 				    struct drm_crtc_state *crtc_state,
 				    unsigned int tmdsclk)
@@ -938,14 +1015,14 @@ static void hdmi_select_link_config(struct rockchip_hdmi *hdmi,
 	if (hdmi->plat_data->split_mode)
 		drm_mode_convert_to_origin_mode(&mode);
 
-	max_lanes = hdmi->max_lanes;
-	max_rate_per_lane = hdmi->max_frl_rate_per_lane;
+	max_lanes = hdmi->hdmi21_data.max_lanes;
+	max_rate_per_lane = hdmi->hdmi21_data.max_frl_rate_per_lane;
 	max_frl_rate = max_lanes * max_rate_per_lane * 1000000;
 
 	hdmi->link_cfg.dsc_mode = false;
 	hdmi->link_cfg.frl_lanes = max_lanes;
 	hdmi->link_cfg.rate_per_lane = max_rate_per_lane;
-	hdmi->link_cfg.add_func = hdmi->add_func;
+	hdmi->link_cfg.allm_supported = hdmi->hdmi21_data.allm_supported;
 
 	if (!max_frl_rate || (tmdsclk < HDMI20_MAX_RATE && mode.clock < HDMI20_MAX_RATE)) {
 		dev_dbg(hdmi->dev, "use tmds mode\n");
@@ -955,16 +1032,14 @@ static void hdmi_select_link_config(struct rockchip_hdmi *hdmi,
 
 	hdmi->link_cfg.frl_mode = true;
 
-	if (!hdmi->dsc_cap.v_1p2)
+	if (!hdmi->hdmi21_data.dsc_cap.v_1p2)
 		return;
 
-	max_dsc_lanes = hdmi->dsc_cap.max_lanes;
+	max_dsc_lanes = hdmi->hdmi21_data.dsc_cap.max_lanes;
 	max_dsc_rate_per_lane =
-		hdmi->dsc_cap.max_frl_rate_per_lane;
+		hdmi->hdmi21_data.dsc_cap.max_frl_rate_per_lane;
 
-	if (mode.clock >= HDMI_8K60_RATE &&
-	    !hdmi_bus_fmt_is_yuv420(hdmi->bus_format) &&
-	    !hdmi_bus_fmt_is_yuv422(hdmi->bus_format)) {
+	if (rockchip_hdmi_if_dsc_enable(hdmi,  tmdsclk * 1000)) {
 		hdmi->link_cfg.dsc_mode = true;
 		hdmi->link_cfg.frl_lanes = max_dsc_lanes;
 		hdmi->link_cfg.rate_per_lane = max_dsc_rate_per_lane;
@@ -1094,8 +1169,8 @@ static int hdmi_dsc_get_num_slices(struct rockchip_hdmi *hdmi,
 static int hdmi_dsc_slices(struct rockchip_hdmi *hdmi,
 			   struct drm_crtc_state *crtc_state)
 {
-	int hdmi_throughput = hdmi->dsc_cap.clk_per_slice;
-	int hdmi_max_slices = hdmi->dsc_cap.max_slices;
+	int hdmi_throughput = hdmi->hdmi21_data.dsc_cap.clk_per_slice;
+	int hdmi_max_slices = hdmi->hdmi21_data.dsc_cap.max_slices;
 	int rk_max_slices = 8;
 	int rk_max_slice_width = 2048;
 
@@ -1107,7 +1182,7 @@ static int hdmi_dsc_slices(struct rockchip_hdmi *hdmi,
 static int
 hdmi_dsc_get_bpp(struct rockchip_hdmi *hdmi, int src_fractional_bpp,
 		 int slice_width, int num_slices, bool hdmi_all_bpp,
-		 int hdmi_max_chunk_bytes)
+		 int hdmi_max_chunk_bytes, u64 pixel_clk)
 {
 	int max_dsc_bpp, min_dsc_bpp;
 	int target_bytes;
@@ -1115,7 +1190,13 @@ hdmi_dsc_get_bpp(struct rockchip_hdmi *hdmi, int src_fractional_bpp,
 	int bpp_decrement_x16;
 	int bpp_target;
 	int bpp_target_x16;
+	u64 frl_rate, dsc_rate, original_rate;
+	u8 original_bpp = hdmi_bus_fmt_color_depth(hdmi->output_bus_format) * 3;
 
+	if (!original_bpp) {
+		dev_err(hdmi->dev, "can't get original_bpp\n");
+		return 0;
+	}
 	/*
 	 * Get min bpp and max bpp as per Table 7.23, in HDMI2.1 spec
 	 * Start with the max bpp and keep on decrementing with
@@ -1124,8 +1205,7 @@ hdmi_dsc_get_bpp(struct rockchip_hdmi *hdmi, int src_fractional_bpp,
 	 * for each bpp we check if no of bytes can be supported by HDMI sink
 	 */
 
-	/* only 9\10\12 bpp was tested */
-	min_dsc_bpp = 9;
+	min_dsc_bpp = 8;
 	max_dsc_bpp = 12;
 
 	/*
@@ -1153,8 +1233,11 @@ hdmi_dsc_get_bpp(struct rockchip_hdmi *hdmi, int src_fractional_bpp,
 	 * So we need to decrement by {1, 2, 4, 8, 16} for fractional bpps
 	 * {1/16, 1/8, 1/4, 1/2, 1} respectively.
 	 */
-
+	frl_rate = (u64)hdmi->link_cfg.frl_lanes * hdmi->link_cfg.rate_per_lane * 1000000;
 	bpp_target = max_dsc_bpp;
+
+	/* hdmi frl mode is 16b18b encoded */
+	original_rate = DIV_ROUND_UP_ULL(pixel_clk * original_bpp * 18, 16);
 
 	/* src does not support fractional bpp implies decrement by 16 for bppx16 */
 	if (!src_fractional_bpp)
@@ -1162,12 +1245,14 @@ hdmi_dsc_get_bpp(struct rockchip_hdmi *hdmi, int src_fractional_bpp,
 	bpp_decrement_x16 = DIV_ROUND_UP(16, src_fractional_bpp);
 	bpp_target_x16 = bpp_target * 16;
 
-	while (bpp_target_x16 > (min_dsc_bpp * 16)) {
+	while (bpp_target_x16 >= (min_dsc_bpp * 16)) {
 		int bpp;
 
 		bpp = DIV_ROUND_UP(bpp_target_x16, 16);
 		target_bytes = DIV_ROUND_UP((num_slices * slice_width * bpp), 8);
-		if (target_bytes <= hdmi_max_chunk_bytes) {
+		dsc_rate = DIV_ROUND_UP_ULL(original_rate * bpp_target_x16, original_bpp * 16);
+
+		if (target_bytes <= hdmi_max_chunk_bytes && dsc_rate <= frl_rate) {
 			bpp_found = true;
 			break;
 		}
@@ -1181,15 +1266,15 @@ hdmi_dsc_get_bpp(struct rockchip_hdmi *hdmi, int src_fractional_bpp,
 
 static int
 dw_hdmi_dsc_bpp(struct rockchip_hdmi *hdmi,
-		int num_slices, int slice_width)
+		int num_slices, int slice_width, u64 pixel_clk)
 {
-	bool hdmi_all_bpp = hdmi->dsc_cap.all_bpp;
+	bool hdmi_all_bpp = hdmi->hdmi21_data.dsc_cap.all_bpp;
 	int fractional_bpp = 0;
-	int hdmi_max_chunk_bytes = hdmi->dsc_cap.total_chunk_kbytes * 1024;
+	int hdmi_max_chunk_bytes = hdmi->hdmi21_data.dsc_cap.total_chunk_kbytes * 1024;
 
 	return hdmi_dsc_get_bpp(hdmi, fractional_bpp, slice_width,
 				num_slices, hdmi_all_bpp,
-				hdmi_max_chunk_bytes);
+				hdmi_max_chunk_bytes, pixel_clk);
 }
 
 static int dw_hdmi_qp_set_link_cfg(struct rockchip_hdmi *hdmi,
@@ -1199,22 +1284,28 @@ static int dw_hdmi_qp_set_link_cfg(struct rockchip_hdmi *hdmi,
 {
 	int i;
 
-	for (i = 0; i < PPS_TABLE_LEN; i++)
+	for (i = 0; i < ARRAY_SIZE(pps_datas); i++)
 		if (pic_width == pps_datas[i].pic_width &&
 		    pic_height == pps_datas[i].pic_height &&
 		    slice_width == pps_datas[i].slice_width &&
 		    slice_height == pps_datas[i].slice_height &&
 		    bits_per_component == pps_datas[i].bpc &&
-		    bits_per_pixel == pps_datas[i].bpp &&
-		    hdmi_bus_fmt_is_rgb(hdmi->output_bus_format) == pps_datas[i].convert_rgb)
+		    bits_per_pixel == pps_datas[i].bpp)
 			break;
 
-	if (i == PPS_TABLE_LEN) {
+	if (i == ARRAY_SIZE(pps_datas)) {
 		dev_err(hdmi->dev, "can't find pps cfg!\n");
 		return -EINVAL;
 	}
 
 	memcpy(hdmi->link_cfg.pps_payload, pps_datas[i].raw_pps, 128);
+
+	/* if yuv dsc format */
+	if (hdmi_bus_fmt_is_rgb(hdmi->output_bus_format))
+		hdmi->link_cfg.pps_payload[4] |= BIT(4);
+	else
+		hdmi->link_cfg.pps_payload[4] &= ~BIT(4);
+
 	hdmi->link_cfg.hcactive = DIV_ROUND_UP(slice_width * (bits_per_pixel / 16), 8) *
 		(pic_width / slice_width);
 
@@ -1236,10 +1327,16 @@ static void dw_hdmi_qp_dsc_configure(struct rockchip_hdmi *hdmi,
 	if (!crtc_state)
 		return;
 
-	hdmi_is_dsc_1_2 = hdmi->dsc_cap.v_1p2;
+	hdmi_is_dsc_1_2 = hdmi->hdmi21_data.dsc_cap.v_1p2;
 
 	if (!hdmi_is_dsc_1_2)
 		return;
+
+	if (hdmi_bus_fmt_is_yuv422(hdmi->output_bus_format) ||
+	    hdmi_bus_fmt_is_yuv420(hdmi->output_bus_format)) {
+		dev_err(hdmi->dev, "dsc can't support yuv422/420\n");
+		return;
+	}
 
 	slice_height = hdmi_dsc_get_slice_height(crtc_state->mode.vdisplay);
 	if (!slice_height)
@@ -1251,7 +1348,7 @@ static void dw_hdmi_qp_dsc_configure(struct rockchip_hdmi *hdmi,
 
 	slice_width = DIV_ROUND_UP(crtc_state->mode.hdisplay, slice_count);
 
-	bits_per_pixel = dw_hdmi_dsc_bpp(hdmi, slice_count, slice_width);
+	bits_per_pixel = dw_hdmi_dsc_bpp(hdmi, slice_count, slice_width, crtc_state->mode.clock);
 	if (!bits_per_pixel)
 		return;
 
@@ -1309,6 +1406,7 @@ static void repo_hpd_event(struct work_struct *p_work)
 	change = drm_helper_hpd_irq_event(hdmi->drm_dev);
 	if (change) {
 		dev_dbg(hdmi->dev, "hpd stat changed:%d\n", hdmi->hpd_stat);
+		dw_hdmi_qp_handle_hpd(hdmi->hdmi_qp, hdmi->hpd_stat);
 		dw_hdmi_qp_cec_set_hpd(hdmi->hdmi_qp, hdmi->hpd_stat, change);
 	}
 }
@@ -1571,6 +1669,8 @@ static int rockchip_hdmi_parse_dt(struct rockchip_hdmi *hdmi)
 
 	hdmi->skip_check_420_mode =
 		of_property_read_bool(np, "skip-check-420-mode");
+
+	hdmi->force_disable_dsc = of_property_read_bool(np, "force-disable-dsc");
 
 	if (of_get_property(np, "rockchip,phy-table", &val)) {
 		phy_config = kmalloc(val, GFP_KERNEL);
@@ -2039,50 +2139,6 @@ static void rk3588_set_grf_cfg(void *data)
 	rk3588_set_color_format(hdmi, hdmi->bus_format, color_depth);
 }
 
-static u64 rk3588_get_grf_color_fmt(void *data)
-{
-	struct rockchip_hdmi *hdmi = (struct rockchip_hdmi *)data;
-	u32 val, depth;
-	u64 bus_format;
-
-	if (!hdmi->id)
-		regmap_read(hdmi->vo1_regmap, RK3588_GRF_VO1_CON3, &val);
-	else
-		regmap_read(hdmi->vo1_regmap, RK3588_GRF_VO1_CON6, &val);
-
-	depth = (val & RK3588_COLOR_DEPTH_MASK) >> 4;
-
-	switch (val & RK3588_COLOR_FORMAT_MASK) {
-	case RK3588_YUV444:
-		if (!depth)
-			bus_format = MEDIA_BUS_FMT_YUV8_1X24;
-		else
-			bus_format = MEDIA_BUS_FMT_YUV10_1X30;
-		break;
-	case RK3588_YUV422:
-		bus_format = MEDIA_BUS_FMT_YUYV10_1X20;
-		break;
-	case RK3588_YUV420:
-		if (!depth)
-			bus_format = MEDIA_BUS_FMT_UYYVYY8_0_5X24;
-		else
-			bus_format = MEDIA_BUS_FMT_UYYVYY10_0_5X30;
-		break;
-	case RK3588_RGB:
-		if (!depth)
-			bus_format = MEDIA_BUS_FMT_RGB888_1X24;
-		else
-			bus_format = MEDIA_BUS_FMT_RGB101010_1X30;
-		break;
-	default:
-		dev_err(hdmi->dev, "can't get correct color format\n");
-		bus_format = MEDIA_BUS_FMT_YUV8_1X24;
-		break;
-	}
-
-	return bus_format;
-}
-
 static void
 dw_hdmi_rockchip_select_output(struct drm_connector_state *conn_state,
 			       struct drm_crtc_state *crtc_state,
@@ -2103,6 +2159,7 @@ dw_hdmi_rockchip_select_output(struct drm_connector_state *conn_state,
 	bool support_dc = false;
 	bool sink_is_hdmi = true;
 	bool yuv422_out = false;
+	bool dsc_rate_supported;
 	u32 max_tmds_clock = info->max_tmds_clock;
 	int output_eotf;
 
@@ -2130,12 +2187,12 @@ dw_hdmi_rockchip_select_output(struct drm_connector_state *conn_state,
 			*color_format = RK_IF_FORMAT_YCBCR422;
 		else if (conn_state->connector->ycbcr_420_allowed &&
 			 drm_mode_is_420(info, &mode) &&
-			 (pixclock >= 594000 && !hdmi->is_hdmi_qp))
+			 (pixclock > HDMI14_MAX_RATE && !hdmi->is_hdmi_qp))
 			*color_format = RK_IF_FORMAT_YCBCR420;
 		break;
 	case RK_IF_FORMAT_YCBCR_LQ:
 		if (conn_state->connector->ycbcr_420_allowed &&
-		    drm_mode_is_420(info, &mode) && pixclock >= 594000)
+		    drm_mode_is_420(info, &mode) && pixclock > HDMI14_MAX_RATE)
 			*color_format = RK_IF_FORMAT_YCBCR420;
 		else if (info->color_formats & DRM_COLOR_FORMAT_YCRCB422)
 			*color_format = RK_IF_FORMAT_YCBCR422;
@@ -2144,7 +2201,7 @@ dw_hdmi_rockchip_select_output(struct drm_connector_state *conn_state,
 		break;
 	case RK_IF_FORMAT_YCBCR420:
 		if (conn_state->connector->ycbcr_420_allowed &&
-		    drm_mode_is_420(info, &mode) && pixclock >= 594000)
+		    drm_mode_is_420(info, &mode) && pixclock > HDMI14_MAX_RATE)
 			*color_format = RK_IF_FORMAT_YCBCR420;
 		break;
 	case RK_IF_FORMAT_YCBCR422:
@@ -2224,7 +2281,14 @@ dw_hdmi_rockchip_select_output(struct drm_connector_state *conn_state,
 		DRM_MODE_FLAG_3D_FRAME_PACKING)
 		pixclock *= 2;
 
-	if ((hdmi->is_hdmi_qp && mode.clock > 1188000) || drm_mode_is_420_only(info, &mode))
+	tmdsclock = hdmi_get_tmdsclock(hdmi, mode.clock * 1000);
+	dsc_rate_supported =
+		rockchip_hdmi_check_dsc_rate_supported(hdmi, tmdsclock, color_depth * 3);
+
+	if (drm_mode_is_420_only(info, &mode) ||
+	    (hdmi->is_hdmi_qp && mode.clock > 1188000 &&
+	     (*color_format == RK_IF_FORMAT_YCBCR422 || hdmi->force_disable_dsc ||
+	      !dsc_rate_supported)))
 		*color_format = RK_IF_FORMAT_YCBCR420;
 
 	if (!sink_is_hdmi) {
@@ -2438,7 +2502,7 @@ secondary:
 			} else if (hdmi->link_cfg.rate_per_lane >= 12 ||
 				   !hdmi->link_cfg.rate_per_lane) {
 				hdmi->link_cfg.frl_lanes = 4;
-				hdmi->link_cfg.rate_per_lane = 12;
+				hdmi->link_cfg.rate_per_lane = 10;
 			}
 			bus_width = hdmi->link_cfg.frl_lanes *
 				hdmi->link_cfg.rate_per_lane * 1000000;
@@ -2480,6 +2544,10 @@ secondary:
 
 	s->output_mode = output_mode;
 	hdmi->bus_format = s->bus_format;
+
+	s->dsc_enable = 0;
+	if (hdmi->is_hdmi_qp && hdmi->link_cfg.dsc_mode)
+		dw_hdmi_qp_dsc_configure(hdmi, s, crtc_state);
 
 	if (hdmi->enc_out_encoding == V4L2_YCBCR_ENC_BT2020)
 		s->color_space = V4L2_COLORSPACE_BT2020;
@@ -2588,21 +2656,42 @@ dw_hdmi_rockchip_get_yuv422_format(struct drm_connector *connector,
 }
 
 static int
-dw_hdmi_rockchip_get_edid_dsc_info(void *data, struct edid *edid)
+dw_hdmi_rockchip_get_edid_hdmi21_info(void *data, const struct edid *edid,
+				      struct drm_display_info *info)
 {
 	struct rockchip_hdmi *hdmi = (struct rockchip_hdmi *)data;
 
 	if (!edid)
 		return -EINVAL;
 
-	memset(&hdmi->dsc_cap, 0, sizeof(hdmi->dsc_cap));
-	hdmi->max_frl_rate_per_lane = 0;
-	hdmi->max_lanes = 0;
-	hdmi->add_func = 0;
+	memset(&hdmi->hdmi21_data, 0, sizeof(hdmi->hdmi21_data));
 
-	return rockchip_drm_parse_cea_ext(&hdmi->dsc_cap,
-					  &hdmi->max_frl_rate_per_lane,
-					  &hdmi->max_lanes, &hdmi->add_func, edid);
+	return rockchip_drm_parse_cea_ext(&hdmi->hdmi21_data, info, edid);
+}
+
+static int
+dw_hdmi_rockchip_get_hdr10_plus_vsdb(void *data, const struct edid *edid,
+				     struct drm_connector *connector)
+{
+	int ret;
+	struct rockchip_hdmi *hdmi = (struct rockchip_hdmi *)data;
+	struct drm_property *property = hdmi->hdr10_plus_vsdb;
+	u8 hdr10_plus;
+
+	if (!edid || !connector)
+		return -ENOMEM;
+
+	hdr10_plus = rockchip_drm_parse_hdr10_plus_vsdb(edid);
+
+	hdmi->hdr10_plus_data.application_version = hdr10_plus & 0x3;
+	hdmi->hdr10_plus_data.full_frame_peak_luminance_index = hdr10_plus & 0xc;
+	hdmi->hdr10_plus_data.peak_luminance_index = hdr10_plus & 0xf0;
+
+	ret = drm_property_replace_global_blob(connector->dev, &hdmi->hdr10_plus_vsdb_ptr,
+					       3, &hdmi->hdr10_plus_data, &connector->base,
+					       property);
+
+	return ret;
 }
 
 static int
@@ -3084,7 +3173,7 @@ dw_hdmi_rockchip_attach_properties(struct drm_connector *connector,
 		if (prop) {
 			hdmi->allm_capacity = prop;
 			drm_object_attach_property(&connector->base, prop,
-						   !!(hdmi->add_func & SUPPORT_HDMI_ALLM));
+						   hdmi->hdmi21_data.allm_supported);
 		}
 
 		prop = drm_property_create_enum(connector->dev, 0,
@@ -3096,6 +3185,15 @@ dw_hdmi_rockchip_attach_properties(struct drm_connector *connector,
 			drm_object_attach_property(&connector->base, prop, 0);
 		}
 		hdmi->enable_allm = allm_en;
+
+		prop = drm_property_create(connector->dev,
+					DRM_MODE_PROP_BLOB |
+					DRM_MODE_PROP_IMMUTABLE,
+					"HDR10_PLUS_VSDB", 0);
+		if (prop) {
+			hdmi->hdr10_plus_vsdb = prop;
+			drm_object_attach_property(&connector->base, prop, 0);
+		}
 	}
 
 	prop = drm_property_create_enum(connector->dev, 0,
@@ -3250,6 +3348,11 @@ dw_hdmi_rockchip_destroy_properties(struct drm_connector *connector,
 		drm_property_destroy(connector->dev, hdmi->vsif_data);
 		hdmi->vsif_data = NULL;
 	}
+
+	if (hdmi->hdr10_plus_vsdb) {
+		drm_property_destroy(connector->dev, hdmi->hdr10_plus_vsdb);
+		hdmi->hdr10_plus_vsdb = NULL;
+	}
 }
 
 static int
@@ -3330,6 +3433,8 @@ dw_hdmi_rockchip_set_property(struct drm_connector *connector,
 								&hdmi->vsif_data_ptr,
 								val, -1, -1, &replaced);
 		return ret;
+	} else if (property == hdmi->hdr10_plus_vsdb) {
+		return 0;
 	}
 
 	DRM_ERROR("Unknown property [PROP:%d:%s]\n",
@@ -3400,7 +3505,7 @@ dw_hdmi_rockchip_get_property(struct drm_connector *connector,
 			*val = dw_hdmi_qp_get_output_type_cap(hdmi->hdmi_qp);
 		return 0;
 	} else if (property == hdmi->allm_capacity) {
-		*val = !!(hdmi->add_func & SUPPORT_HDMI_ALLM);
+		*val = hdmi->hdmi21_data.allm_supported;
 		return 0;
 	} else if (property == hdmi->allm_enable) {
 		*val = hdmi->enable_allm;
@@ -3421,6 +3526,9 @@ dw_hdmi_rockchip_get_property(struct drm_connector *connector,
 		return 0;
 	} else if (property == hdmi->vsif_data) {
 		*val = (hdmi->vsif_data_ptr) ? hdmi->vsif_data_ptr->base.id : 0;
+		return 0;
+	} else if (property == hdmi->hdr10_plus_vsdb) {
+		*val = (hdmi->hdr10_plus_vsdb_ptr) ? hdmi->hdr10_plus_vsdb_ptr->base.id : 0;
 		return 0;
 	}
 
@@ -3557,6 +3665,8 @@ static void dw_hdmi_rk3328_setup_hpd(struct dw_hdmi *dw_hdmi, void *data)
 		HIWORD_UPDATE(RK3328_HDMI_SDAIN_MSK | RK3328_HDMI_SCLIN_MSK,
 			      RK3328_HDMI_SDAIN_MSK | RK3328_HDMI_SCLIN_MSK |
 			      RK3328_HDMI_HPD_IOE));
+
+	dw_hdmi_rk3328_read_hpd(dw_hdmi, data);
 }
 
 static void dw_hdmi_qp_rockchip_phy_disable(struct dw_hdmi_qp *dw_hdmi,
@@ -3909,19 +4019,20 @@ static int dw_hdmi_rockchip_bind(struct device *dev, struct device *master,
 		dw_hdmi_rockchip_get_color_changed;
 	plat_data->get_yuv422_format =
 		dw_hdmi_rockchip_get_yuv422_format;
-	plat_data->get_edid_dsc_info =
-		dw_hdmi_rockchip_get_edid_dsc_info;
+	plat_data->get_edid_hdmi21_info =
+		dw_hdmi_rockchip_get_edid_hdmi21_info;
 	plat_data->get_dovi_data =
 		dw_hdmi_rockchip_get_dovi_data;
 	plat_data->get_colorimetry =
 		dw_hdmi_rockchip_get_colorimetry;
 	plat_data->get_dovi_vsif =
 		dw_hdmi_rockchip_get_vsif_data;
+	plat_data->get_hdr10_plus_vsdb =
+		dw_hdmi_rockchip_get_hdr10_plus_vsdb;
 	plat_data->get_link_cfg = dw_hdmi_rockchip_get_link_cfg;
 	plat_data->set_hdcp2_enable = rk3588_set_hdcp2_enable;
 	plat_data->set_hdcp_status = rk3588_set_hdcp_status;
 	plat_data->set_grf_cfg = rk3588_set_grf_cfg;
-	plat_data->get_grf_color_fmt = rk3588_get_grf_color_fmt;
 	plat_data->convert_to_split_mode = drm_mode_convert_to_split_mode;
 	plat_data->convert_to_origin_mode = drm_mode_convert_to_origin_mode;
 	plat_data->dclk_set = dw_hdmi_dclk_set;
