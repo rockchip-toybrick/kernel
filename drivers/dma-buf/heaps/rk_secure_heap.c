@@ -35,6 +35,7 @@ struct secure_heap_buffer {
 	phys_addr_t phys_addr;
 	struct page **pages;
 	pgoff_t pagecount;
+	unsigned long pageno;
 	int vmap_cnt;
 	void *vaddr;
 	bool attached;
@@ -320,9 +321,10 @@ static void secure_heap_dma_buf_release(struct dma_buf *dmabuf)
 
 	spin_lock_irqsave(&sec_heap->sec_mem->spinlock, flags);
 	bitmap_release_region(sec_heap->sec_mem->bitmap,
-			      buffer->phys_addr >> PAGE_SHIFT,
+				  buffer->pageno,
 			      get_order(buffer->len));
 	spin_unlock_irqrestore(&sec_heap->sec_mem->spinlock, flags);
+	kfree(buffer->pages);
 	kfree(buffer);
 }
 
@@ -372,9 +374,8 @@ static struct dma_buf *secure_heap_allocate(struct dma_heap *heap,
 					 sec_heap->sec_mem->page_counts,
 					 get_order(size));
 	if (unlikely(pageno < 0)) {
-		kfree(buffer);
 		spin_unlock_irqrestore(&sec_heap->sec_mem->spinlock, flags);
-		return ERR_PTR(-ENOMEM);
+		goto err_free_buffer;
 	}
 
 	spin_unlock_irqrestore(&sec_heap->sec_mem->spinlock, flags);
@@ -383,17 +384,12 @@ static struct dma_buf *secure_heap_allocate(struct dma_heap *heap,
 			    ((dma_addr_t)pageno << PAGE_SHIFT);
 	buffer->heap = sec_heap;
 	buffer->pagecount = size >> PAGE_SHIFT;
+	buffer->pageno = pageno;
 
 	buffer->pages = kmalloc_array(buffer->pagecount, sizeof(*buffer->pages),
 				      GFP_KERNEL);
-	if (!buffer->pages) {
-		spin_lock_irqsave(&sec_heap->sec_mem->spinlock, flags);
-		bitmap_release_region(sec_heap->sec_mem->bitmap,
-			      buffer->phys_addr >> PAGE_SHIFT,
-			      get_order(buffer->len));
-		spin_unlock_irqrestore(&sec_heap->sec_mem->spinlock, flags);
-		return ERR_PTR(-ENOMEM);
-	}
+	if (!buffer->pages)
+		goto err_release_bitmap;
 
 	for (pg = 0; pg < buffer->pagecount; pg++)
 		buffer->pages[pg] = phys_to_page(buffer->phys_addr + pg * PAGE_SIZE);
@@ -406,18 +402,34 @@ static struct dma_buf *secure_heap_allocate(struct dma_heap *heap,
 	exp_info.priv = buffer;
 	dmabuf = dma_buf_export(&exp_info);
 	if (IS_ERR(dmabuf))
-		kfree(buffer);
+		goto err_free_pages;
 
 	buffer->uncached = true;
 
 	if (buffer->uncached) {
 		dma = dma_map_page(dma_heap_get_dev(heap), phys_to_page(buffer->phys_addr), 0,
 			     buffer->pagecount * PAGE_SIZE, DMA_FROM_DEVICE);
+		if (dma_mapping_error(dma_heap_get_dev(heap), dma)) {
+			dma_buf_put(dmabuf);
+			goto err_free_pages;
+		}
 		dma_unmap_page(dma_heap_get_dev(heap), dma,
 			       buffer->pagecount * PAGE_SIZE, DMA_FROM_DEVICE);
 	}
 
 	return dmabuf;
+
+err_free_pages:
+	kfree(buffer->pages);
+err_release_bitmap:
+	spin_lock_irqsave(&sec_heap->sec_mem->spinlock, flags);
+	bitmap_release_region(sec_heap->sec_mem->bitmap,
+			      buffer->pageno,
+			      get_order(buffer->len));
+	spin_unlock_irqrestore(&sec_heap->sec_mem->spinlock, flags);
+err_free_buffer:
+	kfree(buffer);
+	return IS_ERR(dmabuf) ? dmabuf : ERR_PTR(-ENOMEM);
 }
 
 #if IS_ENABLED(CONFIG_NO_GKI)
