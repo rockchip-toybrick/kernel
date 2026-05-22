@@ -354,7 +354,7 @@ static struct dma_buf *secure_heap_allocate(struct dma_heap *heap,
 	struct secure_heap_buffer *buffer;
 	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
 	size_t size = PAGE_ALIGN(len);
-	struct dma_buf *dmabuf;
+	struct dma_buf *dmabuf = ERR_PTR(-ENOMEM);
 	unsigned long flags;
 	int pageno;
 	pgoff_t pg;
